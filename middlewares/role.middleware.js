@@ -1,10 +1,18 @@
+import sendErrorResponse from '../common/http/send-error-response.js';
+
 const authorizeRoles = (...allowedRoles) => (req, res, next) => {
     if (!req.user) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return sendErrorResponse(res, 401, 'Unauthorized', 'AUTH_REQUIRED');
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-        return res.status(403).json({ message: 'Forbidden' });
+        return sendErrorResponse(
+            res,
+            403,
+            'Forbidden',
+            'ROLE_FORBIDDEN',
+            ['Your account does not have permission to access this resource.']
+        );
     }
 
     next();

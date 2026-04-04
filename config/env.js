@@ -1,6 +1,18 @@
-import {config } from 'dotenv';
+import { config } from 'dotenv';
 
-config({path: `.env.${process.env.NODE_ENV || 'development'}.local` });
+const nodeEnv = process.env.NODE_ENV || 'development';
+const resolvedEnvFilePath = `.env.${nodeEnv}.local`;
+
+config({ path: resolvedEnvFilePath });
+
+const requiredEnvVars = ['PORT', 'DB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
+const missingEnvVars = requiredEnvVars.filter((envName) => !process.env[envName]);
+
+if (missingEnvVars.length > 0) {
+    throw new Error(
+        `Missing required env vars in ${resolvedEnvFilePath}: ${missingEnvVars.join(', ')}`
+    );
+}
 
 export const {
     PORT,
@@ -8,7 +20,13 @@ export const {
     DB_URI,
     JWT_EXPIRES_IN,
     JWT_SECRET,
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI,
     ARCJET_ENV,
     ARCJET_KEY,
     EMAIL_PASSWORD,
+    ADMIN_NAME,
+    ADMIN_EMAIL,
+    ADMIN_PASSWORD,
 } = process.env;

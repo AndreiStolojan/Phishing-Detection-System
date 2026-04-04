@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
     name: {
-        type: String, required: [true, 'Username is required'],
+        type: String,
+        required: [true, 'Username is required'],
         trim: true,
         minlength: 2,
         maxlength: 50,
@@ -13,7 +14,7 @@ const userSchema = new mongoose.Schema({
         unique: true,
         trim: true,
         lowercase: true,
-        match: [/\S+@\S+\.\S+/, 'Please bro fill a valid email address'],
+        match: [/\S+@\S+\.\S+/, 'Please provide a valid email address'],
     },
     passwordHash: {
         type: String,
