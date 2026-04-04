@@ -1,7 +1,7 @@
 ### Manual auth smoke test
 ### File temporar pentru verificare rapida. Il putem sterge dupa testare.
 
-@baseUrl = http://localhost:5000/api/v1
+@baseUrl = http://localhost:5500/api/v1
 @contentType = application/json
 
 ### 1. Register

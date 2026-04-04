@@ -13,10 +13,10 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-04-02`
-- Faza curentă: `Faza 1 - Setup backend`
-- Status general: `backend-ul de bază și auth-ul minim sunt funcționale, iar fundația a fost curățată parțial pentru continuarea cu mail accounts`
-- Progres estimativ MVP: `25%`
+- Data ultimei actualizări: `2026-04-04`
+- Faza curentă: `Tranziție între Faza 3 - Auth și Faza 5 - Mail Accounts`
+- Status general: `auth-ul MVP este închis mai coerent, cu strategie clară de token, erori uniforme și bootstrap pentru admin, iar backend-ul este pregătit pentru proiectarea modulului mailAccounts`
+- Progres estimativ MVP: `30%`
 
 ## Ce este gata
 
@@ -36,15 +36,26 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - endpoint-uri funcționale pentru `register`, `login`, `logout`;
 - middleware de auth și de erori;
 - middleware minim pentru roluri;
+- middleware de validare Joi pentru `register/login`;
 - logică mutată din `controllers` în `services` pentru `auth` și `users`;
 - endpoint `GET /api/v1/users/me`;
+- endpoint `GET /api/v1/health`;
 - restricționare endpoint-uri users pentru admin;
 - UI temporar de test pentru auth;
 - test manual reușit pentru `register`, `login`, `users/me` și persistență la refresh.
+- strategie clară pentru auth MVP: `Bearer token` în header-ul `Authorization`;
+- răspunsuri de eroare mai uniforme în middleware-uri și auth;
+- script de bootstrap pentru primul admin;
+- mutarea integrărilor opționale `Arcjet` și welcome email în `extras/`.
+- model `MailAccount` pentru Gmail;
+- endpoint `GET /api/v1/mail-accounts/google/start`;
+- endpoint `GET /api/v1/mail-accounts/google/callback`;
+- endpoint `GET /api/v1/mail-accounts`;
+- endpoint `DELETE /api/v1/mail-accounts/:id`;
+- salvarea conexiunii Gmail în MongoDB după callback-ul Google.
 
 ## Ce NU este încă început
 
-- conectarea contului de email;
 - sync emailuri;
 - motorul de scanare;
 - acțiunile pe email;
@@ -54,11 +65,11 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- stabilizarea auth-ului minim și verificarea lui prin UI temporar de test.
+- conectarea de bază a unui cont Gmail prin OAuth și salvarea conexiunii în `mailAccounts`.
 
 Următorul pas imediat recomandat:
 
-- închiderea completă a auth-ului minim prin validări de input și definirea strategiei pentru admin, apoi proiectarea modulului `mailAccounts`.
+- implementarea sync-ului inițial pentru contul Gmail deja conectat.
 
 ## Blocaje
 
@@ -67,7 +78,7 @@ Nu există blocaje tehnice majore, dar există încă un blocaj de organizare:
 - documentația descrie un proiect abia neînceput;
 - codul existent are deja părți implementate;
 - înainte de funcționalități noi, trebuie continuată alinierea structurii, naming-ului și responsabilităților fișierelor;
-- configurația Arcjet trebuie verificată și păstrată corectă pentru a nu bloca testarea.
+- încă nu este făcută reorganizarea în `src/` și pe modulele finale.
 
 ## Notițe rapide pentru sesiunea următoare
 
@@ -75,7 +86,5 @@ Nu există blocaje tehnice majore, dar există încă un blocaj de organizare:
 - verifică `TODO.md`;
 - păstrează focusul pe MVP;
 - păstrează naming-ul `register/login/logout`;
-- continuă cu validările pentru auth;
-- decide clar cum creezi primul admin;
 - proiectează modelul și rutele pentru `mailAccounts`;
 - nu investi încă timp în frontend real, UI-ul actual este doar pentru test temporar.

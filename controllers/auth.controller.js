@@ -34,7 +34,7 @@ export const logout = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            message: 'User successfully signed out',
+            message: 'Logout handled client-side. Remove the bearer token from client storage.',
         });
     } catch (err) {
         next(err);

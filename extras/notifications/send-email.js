@@ -1,6 +1,7 @@
-import nodemailer from "nodemailer";
-import { EMAIL_PASSWORD } from "../config/env.js";
-import welcomeTemplate from "./email.template.js";
+import nodemailer from 'nodemailer';
+
+import { EMAIL_PASSWORD } from '../../config/env.js';
+import welcomeTemplate from './email.template.js';
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -14,6 +15,7 @@ export const sendWelcomeEmail = async ({ email, userName }) => {
     if (!email) {
         throw new Error('Email is required');
     }
+
     if (!userName) {
         throw new Error('User name is required');
     }
@@ -29,16 +31,11 @@ export const sendWelcomeEmail = async ({ email, userName }) => {
     const mailOptions = {
         from: 'andreistolojan@gmail.com',
         to: email,
-        subject: subject,
-        html: html
+        subject,
+        html
     };
 
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log('Email de bun venit trimis:', info.messageId);
-        return { success: true, messageId: info.messageId };
-    } catch (error) {
-        console.error('Eroare la trimiterea emailului:', error);
-        throw error;
-    }
+    const info = await transporter.sendMail(mailOptions);
+
+    return { success: true, messageId: info.messageId };
 };

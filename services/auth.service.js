@@ -2,9 +2,9 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+import createError from '../common/errors/create-error.js';
 import { JWT_EXPIRES_IN, JWT_SECRET } from '../config/env.js';
 import User from '../models/user.model.js';
-import { sendWelcomeEmail } from '../utils/send-email.js';
 
 const toPublicUser = (user) => ({
     _id: user._id,
@@ -28,9 +28,7 @@ export const registerUser = async ({ name, email, password }) => {
         const existingUser = await User.findOne({ email });
 
         if (existingUser) {
-            const error = new Error('User already exist');
-            error.statusCode = 409;
-            throw error;
+            throw createError('User already exists', 409, [], 'USER_ALREADY_EXISTS');
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -50,10 +48,6 @@ export const registerUser = async ({ name, email, password }) => {
 
         await session.commitTransaction();
 
-        // sendWelcomeEmail({ email, userName: name }).catch((err) => {
-        //     console.error('Nu s-a putut trimite emailul de bun venit:', err.message);
-        // });
-
         return buildAuthResponse(createdUser, token);
     } catch (error) {
         await session.abortTransaction();
@@ -67,17 +61,13 @@ export const loginUser = async ({ email, password }) => {
     const user = await User.findOne({ email }).select('+passwordHash');
 
     if (!user) {
-        const error = new Error('User not found');
-        error.statusCode = 404;
-        throw error;
+        throw createError('Invalid email or password', 401, [], 'INVALID_CREDENTIALS');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
-        const error = new Error('Invalid password');
-        error.statusCode = 401;
-        throw error;
+        throw createError('Invalid email or password', 401, [], 'INVALID_CREDENTIALS');
     }
 
     const token = jwt.sign(

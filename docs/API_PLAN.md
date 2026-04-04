@@ -21,7 +21,7 @@ Prefix recomandat pentru API:
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/api/v1/auth/register` | Creează cont nou | `name`, `email`, `password` | user minim + token sau mesaj de succes | Nu |
 | `POST` | `/api/v1/auth/login` | Autentifică utilizatorul | `email`, `password` | token JWT + user minim | Nu |
-| `GET` | `/api/v1/auth/me` | Returnează utilizatorul curent | fără body | user curent | Da |
+| `POST` | `/api/v1/auth/logout` | Închide sesiunea în client | fără body | mesaj de succes | Nu |
 
 ## Users
 
@@ -34,10 +34,9 @@ Prefix recomandat pentru API:
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/mail-accounts` | Conectează un cont de email | `provider`, date de conectare sau cod OAuth | cont conectat | Da |
+| `GET` | `/api/v1/mail-accounts/google/start` | Generează URL-ul pentru conectarea Gmail | fără body | `authUrl` | Da |
+| `GET` | `/api/v1/mail-accounts/google/callback` | Procesează întoarcerea de la Google | query `code`, `state` | cont conectat | Nu |
 | `GET` | `/api/v1/mail-accounts` | Listează conturile conectate | fără body | listă conturi | Da |
-| `GET` | `/api/v1/mail-accounts/:id` | Detalii cont conectat | param `id` | un cont de email | Da |
-| `POST` | `/api/v1/mail-accounts/:id/sync` | Pornește sincronizarea manuală | param `id` | rezultat sync | Da |
 | `DELETE` | `/api/v1/mail-accounts/:id` | Deconectează contul | param `id` | mesaj de succes | Da |
 
 ## Emails
@@ -101,6 +100,11 @@ Exemplu pentru eroare:
 
 ## Observații importante
 
+- Pentru MVP, strategia aleasă este `Bearer token` trimis în header-ul `Authorization`.
+- `logout` nu invalidează tokenul pe server, ci doar cere clientului să șteargă tokenul salvat local.
+- Endpoint-ul pentru utilizatorul curent rămâne doar `GET /api/v1/users/me`.
+- Flow-ul Gmail actual este bazat pe `google/start -> google/callback`.
+- `google/start` este protejat cu JWT-ul aplicației, iar `google/callback` se bazează pe `state`, nu pe header-ul `Authorization`.
 - `move-to-spam` rămâne condiționat de ce permite providerul.
 - `mail-accounts` trebuie gândit astfel încât să poată primi și alți provideri în viitor, fără a complica MVP-ul acum.
 - Endpoint-urile de scanare trebuie să poată returna clar:

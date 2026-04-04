@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: backend de bază și auth minim funcționale, în curs de curățare și pregătire pentru integrarea contului de email
-- Progres estimativ MVP: `25%`
-- Faza curentă: `Faza 1 - Setup backend`
+- Stadiu actual: auth-ul MVP este închis mai coerent și proiectul este pregătit pentru proiectarea modulului `mailAccounts`
+- Progres estimativ MVP: `30%`
+- Faza curentă: `Tranziție între Faza 3 - Auth și Faza 5 - Mail Accounts`
 
 ## Legendă
 
@@ -51,10 +51,10 @@ Milestone: aplicație Express pornită curat
 - [x] Configurare `express`
 - [x] Separare `app.js` de `server.js`
 - [x] Configurare `dotenv`
-- [-] Configurare fișier central de config
-- [-] Configurare middleware de bază
-- [-] Configurare handling pentru erori
-- [ ] Endpoint simplu de health check
+- [x] Configurare fișier central de config
+- [x] Configurare middleware de bază
+- [x] Configurare handling pentru erori
+- [x] Endpoint simplu de health check
 - [-] Scripturi utile în `package.json`
 - [-] Aliniere naming pentru endpoint-uri și fișiere
 
@@ -89,11 +89,13 @@ Milestone: userul se poate înregistra și autentifica
 - [x] Generare token JWT
 - [x] Middleware de autentificare
 - [x] Rută protejată de test
-- [-] Mesaje de eroare clare pentru auth
+- [x] Mesaje de eroare clare pentru auth
 - [x] Mutare logică auth din controller în service
 - [x] Decizie finală pentru `register/login` vs `sign-up/sign-in`
-- [ ] Validări dedicate pentru `register/login`
-- [ ] Decizie finală pentru strategia de persistență token în aplicația finală
+- [x] Validări dedicate pentru `register/login`
+- [x] Decizie finală pentru strategia de persistență token în aplicația finală
+- [x] Alegere endpoint unic pentru utilizatorul curent (`users/me`)
+- [x] Definire strategie bootstrap pentru primul admin
 
 Dependențe: Faza 2
 
@@ -116,12 +118,12 @@ Obligatoriu pentru MVP: da
 
 Milestone: conectare cont de email, cu focus pe Gmail
 
-- [ ] Alegere mecanism principal pentru Gmail
-- [ ] Creare model `MailAccount`
-- [ ] Salvare conexiune mail account
-- [ ] Endpoint pentru conectare cont
-- [ ] Endpoint pentru listare conturi conectate
-- [ ] Endpoint pentru deconectare cont
+- [x] Alegere mecanism principal pentru Gmail
+- [x] Creare model `MailAccount`
+- [x] Salvare conexiune mail account
+- [x] Endpoint pentru conectare cont
+- [x] Endpoint pentru listare conturi conectate
+- [x] Endpoint pentru deconectare cont
 - [ ] Salvare stare sync și metadate utile
 
 Dependențe: Faza 3
@@ -260,6 +262,7 @@ Obligatoriu pentru MVP: da
 - [x] Register și login
 - [x] JWT și protecția rutelor
 - [x] Profil utilizator curent (`users/me`)
+- [x] Health check
 - [ ] Conectare cont Gmail
 - [ ] Sync emailuri
 - [ ] Salvare emailuri
@@ -293,6 +296,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: documentația internă inițială
+Ultimul punct finalizat: închiderea auth-ului MVP și alinierea documentației tehnice
 
-Următorul pas recomandat: `Faza 1 - Setup backend`
+Următorul pas recomandat: începutul sync-ului pentru contul Gmail conectat

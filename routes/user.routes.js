@@ -9,8 +9,5 @@ const userRouter = Router();
 userRouter.get('/me', authorize, getMe);
 userRouter.get('/', authorize, authorizeRoles('admin'), getUsers);
 userRouter.get('/:id', authorize, authorizeRoles('admin'), getUser);
-userRouter.post('/', (req, res) => res.send({title: 'Create a new user'}));
-userRouter.put('/:id', (req, res) => res.send({title: 'Update user'}));
-userRouter.delete('/:id', (req, res) => res.send({title: 'Delete user'}));
 
 export default userRouter;

@@ -78,3 +78,53 @@ Impact:
 
 - investiția principală merge în API, modele, sync și scanare;
 - UI-ul rămâne simplu până când fluxul principal este stabil.
+
+### 2026-04-04 - Auth-ul MVP folosește Bearer token în header-ul Authorization
+
+Motiv:
+
+- este varianta cea mai simplă de înțeles și de implementat pentru faza actuală;
+- se pot testa ușor endpoint-urile din Postman, fișiere `.http` sau UI-ul de test;
+- evită complexitatea suplimentară a cookie-urilor și a invalidării de sesiune pe server în MVP.
+
+Impact:
+
+- clientul salvează tokenul și îl trimite ca `Authorization: Bearer <token>`;
+- `logout` este tratat în client prin ștergerea tokenului local;
+- dacă mai târziu vrem sesiuni invalidate pe server, va trebui introdusă o strategie nouă, de exemplu cookies sau token blacklist.
+
+### 2026-04-04 - Endpoint-ul pentru utilizatorul curent rămâne `GET /api/v1/users/me`
+
+Motiv:
+
+- utilizatorul curent este o resursă din modulul `users`, nu o acțiune de auth;
+- evităm dublarea semanticii între `/auth/me` și `/users/me`.
+
+Impact:
+
+- documentația și testele trebuie să folosească doar `/api/v1/users/me`.
+
+### 2026-04-04 - Primul admin este creat prin bootstrap manual din variabile de mediu
+
+Motiv:
+
+- este ușor de controlat și de explicat într-un proiect de licență;
+- evită logica inutilă de creare automată a adminului la fiecare pornire;
+- păstrează clară separarea dintre utilizatori normali și contul administrativ.
+
+Impact:
+
+- există un script dedicat pentru bootstrap admin;
+- credențialele adminului nu trebuie hardcodate în cod.
+
+### 2026-04-04 - Funcționalitățile Arcjet și welcome email sunt mutate în `extras/`
+
+Motiv:
+
+- nu fac parte din fluxul minim obligatoriu pentru MVP;
+- păstrăm codul pentru mai târziu, fără să încarce fluxul principal de auth.
+
+Impact:
+
+- backend-ul pornește fără să depindă de Arcjet sau Nodemailer pentru auth;
+- integrarea lor poate fi reactivată ulterior din folderul `extras/`.
