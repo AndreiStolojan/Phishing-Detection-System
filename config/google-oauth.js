@@ -8,6 +8,8 @@ export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.reado
 export const GOOGLE_OAUTH_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profile';
+export const GMAIL_MESSAGES_LIST_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
+export const GMAIL_MESSAGE_DETAILS_BASE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
 
 export const googleOAuthConfig = {
     clientId: GOOGLE_CLIENT_ID,
@@ -54,4 +56,11 @@ export const exchangeCodePayload = ({ code }) => new URLSearchParams({
     redirect_uri: GOOGLE_REDIRECT_URI,
     grant_type: 'authorization_code',
     code,
+});
+
+export const refreshTokenPayload = ({ refreshToken }) => new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    client_secret: GOOGLE_CLIENT_SECRET,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
 });
