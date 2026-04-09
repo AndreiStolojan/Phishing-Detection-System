@@ -13,10 +13,10 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-04-04`
-- Faza curentă: `Tranziție între Faza 3 - Auth și Faza 5 - Mail Accounts`
-- Status general: `auth-ul MVP este închis mai coerent, cu strategie clară de token, erori uniforme și bootstrap pentru admin, iar backend-ul este pregătit pentru proiectarea modulului mailAccounts`
-- Progres estimativ MVP: `30%`
+- Data ultimei actualizări: `2026-04-09`
+- Faza curentă: `Faza 6 - Sync emailuri inițial implementat`
+- Status general: `auth-ul MVP este stabil, conectarea Gmail funcționează, iar sync-ul manual salvează primele emailuri din inbox în MongoDB fără duplicate`
+- Progres estimativ MVP: `45%`
 
 ## Ce este gata
 
@@ -53,23 +53,31 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - endpoint `GET /api/v1/mail-accounts`;
 - endpoint `DELETE /api/v1/mail-accounts/:id`;
 - salvarea conexiunii Gmail în MongoDB după callback-ul Google.
+- test manual reușit pentru conectarea unui cont Gmail din lista de test users Google.
+- model `Email` pentru emailurile sincronizate;
+- endpoint `POST /api/v1/mail-accounts/:id/sync`;
+- sync Gmail manual pentru ultimele emailuri din inbox;
+- prevenire duplicate prin index `userId + providerMessageId`;
+- actualizare `lastSyncedAt` după fiecare sync;
+- refresh automat pentru `accessToken` la răspuns `401` de la Gmail API.
+- test manual reușit pentru fluxul API complet: `register -> login -> connect Gmail -> sync manual`.
 
 ## Ce NU este încă început
 
-- sync emailuri;
 - motorul de scanare;
 - acțiunile pe email;
 - integrarea Ollama.
+- parsarea avansată pentru corpul emailului, linkuri și atașamente.
 
 ## Unde am rămas exact
 
 Ultimul lucru finalizat:
 
-- conectarea de bază a unui cont Gmail prin OAuth și salvarea conexiunii în `mailAccounts`.
+- implementarea și testarea sync-ului manual Gmail și salvarea emailurilor în colecția `emails`.
 
 Următorul pas imediat recomandat:
 
-- implementarea sync-ului inițial pentru contul Gmail deja conectat.
+- implementarea fazei de extracție date relevante (`from`, `subject`, `receivedAt`, linkuri) și pregătirea pentru scorare.
 
 ## Blocaje
 
@@ -86,5 +94,8 @@ Nu există blocaje tehnice majore, dar există încă un blocaj de organizare:
 - verifică `TODO.md`;
 - păstrează focusul pe MVP;
 - păstrează naming-ul `register/login/logout`;
-- proiectează modelul și rutele pentru `mailAccounts`;
+- păstrează sync-ul manual ca bază pentru validare;
+- extinde modelul `Email` doar cu câmpurile necesare pentru scanare;
+- separă clar ce vine din reguli clasice și ce va veni mai târziu din semnale AI;
+- adaugă următorul strat: parsare linkuri și pregătire pentru motorul de reguli;
 - nu investi încă timp în frontend real, UI-ul actual este doar pentru test temporar.

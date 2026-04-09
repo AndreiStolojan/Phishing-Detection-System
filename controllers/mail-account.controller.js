@@ -3,6 +3,7 @@ import {
     disconnectMailAccountForUser,
     getGoogleConnectUrl,
     getMailAccountsForUser,
+    syncGmailEmailsForUser,
 } from '../services/mail-account.service.js';
 
 export const getMailAccounts = async (req, res, next) => {
@@ -59,6 +60,23 @@ export const disconnectMailAccount = async (req, res, next) => {
         res.status(200).json({
             success: true,
             message: result.message,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const syncMailAccount = async (req, res, next) => {
+    try {
+        const syncResult = await syncGmailEmailsForUser({
+            userId: req.user._id,
+            mailAccountId: req.params.id,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Mail account synced successfully',
+            data: syncResult,
         });
     } catch (error) {
         next(error);

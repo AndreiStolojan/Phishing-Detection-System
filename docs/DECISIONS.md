@@ -128,3 +128,32 @@ Impact:
 
 - backend-ul pornește fără să depindă de Arcjet sau Nodemailer pentru auth;
 - integrarea lor poate fi reactivată ulterior din folderul `extras/`.
+
+### 2026-04-04 - Fiecare chat nou trebuie să explice simplu și să evite codul până la cerere explicită
+
+Motiv:
+
+- proiectul este folosit și pentru învățare, nu doar pentru livrare;
+- utilizatorul vrea să înțeleagă clar ce se întâmplă înainte de implementare;
+- pașii mici și explicațiile simple cresc șansa ca proiectul să fie și terminat, și înțeles.
+
+Impact:
+
+- se explică simplu, ca pentru un începător;
+- nu se scrie cod decât când utilizatorul cere clar asta;
+- după fiecare pas important se actualizează documentația proiectului.
+
+### 2026-04-09 - Sync-ul inițial Gmail salvează toate emailurile sincronizate, nu doar cele phishing
+
+Motiv:
+
+- aplicația are nevoie de istoric complet pentru listare și comparație;
+- scorarea și verdictul se pot recalcula ulterior fără pierdere de date;
+- păstrăm MVP-ul simplu prin separarea între datele emailului și rezultatul scanării.
+
+Impact:
+
+- a fost introdus modelul `Email` cu câmpuri minime pentru MVP;
+- sync-ul manual (`POST /api/v1/mail-accounts/:id/sync`) aduce ultimele emailuri din inbox;
+- duplicatele sunt prevenite prin cheia `userId + providerMessageId`;
+- clasificarea phishing va fi salvată separat în colecția `scans` într-o fază următoare.

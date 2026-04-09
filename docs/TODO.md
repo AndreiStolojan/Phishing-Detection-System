@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este închis mai coerent și proiectul este pregătit pentru proiectarea modulului `mailAccounts`
-- Progres estimativ MVP: `30%`
-- Faza curentă: `Tranziție între Faza 3 - Auth și Faza 5 - Mail Accounts`
+- Stadiu actual: auth-ul MVP este stabil, conectarea Gmail funcționează, iar sync-ul manual Gmail este implementat pentru primele emailuri
+- Progres estimativ MVP: `45%`
+- Faza curentă: `Faza 6 - Sync emailuri (în lucru)`
 
 ## Legendă
 
@@ -124,7 +124,7 @@ Milestone: conectare cont de email, cu focus pe Gmail
 - [x] Endpoint pentru conectare cont
 - [x] Endpoint pentru listare conturi conectate
 - [x] Endpoint pentru deconectare cont
-- [ ] Salvare stare sync și metadate utile
+- [x] Salvare stare sync și metadate utile
 
 Dependențe: Faza 3
 
@@ -136,14 +136,15 @@ Notă: varianta principală recomandată este un singur provider la început, Gm
 
 Milestone: aplicația citește și salvează emailuri
 
-- [ ] Alegere strategie de sync inițial
-- [ ] Creare model `Email`
-- [ ] Implementare serviciu de citire emailuri
-- [ ] Salvare emailuri brute și metadate utile
-- [ ] Evitare duplicatelor prin `providerMessageId`
-- [ ] Endpoint pentru declanșare sync manual
-- [ ] Salvare `lastSyncedAt`
+- [x] Alegere strategie de sync inițial
+- [x] Creare model `Email`
+- [x] Implementare serviciu de citire emailuri
+- [-] Salvare emailuri brute și metadate utile
+- [x] Evitare duplicatelor prin `providerMessageId`
+- [x] Endpoint pentru declanșare sync manual
+- [x] Salvare `lastSyncedAt`
 - [ ] Logare clară a erorilor de sync
+- [x] Test manual end-to-end pentru flow-ul `register -> login -> connect Gmail -> sync manual`
 
 Dependențe: Faza 5
 
@@ -263,9 +264,9 @@ Obligatoriu pentru MVP: da
 - [x] JWT și protecția rutelor
 - [x] Profil utilizator curent (`users/me`)
 - [x] Health check
-- [ ] Conectare cont Gmail
-- [ ] Sync emailuri
-- [ ] Salvare emailuri
+- [x] Conectare cont Gmail
+- [-] Sync emailuri
+- [-] Salvare emailuri
 - [ ] Extracție linkuri și metadate utile
 - [ ] Scor phishing bazat pe reguli
 - [ ] Verdict și motive clare
@@ -296,6 +297,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: închiderea auth-ului MVP și alinierea documentației tehnice
+Ultimul punct finalizat: sync manual Gmail implementat si testat cap-coada pentru primele emailuri
 
-Următorul pas recomandat: începutul sync-ului pentru contul Gmail conectat
+Următorul pas recomandat: extracția datelor relevante pentru motorul de scanare și definirea primelor semnale de risc

@@ -37,6 +37,7 @@ Prefix recomandat pentru API:
 | `GET` | `/api/v1/mail-accounts/google/start` | Generează URL-ul pentru conectarea Gmail | fără body | `authUrl` | Da |
 | `GET` | `/api/v1/mail-accounts/google/callback` | Procesează întoarcerea de la Google | query `code`, `state` | cont conectat | Nu |
 | `GET` | `/api/v1/mail-accounts` | Listează conturile conectate | fără body | listă conturi | Da |
+| `POST` | `/api/v1/mail-accounts/:id/sync` | Rulează sync manual pentru contul conectat | param `id` | raport sync (`fetched`, `inserted`, `updated`, `skipped`) | Da |
 | `DELETE` | `/api/v1/mail-accounts/:id` | Deconectează contul | param `id` | mesaj de succes | Da |
 
 ## Emails
@@ -104,6 +105,7 @@ Exemplu pentru eroare:
 - `logout` nu invalidează tokenul pe server, ci doar cere clientului să șteargă tokenul salvat local.
 - Endpoint-ul pentru utilizatorul curent rămâne doar `GET /api/v1/users/me`.
 - Flow-ul Gmail actual este bazat pe `google/start -> google/callback`.
+- Pentru sync-ul manual Gmail se folosește `POST /api/v1/mail-accounts/:id/sync`.
 - `google/start` este protejat cu JWT-ul aplicației, iar `google/callback` se bazează pe `state`, nu pe header-ul `Authorization`.
 - `move-to-spam` rămâne condiționat de ce permite providerul.
 - `mail-accounts` trebuie gândit astfel încât să poată primi și alți provideri în viitor, fără a complica MVP-ul acum.
