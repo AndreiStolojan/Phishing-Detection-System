@@ -106,6 +106,7 @@ Exemplu pentru eroare:
 - Endpoint-ul pentru utilizatorul curent rămâne doar `GET /api/v1/users/me`.
 - Flow-ul Gmail actual este bazat pe `google/start -> google/callback`.
 - Pentru sync-ul manual Gmail se folosește `POST /api/v1/mail-accounts/:id/sync`.
+- Sync-ul manual Gmail salvează și câmpuri parse-ate utile pentru scanare (`replyTo`, corp text/html, linkuri, domenii, extensii atașamente).
 - `google/start` este protejat cu JWT-ul aplicației, iar `google/callback` se bazează pe `state`, nu pe header-ul `Authorization`.
 - `move-to-spam` rămâne condiționat de ce permite providerul.
 - `mail-accounts` trebuie gândit astfel încât să poată primi și alți provideri în viitor, fără a complica MVP-ul acum.
@@ -114,3 +115,4 @@ Exemplu pentru eroare:
   - verdictul;
   - motivele;
   - regulile declanșate.
+- Pentru explainability AI, inputul pregătit trebuie să folosească textul relevant complet (`subject + textBody`, cu fallback), nu doar `snippet`.

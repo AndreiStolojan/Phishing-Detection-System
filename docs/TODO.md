@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, conectarea Gmail funcționează, iar sync-ul manual Gmail este implementat pentru primele emailuri
-- Progres estimativ MVP: `45%`
-- Faza curentă: `Faza 6 - Sync emailuri (în lucru)`
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, iar primul motor de scanare pe reguli este implementat
+- Progres estimativ MVP: `68%`
+- Faza curentă: `Faza 8 - Motor de detecție phishing (în lucru)`
 
 ## Legendă
 
@@ -139,7 +139,7 @@ Milestone: aplicația citește și salvează emailuri
 - [x] Alegere strategie de sync inițial
 - [x] Creare model `Email`
 - [x] Implementare serviciu de citire emailuri
-- [-] Salvare emailuri brute și metadate utile
+- [x] Salvare emailuri brute și metadate utile
 - [x] Evitare duplicatelor prin `providerMessageId`
 - [x] Endpoint pentru declanșare sync manual
 - [x] Salvare `lastSyncedAt`
@@ -154,12 +154,12 @@ Obligatoriu pentru MVP: da
 
 Milestone: emailurile au date pregătite pentru analiză
 
-- [ ] Extracție `from`, `subject`, `receivedAt`
-- [ ] Parsare linkuri
-- [ ] Parsare domenii din linkuri
-- [ ] Parsare atașamente și extensii
+- [x] Extracție `from`, `subject`, `receivedAt`
+- [x] Parsare linkuri
+- [x] Parsare domenii din linkuri
+- [x] Parsare atașamente și extensii
 - [ ] Detectare text urgent sau termeni sensibili
-- [ ] Salvare câmpuri derivate în email
+- [x] Salvare câmpuri derivate în email
 
 Dependențe: Faza 6
 
@@ -169,13 +169,15 @@ Obligatoriu pentru MVP: da
 
 Milestone: scor și motive pentru fiecare email
 
-- [ ] Definire set inițial de reguli
-- [ ] Implementare funcție de scoring
-- [ ] Creare model `Scan`
-- [ ] Salvare reguli declanșate
-- [ ] Salvare scor final
-- [ ] Mapare scor -> verdict
-- [ ] Endpoint pentru scan manual
+- [x] Definire set inițial de reguli
+- [x] Implementare funcție de scoring
+- [x] Creare model `Scan`
+- [x] Salvare reguli declanșate
+- [x] Salvare scor final
+- [x] Mapare scor -> verdict
+- [x] Endpoint pentru scan manual
+- [x] Endpoint pentru ultima scanare a unui email
+- [x] Test manual pentru scanare și `latest`
 - [ ] Scan la sync sau după sync
 
 Dependențe: Faza 7
@@ -267,10 +269,10 @@ Obligatoriu pentru MVP: da
 - [x] Conectare cont Gmail
 - [-] Sync emailuri
 - [-] Salvare emailuri
-- [ ] Extracție linkuri și metadate utile
-- [ ] Scor phishing bazat pe reguli
-- [ ] Verdict și motive clare
-- [ ] Listare emailuri și rezultat scan
+- [-] Extracție linkuri și metadate utile
+- [-] Scor phishing bazat pe reguli
+- [-] Verdict și motive clare
+- [-] Listare emailuri și rezultat scan
 - [ ] `mark safe`
 - [ ] `block sender local`
 
@@ -297,6 +299,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: sync manual Gmail implementat si testat cap-coada pentru primele emailuri
+Ultimul punct finalizat: scanare manuala si endpoint-ul `latest` testate cu succes pe emailuri sincronizate
 
-Următorul pas recomandat: extracția datelor relevante pentru motorul de scanare și definirea primelor semnale de risc
+Următorul pas recomandat: integrarea semnalelor AI semantice pe textul complet al emailului

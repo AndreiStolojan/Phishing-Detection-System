@@ -157,3 +157,31 @@ Impact:
 - sync-ul manual (`POST /api/v1/mail-accounts/:id/sync`) aduce ultimele emailuri din inbox;
 - duplicatele sunt prevenite prin cheia `userId + providerMessageId`;
 - clasificarea phishing va fi salvată separat în colecția `scans` într-o fază următoare.
+
+### 2026-04-10 - Sync-ul Gmail folosește `format=full`, cu parser separat pentru extracția feature-urilor
+
+Motiv:
+
+- pentru detecția phishing avem nevoie de corpul emailului, linkuri și atașamente, nu doar metadata;
+- păstrăm serviciul de sync mai clar prin separarea între fetch Gmail, parsare email și analiză linkuri;
+- pregătim terenul pentru scoring euristic fără a introduce încă dependențe externe.
+
+Impact:
+
+- apelul `users.messages.get` este făcut în `format=full`;
+- au fost adăugate câmpuri derivate în `emails` (`replyTo`, `senderDomain`, `links`, `linkDomains`, `attachmentExtensions` etc.);
+- logica de parsare este mutată în servicii dedicate, ușor de extins în faza de scanare.
+
+### 2026-04-10 - Verdictul inițial este calculat de motorul de reguli, iar AI-ul este pregătit separat pentru semantică și explainability
+
+Motiv:
+
+- MVP-ul are nevoie de un verdict stabil, testabil și ușor de explicat academic;
+- semnalele AI vor completa regulile, nu vor înlocui scorarea principală în prima iterație;
+- pentru AI folosim inputul relevant complet al emailului (`subject + textBody` cu fallback), nu doar `snippet`.
+
+Impact:
+
+- a fost introdus modelul `Scan` cu `score`, `verdict`, `reasons` și `triggeredRules`;
+- a fost implementată scanarea manuală prin endpoint-uri dedicate;
+- structura `aiSignals` și helperul de input AI sunt pregătite pentru integrarea semantică în pasul următor.

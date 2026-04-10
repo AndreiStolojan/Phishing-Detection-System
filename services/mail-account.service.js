@@ -14,6 +14,7 @@ import {
     refreshTokenPayload,
 } from '../config/google-oauth.js';
 import { JWT_SECRET } from '../config/env.js';
+import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
 
 const GMAIL_SYNC_MAX_RESULTS = 20;
 
@@ -244,49 +245,6 @@ const requestGoogleJson = async ({
     );
 };
 
-const getHeaderValue = (headers, headerName) => {
-    const normalizedHeaderName = headerName.toLowerCase();
-
-    const header = headers.find((item) => item.name?.toLowerCase() === normalizedHeaderName);
-
-    return header?.value || '';
-};
-
-const getReceivedAtDate = (gmailMessage, headers) => {
-    const internalDateValue = Number(gmailMessage.internalDate);
-
-    if (Number.isFinite(internalDateValue)) {
-        return new Date(internalDateValue);
-    }
-
-    const dateHeaderValue = getHeaderValue(headers, 'Date');
-    const dateFromHeader = dateHeaderValue ? new Date(dateHeaderValue) : null;
-
-    if (dateFromHeader && !Number.isNaN(dateFromHeader.getTime())) {
-        return dateFromHeader;
-    }
-
-    return new Date();
-};
-
-const toEmailPayload = ({ gmailMessage, mailAccount, syncSource }) => {
-    const headers = gmailMessage.payload?.headers || [];
-
-    return {
-        userId: mailAccount.userId,
-        mailAccountId: mailAccount._id,
-        provider: 'gmail',
-        providerMessageId: gmailMessage.id,
-        threadId: gmailMessage.threadId || null,
-        subject: getHeaderValue(headers, 'Subject'),
-        from: getHeaderValue(headers, 'From'),
-        to: getHeaderValue(headers, 'To'),
-        snippet: gmailMessage.snippet || '',
-        receivedAt: getReceivedAtDate(gmailMessage, headers),
-        syncSource,
-    };
-};
-
 const fetchGmailMessagesList = async (mailAccount) => {
     const query = new URLSearchParams({
         maxResults: String(GMAIL_SYNC_MAX_RESULTS),
@@ -309,13 +267,8 @@ const fetchGmailMessagesList = async (mailAccount) => {
 
 const fetchGmailMessageDetails = async ({ mailAccount, messageId }) => {
     const query = new URLSearchParams({
-        format: 'metadata',
+        format: 'full',
     });
-
-    query.append('metadataHeaders', 'Subject');
-    query.append('metadataHeaders', 'From');
-    query.append('metadataHeaders', 'To');
-    query.append('metadataHeaders', 'Date');
 
     const url = `${GMAIL_MESSAGE_DETAILS_BASE_URL}/${encodeURIComponent(messageId)}?${query.toString()}`;
 
@@ -479,7 +432,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             throw error;
         }
 
-        const emailPayload = toEmailPayload({
+        const emailPayload = parseGmailMessageToEmailPayload({
             gmailMessage: messageDetails,
             mailAccount,
             syncSource,

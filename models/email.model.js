@@ -44,9 +44,65 @@ const emailSchema = new mongoose.Schema(
             default: '',
             trim: true,
         },
+        replyTo: {
+            type: String,
+            default: '',
+            trim: true,
+            lowercase: true,
+        },
+        displayName: {
+            type: String,
+            default: '',
+            trim: true,
+        },
+        senderDomain: {
+            type: String,
+            default: '',
+            trim: true,
+            lowercase: true,
+        },
+        replyToDomain: {
+            type: String,
+            default: '',
+            trim: true,
+            lowercase: true,
+        },
         snippet: {
             type: String,
             default: '',
+        },
+        textBody: {
+            type: String,
+            default: '',
+        },
+        htmlBody: {
+            type: String,
+            default: '',
+        },
+        links: {
+            type: [String],
+            default: [],
+        },
+        linkDomains: {
+            type: [String],
+            default: [],
+        },
+        linkCount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        hasShortenedUrl: {
+            type: Boolean,
+            default: false,
+        },
+        suspiciousLinkPatterns: {
+            type: [String],
+            default: [],
+        },
+        attachmentExtensions: {
+            type: [String],
+            default: [],
         },
         receivedAt: {
             type: Date,
