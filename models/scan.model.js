@@ -82,7 +82,7 @@ const scanSchema = new mongoose.Schema(
     }
 );
 
-scanSchema.index({ userId: 1, emailId: 1, scannedAt: -1 });
+scanSchema.index({ userId: 1, emailId: 1 });
 
 const Scan = mongoose.model('Scan', scanSchema);
 

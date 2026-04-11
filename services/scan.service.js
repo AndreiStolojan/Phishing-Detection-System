@@ -5,6 +5,8 @@ import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-v1';
+
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
     'js',
@@ -198,41 +200,193 @@ const findOwnedEmail = async ({ emailId, userId }) => {
     return email;
 };
 
-export const scanEmailWithRules = async ({ userId, emailId, scanSource = 'manual' }) => {
-    const email = await findOwnedEmail({ emailId, userId });
-    const result = calculateRulesForEmail(email);
-    const aiInput = buildAiAnalysisInput(email);
-
-    const scan = await Scan.create({
-        emailId: email._id,
+const cleanupDuplicateScans = async ({ userId, emailId, keepScanId }) => {
+    await Scan.deleteMany({
         userId,
-        score: result.score,
-        verdict: result.verdict,
-        reasons: result.reasons,
-        triggeredRules: result.triggeredRules,
+        emailId,
+        _id: { $ne: keepScanId },
+    });
+};
+
+const getCurrentScanForEmail = async ({ userId, emailId }) =>
+    Scan.findOne({ userId, emailId }).sort({ updatedAt: -1, scannedAt: -1 });
+
+const upsertCurrentScanForEmail = async ({
+    email,
+    scanSource,
+    result,
+}) => {
+    const now = new Date();
+    const existingScan = await getCurrentScanForEmail({
+        userId: email.userId,
+        emailId: email._id,
+    });
+
+    if (!existingScan) {
+        const createdScan = await Scan.create({
+            emailId: email._id,
+            userId: email.userId,
+            score: result.score,
+            verdict: result.verdict,
+            reasons: result.reasons,
+            triggeredRules: result.triggeredRules,
+            scanSource,
+            engineVersion: CURRENT_SCAN_ENGINE_VERSION,
+            aiSignals: {
+                status: 'not_evaluated',
+            },
+            aiExplanation: '',
+            scannedAt: now,
+        });
+
+        return createdScan;
+    }
+
+    existingScan.score = result.score;
+    existingScan.verdict = result.verdict;
+    existingScan.reasons = result.reasons;
+    existingScan.triggeredRules = result.triggeredRules;
+    existingScan.scanSource = scanSource;
+    existingScan.engineVersion = CURRENT_SCAN_ENGINE_VERSION;
+    existingScan.aiSignals = {
+        status: 'not_evaluated',
+    };
+    existingScan.aiExplanation = '';
+    existingScan.scannedAt = now;
+
+    await existingScan.save();
+    await cleanupDuplicateScans({
+        userId: email.userId,
+        emailId: email._id,
+        keepScanId: existingScan._id,
+    });
+
+    return existingScan;
+};
+
+export const scanEmailWithRules = async ({
+    userId,
+    emailId,
+    scanSource = 'manual',
+    skipIfCurrentEngineExists = false,
+}) => {
+    const email = await findOwnedEmail({ emailId, userId });
+    const aiInput = buildAiAnalysisInput(email);
+    const currentScan = await getCurrentScanForEmail({ userId, emailId: email._id });
+
+    if (
+        skipIfCurrentEngineExists &&
+        currentScan &&
+        currentScan.engineVersion === CURRENT_SCAN_ENGINE_VERSION
+    ) {
+        await cleanupDuplicateScans({
+            userId,
+            emailId: email._id,
+            keepScanId: currentScan._id,
+        });
+
+        return {
+            status: 'skipped_current_engine',
+            scan: toPublicScan(currentScan),
+            aiInput,
+        };
+    }
+
+    const result = calculateRulesForEmail(email);
+    const scan = await upsertCurrentScanForEmail({
+        email,
         scanSource,
-        engineVersion: 'rules-v1',
-        aiSignals: {
-            status: 'not_evaluated',
-        },
-        aiExplanation: '',
-        scannedAt: new Date(),
+        result,
     });
 
     return {
+        status: 'scanned',
         scan: toPublicScan(scan),
         aiInput,
     };
 };
 
+export const runSyncScanPipeline = async ({
+    userId,
+    insertedEmailIds = [],
+    updatedEmailIds = [],
+}) => {
+    const uniqueInsertedIds = [...new Set(insertedEmailIds.map((id) => String(id)))];
+    const uniqueUpdatedIds = [...new Set(updatedEmailIds.map((id) => String(id)))];
+
+    const summary = {
+        insertedCandidatesCount: uniqueInsertedIds.length,
+        updatedCandidatesCount: uniqueUpdatedIds.length,
+        scannedCount: 0,
+        scannedInsertedCount: 0,
+        scannedUpdatedCount: 0,
+        skippedCount: 0,
+        skippedAlreadyCurrentCount: 0,
+        failedCount: 0,
+    };
+
+    for (const emailId of uniqueInsertedIds) {
+        try {
+            const result = await scanEmailWithRules({
+                userId,
+                emailId,
+                scanSource: 'sync',
+                skipIfCurrentEngineExists: false,
+            });
+
+            if (result.status === 'scanned') {
+                summary.scannedCount += 1;
+                summary.scannedInsertedCount += 1;
+            } else {
+                summary.skippedCount += 1;
+                summary.skippedAlreadyCurrentCount += 1;
+            }
+        } catch {
+            summary.failedCount += 1;
+        }
+    }
+
+    for (const emailId of uniqueUpdatedIds) {
+        try {
+            const result = await scanEmailWithRules({
+                userId,
+                emailId,
+                scanSource: 'sync',
+                skipIfCurrentEngineExists: true,
+            });
+
+            if (result.status === 'scanned') {
+                summary.scannedCount += 1;
+                summary.scannedUpdatedCount += 1;
+            } else {
+                summary.skippedCount += 1;
+                summary.skippedAlreadyCurrentCount += 1;
+            }
+        } catch {
+            summary.failedCount += 1;
+        }
+    }
+
+    return summary;
+};
+
 export const getLatestScanForEmail = async ({ userId, emailId }) => {
-    await findOwnedEmail({ emailId, userId });
+    const email = await findOwnedEmail({ emailId, userId });
 
-    const latestScan = await Scan.findOne({ userId, emailId }).sort({ scannedAt: -1 });
+    const currentScan = await getCurrentScanForEmail({
+        userId,
+        emailId: email._id,
+    });
 
-    if (!latestScan) {
+    if (!currentScan) {
         throw createError('No scan found for this email', 404, [], 'SCAN_NOT_FOUND');
     }
 
-    return toPublicScan(latestScan);
+    await cleanupDuplicateScans({
+        userId,
+        emailId: email._id,
+        keepScanId: currentScan._id,
+    });
+
+    return toPublicScan(currentScan);
 };

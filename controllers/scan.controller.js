@@ -11,9 +11,9 @@ export const scanEmail = async (req, res, next) => {
             scanSource: 'manual',
         });
 
-        res.status(201).json({
+        res.status(200).json({
             success: true,
-            message: 'Email scanned successfully',
+            message: 'Email scan updated successfully',
             data: result.scan,
         });
     } catch (error) {
