@@ -37,7 +37,7 @@ Prefix recomandat pentru API:
 | `GET` | `/api/v1/mail-accounts/google/start` | Generează URL-ul pentru conectarea Gmail | fără body | `authUrl` | Da |
 | `GET` | `/api/v1/mail-accounts/google/callback` | Procesează întoarcerea de la Google | query `code`, `state` | cont conectat | Nu |
 | `GET` | `/api/v1/mail-accounts` | Listează conturile conectate | fără body | listă conturi | Da |
-| `POST` | `/api/v1/mail-accounts/:id/sync` | Rulează sync manual pentru contul conectat | param `id` | raport sync (`fetched`, `inserted`, `updated`, `skipped`) | Da |
+| `POST` | `/api/v1/mail-accounts/:id/sync` | Rulează sync manual pentru contul conectat și declanșează scanarea automată | param `id` | raport sync (`fetched`, `inserted`, `updated`, `skipped`) + `scanSummary` | Da |
 | `DELETE` | `/api/v1/mail-accounts/:id` | Deconectează contul | param `id` | mesaj de succes | Da |
 
 ## Emails
@@ -52,8 +52,8 @@ Prefix recomandat pentru API:
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/scans/emails/:emailId` | Scanează manual un email | param `emailId` | scor, verdict, motive | Da |
-| `GET` | `/api/v1/scans/emails/:emailId/latest` | Ultima scanare pentru email | param `emailId` | rezultat scan | Da |
+| `POST` | `/api/v1/scans/emails/:emailId` | Scanează manual un email (update scanarea curentă) | param `emailId` | scor, verdict, motive | Da |
+| `GET` | `/api/v1/scans/emails/:emailId/latest` | Scanarea curentă pentru email | param `emailId` | rezultat scan | Da |
 | `GET` | `/api/v1/scans/:id` | Detalii scanare | param `id` | scan complet | Da |
 
 ## Actions
@@ -107,6 +107,10 @@ Exemplu pentru eroare:
 - Flow-ul Gmail actual este bazat pe `google/start -> google/callback`.
 - Pentru sync-ul manual Gmail se folosește `POST /api/v1/mail-accounts/:id/sync`.
 - Sync-ul manual Gmail salvează și câmpuri parse-ate utile pentru scanare (`replyTo`, corp text/html, linkuri, domenii, extensii atașamente).
+- După sync, scanarea pornește automat în backend:
+  - emailurile noi sunt scanate;
+  - emailurile actualizate sunt rescannate doar dacă nu există scanare curentă validă sau s-a schimbat `engineVersion`.
+- Răspunsul de sync include `scanSummary` cu numărul de emailuri scanate, sărite și eșuate la scanare.
 - `google/start` este protejat cu JWT-ul aplicației, iar `google/callback` se bazează pe `state`, nu pe header-ul `Authorization`.
 - `move-to-spam` rămâne condiționat de ce permite providerul.
 - `mail-accounts` trebuie gândit astfel încât să poată primi și alți provideri în viitor, fără a complica MVP-ul acum.

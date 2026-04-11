@@ -185,3 +185,19 @@ Impact:
 - a fost introdus modelul `Scan` cu `score`, `verdict`, `reasons` și `triggeredRules`;
 - a fost implementată scanarea manuală prin endpoint-uri dedicate;
 - structura `aiSignals` și helperul de input AI sunt pregătite pentru integrarea semantică în pasul următor.
+
+### 2026-04-11 - Flow-ul principal devine `sync -> scan automat`, cu scanare curentă unică per email
+
+Motiv:
+
+- pentru MVP este mai util un singur flow practic, fără pas manual separat după fiecare sync;
+- scanarea repetată inutilă pe aceleași emailuri consumă timp și aglomerează datele;
+- vrem rezultat de scanare actualizat per email, nu istoric repetitiv fără valoare imediată.
+
+Impact:
+
+- `POST /api/v1/mail-accounts/:id/sync` declanșează automat scanarea în backend;
+- emailurile noi sunt scanate automat;
+- emailurile actualizate se rescanează doar dacă nu au scanare curentă pentru `engineVersion` activ;
+- scanarea manuală face update pe scanarea existentă (model de tip upsert);
+- răspunsul de sync include `scanSummary` pentru monitorizare rapidă a pipeline-ului.

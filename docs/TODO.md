@@ -15,8 +15,8 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 
 - Proiect: `xai-licenta`
 - Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, iar primul motor de scanare pe reguli este implementat
-- Progres estimativ MVP: `68%`
-- Faza curentă: `Faza 8 - Motor de detecție phishing (în lucru)`
+- Progres estimativ MVP: `72%`
+- Faza curentă: `Faza 8 - Motor de detecție phishing (iterația 2)`
 
 ## Legendă
 
@@ -178,7 +178,9 @@ Milestone: scor și motive pentru fiecare email
 - [x] Endpoint pentru scan manual
 - [x] Endpoint pentru ultima scanare a unui email
 - [x] Test manual pentru scanare și `latest`
-- [ ] Scan la sync sau după sync
+- [x] Scan automat după sync (flow unificat, fără pas manual separat)
+- [x] Regula de rescanare la sync: scan pentru emailuri noi, iar pentru emailuri actualizate doar dacă lipsește scanarea curentă sau s-a schimbat versiunea motorului
+- [x] Scanare de tip `upsert` (o scanare curentă per email, fără istoric duplicat)
 
 Dependențe: Faza 7
 

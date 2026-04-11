@@ -14,9 +14,9 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 ## Snapshot curent
 
 - Data ultimei actualizări: `2026-04-11`
-- Faza curentă: `Faza 8 - Motor de scanare pe reguli implementat (iterația 1)`
-- Status general: `auth-ul MVP este stabil, Gmail sync extrage date relevante, iar scanarea manuală și endpoint-ul latest returnează scor, verdict, motive și reguli declanșate`
-- Progres estimativ MVP: `68%`
+- Faza curentă: `Faza 8 - Motor de scanare pe reguli implementat (iterația 2)`
+- Status general: `auth-ul MVP este stabil, Gmail sync extrage date relevante, iar flow-ul sync rulează acum scanarea automat cu rezultat curent per email`
+- Progres estimativ MVP: `72%`
 
 ## Ce este gata
 
@@ -74,6 +74,11 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - mapare scor -> verdict (`safe`, `suspicious`, `likely_phishing`);
 - helper dedicat pentru input AI pe text complet (`subject + textBody`, cu fallback).
 - test manual reușit pentru `scan` și `latest`, inclusiv declanșare de reguli pe emailuri de test cu linkuri și arhive.
+- flow unificat `sync -> scan` fără pas manual obligatoriu după sync;
+- scanare automată după sync pentru emailuri noi;
+- pentru emailuri `updated`, rescanare doar dacă lipsește scanarea curentă sau diferă `engineVersion`;
+- scanare cu `upsert` pentru rezultat curent per email (fără creare repetată de istorice inutile);
+- răspunsul de sync include acum sumar de scanare (`scanSummary`).
 
 ## Ce NU este încă început
 
@@ -86,11 +91,11 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- implementarea și testarea primei versiuni de scanare pe reguli și a endpoint-ului `latest`.
+- integrarea scanării automate în flow-ul de sync și mutarea scanării pe modelul `current scan per email`.
 
 Următorul pas imediat recomandat:
 
-- integrarea stratului semantic AI pe textul complet al emailului și combinarea lui cu scorarea pe reguli.
+- integrarea stratului semantic AI pe textul complet al emailului (`urgency`, `sensitive request`, `social engineering`) și combinarea lui cu scorarea pe reguli.
 
 ## Blocaje
 
@@ -110,6 +115,7 @@ Nu există blocaje tehnice majore, dar există încă un blocaj de organizare:
 - păstrează sync-ul manual ca bază pentru validare;
 - separă clar ce vine din reguli clasice și ce va veni mai târziu din semnale AI;
 - folosește helperul de AI input cu text complet, nu doar `snippet`;
+- tratează `scanSummary` din răspunsul de sync ca punct de verificare rapidă pentru flow-ul unificat;
 - adaugă semnale AI în `aiSignals` fără a pierde explicabilitatea regulilor;
 - folosește emailuri de test cu `Reply-To` diferit și text de presiune pentru validarea semnalelor AI viitoare;
 - nu investi încă timp în frontend real, UI-ul actual este doar pentru test temporar.

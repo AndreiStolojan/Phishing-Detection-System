@@ -15,8 +15,9 @@ import {
 } from '../config/google-oauth.js';
 import { JWT_SECRET } from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
+import { runSyncScanPipeline } from './scan.service.js';
 
-const GMAIL_SYNC_MAX_RESULTS = 20;
+const GMAIL_SYNC_MAX_RESULTS = 5;
 
 const toPublicMailAccount = (mailAccount) => ({
     _id: mailAccount._id,
@@ -409,6 +410,8 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     let insertedCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
+    const insertedEmailIds = [];
+    const updatedEmailIds = [];
 
     for (const gmailMessage of gmailMessages) {
         if (!gmailMessage.id) {
@@ -462,8 +465,30 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
 
         if (updateResult.upsertedCount === 1) {
             insertedCount += 1;
+            const insertedEmail = await Email.findOne(
+                {
+                    userId: mailAccount.userId,
+                    providerMessageId: emailPayload.providerMessageId,
+                },
+                { _id: 1 }
+            );
+
+            if (insertedEmail?._id) {
+                insertedEmailIds.push(insertedEmail._id);
+            }
         } else {
             updatedCount += 1;
+            const updatedEmail = await Email.findOne(
+                {
+                    userId: mailAccount.userId,
+                    providerMessageId: emailPayload.providerMessageId,
+                },
+                { _id: 1 }
+            );
+
+            if (updatedEmail?._id) {
+                updatedEmailIds.push(updatedEmail._id);
+            }
         }
     }
 
@@ -479,6 +504,12 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         }
     );
 
+    const scanSummary = await runSyncScanPipeline({
+        userId: mailAccount.userId,
+        insertedEmailIds,
+        updatedEmailIds,
+    });
+
     return {
         mailAccountId: mailAccount._id,
         accountEmail: mailAccount.accountEmail,
@@ -488,6 +519,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         insertedCount,
         updatedCount,
         skippedCount,
+        scanSummary,
         syncedAt,
     };
 };
