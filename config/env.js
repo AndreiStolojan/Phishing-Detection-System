@@ -29,4 +29,9 @@ export const {
     ADMIN_NAME,
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
+    AI_SEMANTIC_ENABLED,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    OLLAMA_TIMEOUT_MS,
+    OLLAMA_PROMPT_VERSION,
 } = process.env;

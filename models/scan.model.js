@@ -41,6 +41,18 @@ const scanSchema = new mongoose.Schema(
             required: true,
             min: 0,
         },
+        ruleScore: {
+            type: Number,
+            required: true,
+            min: 0,
+            default: 0,
+        },
+        aiScore: {
+            type: Number,
+            required: true,
+            min: 0,
+            default: 0,
+        },
         verdict: {
             type: String,
             enum: ['safe', 'suspicious', 'likely_phishing'],
@@ -61,7 +73,7 @@ const scanSchema = new mongoose.Schema(
         },
         engineVersion: {
             type: String,
-            default: 'rules-v1',
+            default: 'rules-ai-v2',
         },
         aiSignals: {
             type: mongoose.Schema.Types.Mixed,
