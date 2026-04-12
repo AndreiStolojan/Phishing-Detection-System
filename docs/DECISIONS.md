@@ -201,3 +201,49 @@ Impact:
 - emailurile actualizate se rescanează doar dacă nu au scanare curentă pentru `engineVersion` activ;
 - scanarea manuală face update pe scanarea existentă (model de tip upsert);
 - răspunsul de sync include `scanSummary` pentru monitorizare rapidă a pipeline-ului.
+
+### 2026-04-11 - Semnalele AI semantice folosesc Ollama local, cu prompt în engleză și explainability controlată în backend
+
+Motiv:
+
+- vrem semnale semantice utile fără să mutăm verdictul principal în LLM;
+- modelele locale mici sunt mai stabile pe instrucțiuni în engleză, mai ales pentru output JSON;
+- explicațiile libere în română generate direct de model pot fi inconsistente sau halucinante.
+
+Impact:
+
+- integrarea AI este locală prin Ollama (`/api/chat`), nu cloud;
+- promptul semantic este în engleză și cere output JSON strict;
+- rezultatul semantic este salvat în `aiSignals` împreună cu metadata de performanță (`model`, `promptVersion`, `latencyMs`, `status`, `evaluatedAt`);
+- `aiExplanation` este compusă controlat în backend, în română, din semnale AI + reguli;
+- dacă AI este dezactivat sau eșuează, scanarea pe reguli rămâne validă și funcțională.
+
+### 2026-04-11 - Integrarea Ollama local folosește fallback pe host local și erori diferențiate
+
+Motiv:
+
+- unele medii locale pot avea diferențe de rezoluție între `localhost` și `127.0.0.1`;
+- pentru debugging rapid avem nevoie să știm dacă problema este de rețea, timeout sau output invalid, nu doar o eroare generică.
+
+Impact:
+
+- clientul Ollama încearcă host-uri locale candidate (`127.0.0.1` / `localhost`) când endpoint-ul configurat nu răspunde;
+- `aiSignals` poate include `endpoint` și `errorDetail` pentru diagnostic;
+- erorile AI sunt separate clar: `ollama_unreachable`, `ollama_timeout`, `ollama_invalid_output`;
+- versiunea curentă a motorului de scanare a fost incrementată la `rules-ai-v1`.
+- inputul semantic trimis la model este redus (body + linkuri limitate) pentru a evita timeout-uri pe emailuri foarte mari.
+- inferența locală este optimizată pentru stabilitate pe laptop: output JSON și limită de generare (`num_predict`) în request.
+
+### 2026-04-11 - Scorul final devine hibrid: `ruleScore + aiScore` (AI bonus limitat)
+
+Motiv:
+
+- semnalele semantice AI aduc informație utilă de risc (urgență, cereri sensibile, social engineering) care merită reflectată în scor;
+- vrem să păstrăm controlul și explicabilitatea, deci componenta AI trebuie limitată.
+
+Impact:
+
+- scanarea salvează separat `ruleScore`, `aiScore` și `score` final;
+- `aiScore` este limitat (cap) pentru a evita dominarea verdictului de către AI;
+- verdictul final folosește scorul hibrid;
+- `summary` din semnalele AI este cerut în română pentru consistență de produs.

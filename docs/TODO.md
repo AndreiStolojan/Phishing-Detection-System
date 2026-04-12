@@ -15,8 +15,8 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 
 - Proiect: `xai-licenta`
 - Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, iar primul motor de scanare pe reguli este implementat
-- Progres estimativ MVP: `72%`
-- Faza curentă: `Faza 8 - Motor de detecție phishing (iterația 2)`
+- Progres estimativ MVP: `78%`
+- Faza curentă: `Faza 8 - Motor de detecție phishing (iterația 3)`
 
 ## Legendă
 
@@ -158,7 +158,7 @@ Milestone: emailurile au date pregătite pentru analiză
 - [x] Parsare linkuri
 - [x] Parsare domenii din linkuri
 - [x] Parsare atașamente și extensii
-- [ ] Detectare text urgent sau termeni sensibili
+- [x] Detectare semantică pentru text urgent și cereri sensibile (prin strat AI local)
 - [x] Salvare câmpuri derivate în email
 
 Dependențe: Faza 6
@@ -181,6 +181,11 @@ Milestone: scor și motive pentru fiecare email
 - [x] Scan automat după sync (flow unificat, fără pas manual separat)
 - [x] Regula de rescanare la sync: scan pentru emailuri noi, iar pentru emailuri actualizate doar dacă lipsește scanarea curentă sau s-a schimbat versiunea motorului
 - [x] Scanare de tip `upsert` (o scanare curentă per email, fără istoric duplicat)
+- [x] Integrare semnale AI semantice locale (`urgency`, `sensitiveDataRequest`, `socialEngineering`, `loginOrActionRequest`, `brandImpersonation`)
+- [x] Salvare metadata AI pentru comparare modele (`model`, `promptVersion`, `latencyMs`, `status`)
+- [x] Explainability controlată în backend, în română, cu fallback dacă Ollama nu este disponibil
+- [x] Stabilizare integrare Ollama local: fallback host local și erori AI diferențiate pentru debugging
+- [x] Introducere scor hibrid: `ruleScore + aiScore` cu limită superioară pentru componenta AI
 
 Dependențe: Faza 7
 
@@ -234,11 +239,11 @@ Obligatoriu pentru MVP: util, dar poate fi redus dacă timpul este scurt
 
 Milestone: explicații locale, ușor de citit
 
-- [ ] Definire format de input pentru explicații
-- [ ] Trimitere către Ollama doar a motivelor și contextului necesar
-- [ ] Generare explicație clară pentru utilizator
-- [ ] Fallback dacă Ollama nu este disponibil
-- [ ] Păstrare separată între verdictul principal și explicația LLM
+- [x] Definire format de input semantic pe text complet relevant
+- [x] Trimitere către Ollama local a contextului minim necesar pentru semnale
+- [x] Fallback dacă Ollama nu este disponibil
+- [x] Păstrare separată între verdictul principal și semnalele/explicația AI
+- [ ] Ajustare finală a textului de explainability pentru UI-ul de utilizator
 
 Dependențe: Faza 8
 

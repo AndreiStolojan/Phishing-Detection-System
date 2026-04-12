@@ -97,10 +97,18 @@ Acestea au fost folosite când am discutat dacă merită un sistem hibrid: regul
 
 Acestea au fost folosite când am discutat cum să introducem un strat semantic local și explainability.
 
+- Ollama API introduction  
+  https://docs.ollama.com/api/introduction
+- Ollama quickstart  
+  https://docs.ollama.com/quickstart
 - Ollama documentation, structured outputs  
   https://docs.ollama.com/capabilities/structured-outputs
 - Ollama API, chat endpoint  
   https://docs.ollama.com/api/chat
+- Ollama model library, `gemma3`  
+  https://ollama.com/library/gemma3
+- Ollama model library, `qwen2.5`  
+  https://ollama.com/library/qwen2.5
 - Ollama model library, `mistral-small`  
   https://ollama.com/library/mistral-small
 

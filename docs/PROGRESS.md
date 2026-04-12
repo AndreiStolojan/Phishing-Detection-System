@@ -14,9 +14,9 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 ## Snapshot curent
 
 - Data ultimei actualizări: `2026-04-11`
-- Faza curentă: `Faza 8 - Motor de scanare pe reguli implementat (iterația 2)`
-- Status general: `auth-ul MVP este stabil, Gmail sync extrage date relevante, iar flow-ul sync rulează acum scanarea automat cu rezultat curent per email`
-- Progres estimativ MVP: `72%`
+- Faza curentă: `Faza 8 - Motor de scanare pe reguli implementat (iterația 3, cu AI semantic local)`
+- Status general: `auth-ul MVP este stabil, Gmail sync rulează scanarea automat, iar scanarea salvează acum și semnale AI semantice locale + explainability controlată`
+- Progres estimativ MVP: `78%`
 
 ## Ce este gata
 
@@ -79,23 +79,34 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - pentru emailuri `updated`, rescanare doar dacă lipsește scanarea curentă sau diferă `engineVersion`;
 - scanare cu `upsert` pentru rezultat curent per email (fără creare repetată de istorice inutile);
 - răspunsul de sync include acum sumar de scanare (`scanSummary`).
+- integrare Ollama local în flow-ul de scanare, fără a schimba verdictul principal pe reguli;
+- semnale AI semantice salvate în `aiSignals` (`urgencyLevel`, `sensitiveDataRequest`, `loginOrActionRequest`, `socialEngineeringLevel`, `brandImpersonationSuspected`);
+- metadata de performanță AI salvată în scan (`status`, `model`, `promptVersion`, `latencyMs`, `evaluatedAt`);
+- prompt semantic în engleză cu output JSON strict;
+- explicație finală compusă controlat în backend, în română, salvată în `aiExplanation`;
+- fallback sigur dacă AI este dezactivat sau Ollama nu răspunde (`status: disabled/failed` în `aiSignals`).
+- fallback de conectare Ollama pe host local (`127.0.0.1` / `localhost`) pentru a evita erori de rezoluție locală;
+- clasificare mai clară a erorilor AI (`ollama_unreachable`, `ollama_timeout`, `ollama_invalid_output`) cu detalii de diagnostic.
+- payload-ul trimis la Ollama a fost redus (body trunchiat + număr limitat de linkuri) pentru a scădea latența și a evita timeout-uri pe emailuri mari.
+- tuning suplimentar pentru latență AI locală: input semantic mai scurt și limită de generare (`num_predict`) pentru răspuns JSON rapid.
+- scor hibrid activ: `ruleScore + aiScore` (AI bonus limitat), iar verdictul folosește `finalScore`;
+- `summary` din semnalele AI este cerut acum în română.
 
 ## Ce NU este încă început
 
 - acțiunile pe email;
-- integrarea Ollama;
 - verificări externe de reputație URL/domeniu.
-- semnale AI semantice integrate în scor (`urgency`, `sensitive data request`, `social engineering`).
+- calibrare fină a punctajelor AI pe seturi mai mari de emailuri.
 
 ## Unde am rămas exact
 
 Ultimul lucru finalizat:
 
-- integrarea scanării automate în flow-ul de sync și mutarea scanării pe modelul `current scan per email`.
+- activare scor hibrid reguli + semnale AI, cu trasabilitate separată (`ruleScore`, `aiScore`).
 
 Următorul pas imediat recomandat:
 
-- integrarea stratului semantic AI pe textul complet al emailului (`urgency`, `sensitive request`, `social engineering`) și combinarea lui cu scorarea pe reguli.
+- calibrare fină a punctajelor AI pe seturi de emailuri de test și endpoint de listare emailuri cu verdictul curent.
 
 ## Blocaje
 
@@ -116,6 +127,7 @@ Nu există blocaje tehnice majore, dar există încă un blocaj de organizare:
 - separă clar ce vine din reguli clasice și ce va veni mai târziu din semnale AI;
 - folosește helperul de AI input cu text complet, nu doar `snippet`;
 - tratează `scanSummary` din răspunsul de sync ca punct de verificare rapidă pentru flow-ul unificat;
-- adaugă semnale AI în `aiSignals` fără a pierde explicabilitatea regulilor;
+- verifică variabilele de mediu pentru AI local: `AI_SEMANTIC_ENABLED`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_MS`, `OLLAMA_PROMPT_VERSION`;
+- compară local modelele după `latencyMs` și consistența outputului JSON;
 - folosește emailuri de test cu `Reply-To` diferit și text de presiune pentru validarea semnalelor AI viitoare;
 - nu investi încă timp în frontend real, UI-ul actual este doar pentru test temporar.

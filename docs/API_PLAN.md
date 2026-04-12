@@ -52,8 +52,8 @@ Prefix recomandat pentru API:
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/scans/emails/:emailId` | Scanează manual un email (update scanarea curentă) | param `emailId` | scor, verdict, motive | Da |
-| `GET` | `/api/v1/scans/emails/:emailId/latest` | Scanarea curentă pentru email | param `emailId` | rezultat scan | Da |
+| `POST` | `/api/v1/scans/emails/:emailId` | Scanează manual un email (update scanarea curentă) | param `emailId` | `score`, `ruleScore`, `aiScore`, verdict, motive + `aiSignals` + `aiExplanation` | Da |
+| `GET` | `/api/v1/scans/emails/:emailId/latest` | Scanarea curentă pentru email | param `emailId` | rezultat scan complet (inclusiv scor hibrid și AI) | Da |
 | `GET` | `/api/v1/scans/:id` | Detalii scanare | param `id` | scan complet | Da |
 
 ## Actions
@@ -120,3 +120,16 @@ Exemplu pentru eroare:
   - motivele;
   - regulile declanșate.
 - Pentru explainability AI, inputul pregătit trebuie să folosească textul relevant complet (`subject + textBody`, cu fallback), nu doar `snippet`.
+- AI semantic este rulat local prin Ollama (`/api/chat`) cu prompt în engleză și output JSON strict.
+- `aiSignals` trebuie să includă și metadata de execuție: `status`, `model`, `promptVersion`, `latencyMs`, `evaluatedAt`.
+- la eșec AI, `aiSignals` poate include și câmpuri de diagnostic (`endpoint`, `errorDetail`) pentru debugging local.
+- pentru stabilitate și latență mai bună, inputul AI este limitat (body trunchiat + subset de linkuri) înainte de request.
+- requestul AI folosește răspuns JSON și limită de generare pentru a evita blocaje la inferență locală.
+- `summary` din semnalele AI este cerut în română pentru consistență cu explainability-ul afișat utilizatorului.
+- `aiExplanation` este compusă controlat în backend, în română; nu este text liber generat direct de model.
+- Variabile de mediu recomandate pentru integrarea locală AI:
+  - `AI_SEMANTIC_ENABLED`
+  - `OLLAMA_BASE_URL`
+  - `OLLAMA_MODEL`
+  - `OLLAMA_TIMEOUT_MS`
+  - `OLLAMA_PROMPT_VERSION`

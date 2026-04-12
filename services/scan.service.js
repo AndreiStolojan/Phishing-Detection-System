@@ -3,9 +3,11 @@ import mongoose from 'mongoose';
 import createError from '../common/errors/create-error.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
+import { analyzeEmailSemanticsWithOllama } from './ollama-semantic.service.js';
+import { buildControlledRomanianExplanation } from './scan-explanation.service.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-v1';
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v2';
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
@@ -60,6 +62,8 @@ const toPublicScan = (scan) => ({
     emailId: scan.emailId,
     userId: scan.userId,
     score: scan.score,
+    ruleScore: scan.ruleScore,
+    aiScore: scan.aiScore,
     verdict: scan.verdict,
     reasons: scan.reasons,
     triggeredRules: scan.triggeredRules,
@@ -180,9 +184,102 @@ const calculateRulesForEmail = (email) => {
 
     return {
         score,
+        ruleScore: score,
         reasons,
         triggeredRules,
-        verdict: mapScoreToVerdict(score),
+    };
+};
+
+const calculateAiScoreFromSignals = (aiSignals) => {
+    let aiScore = 0;
+    const aiTriggeredRules = [];
+    const aiReasons = [];
+
+    const triggerAiRule = ({ rule, points, reason, details }) => {
+        aiScore += points;
+        aiReasons.push(reason);
+        aiTriggeredRules.push({
+            rule,
+            points,
+            details,
+        });
+    };
+
+    if (!aiSignals || aiSignals.status !== 'evaluated') {
+        return {
+            aiScore,
+            aiReasons,
+            aiTriggeredRules,
+        };
+    }
+
+    if (aiSignals.urgencyLevel === 'high') {
+        triggerAiRule({
+            rule: 'ai_semantic:urgency_high',
+            points: 8,
+            reason: 'AI semantic: high urgency language detected.',
+            details: 'Semantic model flagged urgent pressure language as high.',
+        });
+    } else if (aiSignals.urgencyLevel === 'medium') {
+        triggerAiRule({
+            rule: 'ai_semantic:urgency_medium',
+            points: 4,
+            reason: 'AI semantic: medium urgency language detected.',
+            details: 'Semantic model flagged urgent pressure language as medium.',
+        });
+    }
+
+    if (aiSignals.sensitiveDataRequest) {
+        triggerAiRule({
+            rule: 'ai_semantic:sensitive_data_request',
+            points: 20,
+            reason: 'AI semantic: request for sensitive data detected.',
+            details: 'Semantic model detected password/card/OTP style data request.',
+        });
+    }
+
+    if (aiSignals.loginOrActionRequest) {
+        triggerAiRule({
+            rule: 'ai_semantic:login_or_action_request',
+            points: 8,
+            reason: 'AI semantic: login or rapid action request detected.',
+            details: 'Semantic model detected push toward login or immediate user action.',
+        });
+    }
+
+    if (aiSignals.socialEngineeringLevel === 'high') {
+        triggerAiRule({
+            rule: 'ai_semantic:social_engineering_high',
+            points: 12,
+            reason: 'AI semantic: high social engineering pressure detected.',
+            details: 'Semantic model flagged social engineering patterns as high.',
+        });
+    } else if (aiSignals.socialEngineeringLevel === 'medium') {
+        triggerAiRule({
+            rule: 'ai_semantic:social_engineering_medium',
+            points: 6,
+            reason: 'AI semantic: medium social engineering pressure detected.',
+            details: 'Semantic model flagged social engineering patterns as medium.',
+        });
+    }
+
+    if (aiSignals.brandImpersonationSuspected) {
+        triggerAiRule({
+            rule: 'ai_semantic:brand_impersonation_suspected',
+            points: 10,
+            reason: 'AI semantic: possible brand impersonation detected.',
+            details: 'Semantic model found likely impersonation of known organization/brand.',
+        });
+    }
+
+    if (aiScore > 30) {
+        aiScore = 30;
+    }
+
+    return {
+        aiScore,
+        aiReasons,
+        aiTriggeredRules,
     };
 };
 
@@ -215,6 +312,8 @@ const upsertCurrentScanForEmail = async ({
     email,
     scanSource,
     result,
+    aiSignals,
+    aiExplanation,
 }) => {
     const now = new Date();
     const existingScan = await getCurrentScanForEmail({
@@ -227,15 +326,15 @@ const upsertCurrentScanForEmail = async ({
             emailId: email._id,
             userId: email.userId,
             score: result.score,
+            ruleScore: result.ruleScore,
+            aiScore: result.aiScore,
             verdict: result.verdict,
             reasons: result.reasons,
             triggeredRules: result.triggeredRules,
             scanSource,
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
-            aiSignals: {
-                status: 'not_evaluated',
-            },
-            aiExplanation: '',
+            aiSignals,
+            aiExplanation,
             scannedAt: now,
         });
 
@@ -243,15 +342,15 @@ const upsertCurrentScanForEmail = async ({
     }
 
     existingScan.score = result.score;
+    existingScan.ruleScore = result.ruleScore;
+    existingScan.aiScore = result.aiScore;
     existingScan.verdict = result.verdict;
     existingScan.reasons = result.reasons;
     existingScan.triggeredRules = result.triggeredRules;
     existingScan.scanSource = scanSource;
     existingScan.engineVersion = CURRENT_SCAN_ENGINE_VERSION;
-    existingScan.aiSignals = {
-        status: 'not_evaluated',
-    };
-    existingScan.aiExplanation = '';
+    existingScan.aiSignals = aiSignals;
+    existingScan.aiExplanation = aiExplanation;
     existingScan.scannedAt = now;
 
     await existingScan.save();
@@ -292,11 +391,32 @@ export const scanEmailWithRules = async ({
         };
     }
 
-    const result = calculateRulesForEmail(email);
+    const rulesResult = calculateRulesForEmail(email);
+    const aiSignals = await analyzeEmailSemanticsWithOllama({
+        analysisInput: aiInput,
+    });
+    const aiScoreResult = calculateAiScoreFromSignals(aiSignals);
+    const finalScore = rulesResult.ruleScore + aiScoreResult.aiScore;
+    const finalResult = {
+        score: finalScore,
+        ruleScore: rulesResult.ruleScore,
+        aiScore: aiScoreResult.aiScore,
+        verdict: mapScoreToVerdict(finalScore),
+        reasons: [...rulesResult.reasons, ...aiScoreResult.aiReasons],
+        triggeredRules: [...rulesResult.triggeredRules, ...aiScoreResult.aiTriggeredRules],
+    };
+    const aiExplanation = buildControlledRomanianExplanation({
+        verdict: finalResult.verdict,
+        triggeredRules: finalResult.triggeredRules,
+        aiSignals,
+    });
+
     const scan = await upsertCurrentScanForEmail({
         email,
         scanSource,
-        result,
+        result: finalResult,
+        aiSignals,
+        aiExplanation,
     });
 
     return {
