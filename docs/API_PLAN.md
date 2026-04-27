@@ -2,11 +2,21 @@
 
 ## Scop
 
-Acest document descrie endpoint-urile principale planificate pentru MVP. Nu toate trebuie implementate imediat, dar structura lor trebuie păstrată coerentă.
+Acest document descrie endpoint-urile implementate în acest moment pentru MVP (stare reală din cod), cu prefix unic `/api/v1`.
 
 Prefix recomandat pentru API:
 
 `/api/v1`
+
+## Rute montate în `app.js` (stare reală)
+
+- `/api/v1/auth`
+- `/api/v1/users`
+- `/api/v1/mail-accounts`
+- `/api/v1/emails`
+- `/api/v1/lists`
+- `/api/v1/meta`
+- `/api/v1/scans`
 
 ## Principii pentru API
 
@@ -29,6 +39,8 @@ Prefix recomandat pentru API:
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/v1/users/me` | Profil utilizator | fără body | date profil | Da |
 | `PATCH` | `/api/v1/users/me` | Actualizează setări simple | câmpuri editabile | utilizator actualizat | Da |
+| `GET` | `/api/v1/users` | Listează utilizatori (admin) | fără body | listă utilizatori | Da (admin) |
+| `GET` | `/api/v1/users/:id` | Detalii utilizator (admin) | param `id` | utilizator | Da (admin) |
 
 ## Mail Accounts
 
@@ -54,15 +66,6 @@ Prefix recomandat pentru API:
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/api/v1/scans/emails/:emailId` | Scanează manual un email (update scanarea curentă) | param `emailId` | `score`, `ruleScore`, `aiScore`, verdict, motive + `aiSignals` + `aiExplanation` | Da |
 | `GET` | `/api/v1/scans/emails/:emailId/latest` | Scanarea curentă pentru email | param `emailId` | rezultat scan complet (inclusiv scor hibrid și AI) | Da |
-| `GET` | `/api/v1/scans/:id` | Detalii scanare | param `id` | scan complet | Da |
-
-## Actions
-
-| Metodă | Rută | Scop | Input principal | Output principal | Auth |
-| --- | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/actions/emails/:emailId/mark-safe` | Marchează emailul ca sigur | param `emailId`, eventual notă | status acțiune | Da |
-| `POST` | `/api/v1/actions/emails/:emailId/block-sender` | Adaugă expeditorul în blocklist local | param `emailId` | status acțiune + intrare listă | Da |
-| `POST` | `/api/v1/actions/emails/:emailId/move-to-spam` | Mută emailul în spam/junk unde este posibil | param `emailId` | status acțiune | Da |
 
 ## Lists
 
@@ -103,7 +106,7 @@ Exemplu pentru eroare:
 
 - Pentru MVP, strategia aleasă este `Bearer token` trimis în header-ul `Authorization`.
 - `logout` nu invalidează tokenul pe server, ci doar cere clientului să șteargă tokenul salvat local.
-- Endpoint-ul pentru utilizatorul curent rămâne doar `GET /api/v1/users/me`.
+- Endpoint-ul principal pentru identificarea utilizatorului curent rămâne `GET /api/v1/users/me` (fără `/auth/me`).
 - Flow-ul Gmail actual este bazat pe `google/start -> google/callback`.
 - Pentru sync-ul manual Gmail se folosește `POST /api/v1/mail-accounts/:id/sync`.
 - Sync-ul manual Gmail salvează și câmpuri parse-ate utile pentru scanare (`replyTo`, corp text/html, linkuri, domenii, extensii atașamente).
@@ -112,7 +115,6 @@ Exemplu pentru eroare:
   - emailurile actualizate sunt rescannate doar dacă nu există scanare curentă validă sau s-a schimbat `engineVersion`.
 - Răspunsul de sync include `scanSummary` cu numărul de emailuri scanate, sărite și eșuate la scanare.
 - `google/start` este protejat cu JWT-ul aplicației, iar `google/callback` se bazează pe `state`, nu pe header-ul `Authorization`.
-- `move-to-spam` rămâne condiționat de ce permite providerul.
 - `mail-accounts` trebuie gândit astfel încât să poată primi și alți provideri în viitor, fără a complica MVP-ul acum.
 - Endpoint-urile de scanare trebuie să poată returna clar:
   - scorul;

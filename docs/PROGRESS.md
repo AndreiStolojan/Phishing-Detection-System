@@ -13,10 +13,23 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-04-11`
-- Faza curentă: `Faza 8 - Motor de scanare pe reguli implementat (iterația 3, cu AI semantic local)`
-- Status general: `auth-ul MVP este stabil, Gmail sync rulează scanarea automat, iar scanarea salvează acum și semnale AI semantice locale + explainability controlată`
-- Progres estimativ MVP: `78%`
+- Data ultimei actualizări: `2026-04-27`
+- Faza curentă: `Faza 9-10 - Acțiuni manuale peste emailuri și folosirea lists locale`
+- Status general: `auth-ul MVP este stabil, Gmail sync rulează scanarea automat, scorarea hibridă este activă, lists locale influențează deja scorul, iar endpoint-urile pentru emailuri, lists și meta sunt montate în app`
+- Progres estimativ MVP: `87%`
+
+## Notă sesiune 2026-04-24
+
+- Data: `2026-04-24`
+- Ce s-a finalizat: integrarea finală a routerelor `emails`, `lists` și `meta` în `app.js`, toate sub `/api/v1`
+- Următorul pas imediat: implementarea acțiunilor din Faza 9 (`mark safe`, `block sender local`) peste datele și scanările deja disponibile
+
+## Notă sesiune 2026-04-27
+
+- Data: `2026-04-27`
+- Ce s-a clarificat: verificarea repo-ului a confirmat că `lists` nu sunt doar CRUD, ci sunt deja folosite în scorare pentru `sender email` și `sender domain`, iar `meta/status` returnează sumar util per utilizator (`mailAccounts`, `emails`, `scans`, `hasGmailConnected`, `aiSemanticEnabled`)
+- Ce s-a aliniat: documentația `TODO/PROGRESS` a fost actualizată ca să reflecte mai fidel starea reală din cod
+- Următorul pas imediat: implementarea acțiunilor manuale din Faza 9, în special `mark safe`, `block sender local` și apoi `allow sender/domain`
 
 ## Ce este gata
 
@@ -70,6 +83,13 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - model `Scan` cu suport pentru verdict, reasons și `triggeredRules`;
 - endpoint `POST /api/v1/scans/emails/:emailId` pentru scan manual;
 - endpoint `GET /api/v1/scans/emails/:emailId/latest` pentru ultima scanare;
+- endpoint `GET /api/v1/emails`;
+- endpoint `GET /api/v1/emails/:id`;
+- endpoint `GET /api/v1/emails/:id/raw`;
+- endpoint `GET /api/v1/lists`;
+- endpoint `POST /api/v1/lists`;
+- endpoint `DELETE /api/v1/lists/:id`;
+- endpoint `GET /api/v1/meta/status`;
 - reguli euristice inițiale (`replyTo mismatch`, shorteners, link patterns, attachments, many links);
 - mapare scor -> verdict (`safe`, `suspicious`, `likely_phishing`);
 - helper dedicat pentru input AI pe text complet (`subject + textBody`, cu fallback).
@@ -79,6 +99,7 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - pentru emailuri `updated`, rescanare doar dacă lipsește scanarea curentă sau diferă `engineVersion`;
 - scanare cu `upsert` pentru rezultat curent per email (fără creare repetată de istorice inutile);
 - răspunsul de sync include acum sumar de scanare (`scanSummary`).
+- erorile de sync sunt logate clar în backend și sunt întoarse controlat în `syncErrors`, cu limită pentru a evita răspunsuri foarte mari.
 - integrare Ollama local în flow-ul de scanare, fără a schimba verdictul principal pe reguli;
 - semnale AI semantice salvate în `aiSignals` (`urgencyLevel`, `sensitiveDataRequest`, `loginOrActionRequest`, `socialEngineeringLevel`, `brandImpersonationSuspected`);
 - metadata de performanță AI salvată în scan (`status`, `model`, `promptVersion`, `latencyMs`, `evaluatedAt`);
@@ -91,6 +112,14 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - tuning suplimentar pentru latență AI locală: input semantic mai scurt și limită de generare (`num_predict`) pentru răspuns JSON rapid.
 - scor hibrid activ: `ruleScore + aiScore` (AI bonus limitat), iar verdictul folosește `finalScore`;
 - `summary` din semnalele AI este cerut acum în română.
+- modelul `qwen2.5:3b` s-a dovedit mai stabil decât `gemma3:4b` în testele locale inițiale pentru output semantic JSON și latență.
+- explainability-ul în română folosește acum formulări mai naturale pentru verdict, nu etichete brute precum `suspicious` sau `likely_phishing`.
+- model `ListEntry` pentru allowlist/blocklist locale per user;
+- aplicare allowlist/blocklist în scoring (inclusiv prioritate blocklist și reducere conservatoare pentru allowlist);
+- matching local pentru liste pe expeditorul real extras din `from` și pe `senderDomain`;
+- `blocklist` local poate ridica direct scorul pentru expeditor, iar `allowlist` local îl reduce doar limitat, ca să nu ascundă alte semnale de phishing;
+- endpoint `GET /api/v1/meta/status` întoarce un sumar per utilizator: număr de conturi conectate, emailuri, scanări și flag-uri utile pentru UI/debug;
+- rutele `auth`, `users`, `mail-accounts`, `emails`, `lists`, `meta`, `scans` sunt montate în `app.js` sub prefixul `/api/v1`.
 
 ## Ce NU este încă început
 
@@ -102,11 +131,12 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- activare scor hibrid reguli + semnale AI, cu trasabilitate separată (`ruleScore`, `aiScore`).
+- confirmarea și documentarea stării reale din cod: `lists` sunt deja active în scoring, `meta/status` oferă sumar util, iar erorile de sync sunt logate și returnate controlat.
 
 Următorul pas imediat recomandat:
 
-- calibrare fină a punctajelor AI pe seturi de emailuri de test și endpoint de listare emailuri cu verdictul curent.
+- benchmark controlat pe mai multe emailuri și mai multe modele locale pentru a alege modelul final Ollama pentru MVP;
+- implementare acțiuni manuale pe email (`mark safe`, `block sender local`, `allow sender/domain`) și conectarea lor explicită la lists/scoring.
 
 ## Blocaje
 
@@ -128,6 +158,6 @@ Nu există blocaje tehnice majore, dar există încă un blocaj de organizare:
 - folosește helperul de AI input cu text complet, nu doar `snippet`;
 - tratează `scanSummary` din răspunsul de sync ca punct de verificare rapidă pentru flow-ul unificat;
 - verifică variabilele de mediu pentru AI local: `AI_SEMANTIC_ENABLED`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_MS`, `OLLAMA_PROMPT_VERSION`;
-- compară local modelele după `latencyMs` și consistența outputului JSON;
+- compară local modelele după `latencyMs`, consistența outputului JSON și stabilitatea pe același set de emailuri;
 - folosește emailuri de test cu `Reply-To` diferit și text de presiune pentru validarea semnalelor AI viitoare;
 - nu investi încă timp în frontend real, UI-ul actual este doar pentru test temporar.

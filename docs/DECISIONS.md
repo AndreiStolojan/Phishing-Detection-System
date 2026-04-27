@@ -247,3 +247,17 @@ Impact:
 - `aiScore` este limitat (cap) pentru a evita dominarea verdictului de către AI;
 - verdictul final folosește scorul hibrid;
 - `summary` din semnalele AI este cerut în română pentru consistență de produs.
+
+### 2026-04-12 - Modelul Ollama final pentru MVP se alege prin benchmark local, nu doar după mărimea modelului
+
+Motiv:
+
+- testele locale au arătat că un model mai mare nu este automat și mai bun pentru cazul nostru;
+- pentru MVP contează mai mult stabilitatea pe output JSON, latența și consistența semnalelor decât dimensiunea modelului;
+- alegerea trebuie făcută pe un set mic de emailuri de test, nu intuitiv.
+
+Impact:
+
+- `qwen2.5:3b` este candidatul curent mai stabil pentru dezvoltare, dar decizia finală rămâne după benchmark;
+- evaluarea modelelor trebuie să urmărească `latencyMs`, rata de `status: evaluated`, calitatea semnalelor și consistența pe rerulare;
+- benchmark-ul local devine următorul pas recomandat înainte de alte schimbări în scoringul AI.

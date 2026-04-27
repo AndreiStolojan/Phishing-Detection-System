@@ -4,10 +4,11 @@ import createError from '../common/errors/create-error.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
 import { analyzeEmailSemanticsWithOllama } from './ollama-semantic.service.js';
+import { findSenderListMatchesForEmail } from './scan-list-match.service.js';
 import { buildControlledRomanianExplanation } from './scan-explanation.service.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v2';
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v3';
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
@@ -56,6 +57,12 @@ const LINK_PATTERN_RULES = {
         reason: 'At least one link is unusually long.',
     },
 };
+
+const BLOCKLIST_EMAIL_POINTS = 60;
+const BLOCKLIST_DOMAIN_POINTS = 45;
+const ALLOWLIST_EMAIL_REDUCTION = 18;
+const ALLOWLIST_DOMAIN_REDUCTION = 10;
+const MIN_RULE_SCORE_WITH_OTHER_SIGNALS = 5;
 
 const toPublicScan = (scan) => ({
     _id: scan._id,
@@ -180,6 +187,115 @@ const calculateRulesForEmail = (email) => {
             details: `Email includes ${linkCount} links.`,
             reason: 'Email includes many links.',
         });
+    }
+
+    return {
+        score,
+        ruleScore: score,
+        reasons,
+        triggeredRules,
+    };
+};
+
+const applyListSignalsToRulesResult = ({ rulesResult, listMatches }) => {
+    let score = rulesResult.ruleScore;
+    const reasons = [...rulesResult.reasons];
+    const triggeredRules = [...rulesResult.triggeredRules];
+
+    const triggerRule = ({ rule, points, details, reason }) => {
+        score += points;
+        triggeredRules.push({
+            rule,
+            points,
+            details,
+        });
+
+        if (reason) {
+            reasons.push(reason);
+        }
+    };
+
+    if (listMatches.blocklist.email) {
+        triggerRule({
+            rule: 'sender_blocklisted_email',
+            points: BLOCKLIST_EMAIL_POINTS,
+            details: `Sender email (${listMatches.senderEmail}) is present in user blocklist.`,
+            reason: 'Sender email is in your blocklist.',
+        });
+    }
+
+    if (listMatches.blocklist.domain) {
+        triggerRule({
+            rule: 'sender_blocklisted_domain',
+            points: BLOCKLIST_DOMAIN_POINTS,
+            details: `Sender domain (${listMatches.senderDomain}) is present in user blocklist.`,
+            reason: 'Sender domain is in your blocklist.',
+        });
+    }
+
+    const hasBlocklistMatch = listMatches.blocklist.email || listMatches.blocklist.domain;
+    const hasAllowlistMatch = listMatches.allowlist.email || listMatches.allowlist.domain;
+
+    if (hasBlocklistMatch && hasAllowlistMatch) {
+        triggerRule({
+            rule: 'sender_allowlist_ignored_due_to_blocklist',
+            points: 0,
+            details: 'Allowlist match detected, but blocklist takes priority for safety.',
+            reason: 'Allowlist match was ignored because blocklist match has priority.',
+        });
+    }
+
+    if (!hasBlocklistMatch && hasAllowlistMatch) {
+        const matchedScopes = [];
+        let requestedReduction = 0;
+
+        if (listMatches.allowlist.email) {
+            matchedScopes.push('email');
+            requestedReduction += ALLOWLIST_EMAIL_REDUCTION;
+        }
+
+        if (listMatches.allowlist.domain) {
+            matchedScopes.push('domain');
+            requestedReduction += ALLOWLIST_DOMAIN_REDUCTION;
+        }
+
+        const minimumScore = rulesResult.ruleScore > 0 ? MIN_RULE_SCORE_WITH_OTHER_SIGNALS : 0;
+        const maxAllowedReduction = Math.max(0, score - minimumScore);
+        const appliedReduction = Math.min(requestedReduction, maxAllowedReduction);
+
+        if (appliedReduction > 0) {
+            triggerRule({
+                rule: 'sender_allowlisted',
+                points: -appliedReduction,
+                details: `Sender matched allowlist by ${matchedScopes.join(
+                    ' + '
+                )}. Requested reduction ${requestedReduction} points; applied ${appliedReduction} points.`,
+                reason: `Sender matched your allowlist (${matchedScopes.join(
+                    ' + '
+                )}), so risk score was reduced conservatively.`,
+            });
+        } else {
+            triggerRule({
+                rule: 'sender_allowlisted_no_reduction',
+                points: 0,
+                details:
+                    'Sender matched allowlist, but score was already at minimum and could not be reduced further.',
+                reason: 'Sender matched your allowlist, but score was already at minimum.',
+            });
+        }
+
+        if (appliedReduction < requestedReduction && minimumScore > 0) {
+            triggerRule({
+                rule: 'sender_allowlist_reduction_capped',
+                points: 0,
+                details: `Allowlist reduction capped to keep at least ${minimumScore} rule points when other risk signals exist.`,
+                reason: 'Allowlist reduction was capped so other risk signals remain visible.',
+            });
+        }
+    }
+
+    if (score < 0) {
+        score = 0;
     }
 
     return {
@@ -392,18 +508,29 @@ export const scanEmailWithRules = async ({
     }
 
     const rulesResult = calculateRulesForEmail(email);
+    const listMatches = await findSenderListMatchesForEmail({
+        userId: email.userId,
+        email,
+    });
+    const rulesWithListSignals = applyListSignalsToRulesResult({
+        rulesResult,
+        listMatches,
+    });
     const aiSignals = await analyzeEmailSemanticsWithOllama({
         analysisInput: aiInput,
     });
     const aiScoreResult = calculateAiScoreFromSignals(aiSignals);
-    const finalScore = rulesResult.ruleScore + aiScoreResult.aiScore;
+    const finalScore = rulesWithListSignals.ruleScore + aiScoreResult.aiScore;
     const finalResult = {
         score: finalScore,
-        ruleScore: rulesResult.ruleScore,
+        ruleScore: rulesWithListSignals.ruleScore,
         aiScore: aiScoreResult.aiScore,
         verdict: mapScoreToVerdict(finalScore),
-        reasons: [...rulesResult.reasons, ...aiScoreResult.aiReasons],
-        triggeredRules: [...rulesResult.triggeredRules, ...aiScoreResult.aiTriggeredRules],
+        reasons: [...rulesWithListSignals.reasons, ...aiScoreResult.aiReasons],
+        triggeredRules: [
+            ...rulesWithListSignals.triggeredRules,
+            ...aiScoreResult.aiTriggeredRules,
+        ],
     };
     const aiExplanation = buildControlledRomanianExplanation({
         verdict: finalResult.verdict,

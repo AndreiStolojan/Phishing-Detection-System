@@ -18,6 +18,8 @@ import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
 import { runSyncScanPipeline } from './scan.service.js';
 
 const GMAIL_SYNC_MAX_RESULTS = 5;
+const SYNC_ERRORS_MAX_ITEMS = 5;
+const SYNC_ERROR_MESSAGE_MAX_LENGTH = 180;
 
 const toPublicMailAccount = (mailAccount) => ({
     _id: mailAccount._id,
@@ -30,6 +32,55 @@ const toPublicMailAccount = (mailAccount) => ({
     createdAt: mailAccount.createdAt,
     updatedAt: mailAccount.updatedAt,
 });
+
+const sanitizeSyncErrorMessage = (error) => {
+    const rawMessage = typeof error?.message === 'string' ? error.message : 'Unexpected sync error';
+    const normalizedMessage = rawMessage.replace(/\s+/g, ' ').trim();
+
+    if (normalizedMessage.length <= SYNC_ERROR_MESSAGE_MAX_LENGTH) {
+        return normalizedMessage;
+    }
+
+    return `${normalizedMessage.slice(0, SYNC_ERROR_MESSAGE_MAX_LENGTH)}...`;
+};
+
+const toSyncErrorItem = ({ messageId, stage, error }) => ({
+    messageId,
+    stage,
+    code: error?.code || 'SYNC_ITEM_PROCESSING_FAILED',
+    statusCode: Number.isInteger(error?.statusCode) ? error.statusCode : 500,
+    message: sanitizeSyncErrorMessage(error),
+});
+
+const logSyncItemFailure = ({ mailAccount, syncSource, messageId, stage, error }) => {
+    console.error('[gmail-sync] Message processing failed', {
+        userId: String(mailAccount.userId),
+        mailAccountId: String(mailAccount._id),
+        provider: mailAccount.provider,
+        syncSource,
+        messageId,
+        stage,
+        code: error?.code || null,
+        statusCode: Number.isInteger(error?.statusCode) ? error.statusCode : null,
+        message: sanitizeSyncErrorMessage(error),
+    });
+};
+
+const pushCappedSyncError = ({ syncErrors, messageId, stage, error }) => {
+    if (syncErrors.length >= SYNC_ERRORS_MAX_ITEMS) {
+        return false;
+    }
+
+    syncErrors.push(
+        toSyncErrorItem({
+            messageId,
+            stage,
+            error,
+        })
+    );
+
+    return true;
+};
 
 export const getMailAccountsForUser = async (userId) => {
     const mailAccounts = await MailAccount.find({ userId }).sort({ createdAt: -1 });
@@ -412,6 +463,8 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     let skippedCount = 0;
     const insertedEmailIds = [];
     const updatedEmailIds = [];
+    const syncErrors = [];
+    let omittedSyncErrorsCount = 0;
 
     for (const gmailMessage of gmailMessages) {
         if (!gmailMessage.id) {
@@ -419,77 +472,203 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             continue;
         }
 
+        const messageId = gmailMessage.id;
+
         let messageDetails;
 
         try {
             messageDetails = await fetchGmailMessageDetails({
                 mailAccount,
-                messageId: gmailMessage.id,
+                messageId,
             });
         } catch (error) {
-            if (error.statusCode === 404) {
-                skippedCount += 1;
-                continue;
+            skippedCount += 1;
+            logSyncItemFailure({
+                mailAccount,
+                syncSource,
+                messageId,
+                stage: 'details_fetch',
+                error,
+            });
+
+            const isStored = pushCappedSyncError({
+                syncErrors,
+                messageId,
+                stage: 'details_fetch',
+                error,
+            });
+
+            if (!isStored) {
+                omittedSyncErrorsCount += 1;
             }
 
-            throw error;
+            continue;
         }
 
-        const emailPayload = parseGmailMessageToEmailPayload({
-            gmailMessage: messageDetails,
-            mailAccount,
-            syncSource,
-        });
+        let emailPayload;
+
+        try {
+            emailPayload = parseGmailMessageToEmailPayload({
+                gmailMessage: messageDetails,
+                mailAccount,
+                syncSource,
+            });
+        } catch (error) {
+            skippedCount += 1;
+            logSyncItemFailure({
+                mailAccount,
+                syncSource,
+                messageId,
+                stage: 'payload_parse',
+                error,
+            });
+
+            const isStored = pushCappedSyncError({
+                syncErrors,
+                messageId,
+                stage: 'payload_parse',
+                error,
+            });
+
+            if (!isStored) {
+                omittedSyncErrorsCount += 1;
+            }
+
+            continue;
+        }
 
         const now = new Date();
 
-        const updateResult = await Email.updateOne(
-            {
-                userId: mailAccount.userId,
-                providerMessageId: emailPayload.providerMessageId,
-            },
-            {
-                $set: {
-                    ...emailPayload,
-                    updatedAt: now,
-                },
-                $setOnInsert: {
-                    createdAt: now,
-                },
-            },
-            {
-                upsert: true,
-                runValidators: true,
-            }
-        );
+        let updateResult;
 
-        if (updateResult.upsertedCount === 1) {
-            insertedCount += 1;
-            const insertedEmail = await Email.findOne(
+        try {
+            updateResult = await Email.updateOne(
                 {
                     userId: mailAccount.userId,
                     providerMessageId: emailPayload.providerMessageId,
                 },
-                { _id: 1 }
+                {
+                    $set: {
+                        ...emailPayload,
+                        updatedAt: now,
+                    },
+                    $setOnInsert: {
+                        createdAt: now,
+                    },
+                },
+                {
+                    upsert: true,
+                    runValidators: true,
+                }
             );
+        } catch (error) {
+            skippedCount += 1;
+            logSyncItemFailure({
+                mailAccount,
+                syncSource,
+                messageId,
+                stage: 'db_upsert',
+                error,
+            });
+
+            const isStored = pushCappedSyncError({
+                syncErrors,
+                messageId,
+                stage: 'db_upsert',
+                error,
+            });
+
+            if (!isStored) {
+                omittedSyncErrorsCount += 1;
+            }
+
+            continue;
+        }
+
+        if (updateResult.upsertedCount === 1) {
+            insertedCount += 1;
+            let insertedEmail;
+
+            try {
+                insertedEmail = await Email.findOne(
+                    {
+                        userId: mailAccount.userId,
+                        providerMessageId: emailPayload.providerMessageId,
+                    },
+                    { _id: 1 }
+                );
+            } catch (error) {
+                logSyncItemFailure({
+                    mailAccount,
+                    syncSource,
+                    messageId,
+                    stage: 'db_lookup',
+                    error,
+                });
+
+                const isStored = pushCappedSyncError({
+                    syncErrors,
+                    messageId,
+                    stage: 'db_lookup',
+                    error,
+                });
+
+                if (!isStored) {
+                    omittedSyncErrorsCount += 1;
+                }
+            }
 
             if (insertedEmail?._id) {
                 insertedEmailIds.push(insertedEmail._id);
             }
         } else {
             updatedCount += 1;
-            const updatedEmail = await Email.findOne(
-                {
-                    userId: mailAccount.userId,
-                    providerMessageId: emailPayload.providerMessageId,
-                },
-                { _id: 1 }
-            );
+            let updatedEmail;
+
+            try {
+                updatedEmail = await Email.findOne(
+                    {
+                        userId: mailAccount.userId,
+                        providerMessageId: emailPayload.providerMessageId,
+                    },
+                    { _id: 1 }
+                );
+            } catch (error) {
+                logSyncItemFailure({
+                    mailAccount,
+                    syncSource,
+                    messageId,
+                    stage: 'db_lookup',
+                    error,
+                });
+
+                const isStored = pushCappedSyncError({
+                    syncErrors,
+                    messageId,
+                    stage: 'db_lookup',
+                    error,
+                });
+
+                if (!isStored) {
+                    omittedSyncErrorsCount += 1;
+                }
+            }
 
             if (updatedEmail?._id) {
                 updatedEmailIds.push(updatedEmail._id);
             }
         }
+    }
+
+    if (omittedSyncErrorsCount > 0) {
+        console.warn('[gmail-sync] syncErrors cap reached', {
+            userId: String(mailAccount.userId),
+            mailAccountId: String(mailAccount._id),
+            syncSource,
+            omittedSyncErrorsCount,
+            returnedSyncErrorsCount: syncErrors.length,
+            maxSyncErrors: SYNC_ERRORS_MAX_ITEMS,
+        });
     }
 
     const syncedAt = new Date();
@@ -519,6 +698,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         insertedCount,
         updatedCount,
         skippedCount,
+        syncErrors,
         scanSummary,
         syncedAt,
     };

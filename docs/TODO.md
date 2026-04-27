@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, iar primul motor de scanare pe reguli este implementat
-- Progres estimativ MVP: `78%`
-- Faza curentă: `Faza 8 - Motor de detecție phishing (iterația 3)`
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, `allowlist/blocklist` influențează deja scorul, iar endpoint-urile `emails/lists/meta` sunt integrate în API
+- Progres estimativ MVP: `87%`
+- Faza curentă: `Faza 9-10 - Acțiuni manuale rămase peste flow-ul complet existent`
 
 ## Legendă
 
@@ -106,7 +106,7 @@ Obligatoriu pentru MVP: da
 Milestone: profil minim utilizator
 
 - [x] Endpoint pentru profilul curent
-- [ ] Endpoint pentru actualizare setări simple
+- [x] Endpoint pentru actualizare setări simple
 - [x] Definire clară a datelor returnate public
 - [x] Restricționare endpoint-uri users pentru admin
 
@@ -143,7 +143,7 @@ Milestone: aplicația citește și salvează emailuri
 - [x] Evitare duplicatelor prin `providerMessageId`
 - [x] Endpoint pentru declanșare sync manual
 - [x] Salvare `lastSyncedAt`
-- [ ] Logare clară a erorilor de sync
+- [x] Logare clară a erorilor de sync
 - [x] Test manual end-to-end pentru flow-ul `register -> login -> connect Gmail -> sync manual`
 
 Dependențe: Faza 5
@@ -195,9 +195,9 @@ Obligatoriu pentru MVP: da
 
 Milestone: emailul poate fi văzut împreună cu verdictul și acțiunile
 
-- [ ] Endpoint listare emailuri
-- [ ] Endpoint detalii email
-- [ ] Endpoint rezultat scan
+- [x] Endpoint listare emailuri
+- [x] Endpoint detalii email
+- [x] Endpoint rezultat scan
 - [ ] Endpoint `mark safe`
 - [ ] Endpoint `block sender local`
 - [ ] Endpoint `allow sender/domain`
@@ -212,11 +212,16 @@ Obligatoriu pentru MVP: da, cu excepția `move to spam/junk` care este condițio
 
 Milestone: blocklist și allowlist funcționale
 
-- [ ] Creare model `ListEntry`
-- [ ] Suport `allowlist`
-- [ ] Suport `blocklist`
-- [ ] Aplicare listelor în scorare
-- [ ] Endpoint-uri pentru administrarea listelor
+- [x] Creare model `ListEntry`
+- [x] Suport `allowlist`
+- [x] Suport `blocklist`
+- [x] Aplicare listelor în scorare
+- [x] Endpoint-uri pentru administrarea listelor
+
+Notă: în starea actuală, listele locale sunt deja folosite de motorul de scanare pentru două cazuri simple și utile pentru MVP:
+
+- `blocklist` pe `email` sau `domain` crește scorul de risc pentru expeditor;
+- `allowlist` pe `email` sau `domain` reduce conservator scorul, fără să ascundă complet alte semnale suspecte.
 
 Dependențe: Faza 9
 
@@ -279,7 +284,7 @@ Obligatoriu pentru MVP: da
 - [-] Extracție linkuri și metadate utile
 - [-] Scor phishing bazat pe reguli
 - [-] Verdict și motive clare
-- [-] Listare emailuri și rezultat scan
+- [x] Listare emailuri și rezultat scan
 - [ ] `mark safe`
 - [ ] `block sender local`
 
@@ -306,6 +311,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: scanare manuala si endpoint-ul `latest` testate cu succes pe emailuri sincronizate
+Ultimul punct finalizat: integrarea finală a routerelor `emails`, `lists` și `meta` în `app.js` sub prefixul `/api/v1`
 
-Următorul pas recomandat: integrarea semnalelor AI semantice pe textul complet al emailului
+Următorul pas recomandat: implementarea acțiunilor din Faza 9 (`mark safe` și `block sender local`) peste endpoint-urile deja disponibile
