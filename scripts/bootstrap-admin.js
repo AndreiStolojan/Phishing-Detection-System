@@ -24,7 +24,7 @@ const bootstrapAdmin = async () => {
             role: 'admin',
         },
         {
-            new: true,
+            returnDocument: 'after',
             upsert: true,
             runValidators: true,
             setDefaultsOnInsert: true,

@@ -4,6 +4,9 @@ import { fileURLToPath } from 'url';
 import userRouter from './routes/user.routes.js';
 import authRouter from './routes/auth.routes.js';
 import mailAccountRouter from './routes/mail-account.routes.js';
+import emailRouter from './routes/email.routes.js';
+import listRouter from './routes/list.routes.js';
+import metaRouter from './routes/meta.routes.js';
 import scanRouter from './routes/scan.routes.js';
 import sendErrorResponse from './common/http/send-error-response.js';
 import errorMiddleware from './middlewares/error.middleware.js';
@@ -19,6 +22,9 @@ app.use('/manual-tests', express.static(path.join(__dirname, 'manual-tests')));
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/mail-accounts', mailAccountRouter);
+app.use('/api/v1/emails', emailRouter);
+app.use('/api/v1/lists', listRouter);
+app.use('/api/v1/meta', metaRouter);
 app.use('/api/v1/scans', scanRouter);
 
 app.get('/api/v1/health', (req, res) => {

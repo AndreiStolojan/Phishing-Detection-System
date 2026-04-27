@@ -29,3 +29,18 @@ export const getCurrentUser = async (authenticatedUserId) => {
 
     return toPublicUser(user);
 };
+
+export const updateCurrentUser = async (authenticatedUserId, payload) => {
+    const user = await User.findById(authenticatedUserId);
+
+    if (!user) {
+        const error = new Error('User not found');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    user.name = payload.name;
+    await user.save();
+
+    return toPublicUser(user);
+};
