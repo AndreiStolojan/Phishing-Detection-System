@@ -91,7 +91,7 @@ Impact:
 
 - clientul salvează tokenul și îl trimite ca `Authorization: Bearer <token>`;
 - `logout` este tratat în client prin ștergerea tokenului local;
-- dacă mai târziu vrem sesiuni invalidate pe server, va trebui introdusă o strategie nouă, de exemplu cookies sau token blacklist.
+- dacă mai târziu vrem sesiuni invalidate pe server, va trebui introdusă o strategie nouă, de exemplu cookies sau o listă server-side de tokenuri invalidate.
 
 ### 2026-04-04 - Endpoint-ul pentru utilizatorul curent rămâne `GET /api/v1/users/me`
 
@@ -261,3 +261,211 @@ Impact:
 - `qwen2.5:3b` este candidatul curent mai stabil pentru dezvoltare, dar decizia finală rămâne după benchmark;
 - evaluarea modelelor trebuie să urmărească `latencyMs`, rata de `status: evaluated`, calitatea semnalelor și consistența pe rerulare;
 - benchmark-ul local devine următorul pas recomandat înainte de alte schimbări în scoringul AI.
+
+### 2026-04-28 - Filtrele listei de emailuri folosesc starea finală, nu verdictul brut de scanare
+
+Motiv:
+
+- UI-ul grupează emailurile după starea finală (`effectiveVerdict` și `riskBucket`);
+- verdictul manual al utilizatorului are prioritate peste scanare;
+- `Scan.verdict` rămâne strict algoritmic și nu include `phishing`.
+
+Impact:
+
+- `GET /api/v1/emails?verdict=...` filtrează după `effectiveVerdict`;
+- `verdict=phishing` întoarce emailurile marcate manual ca phishing;
+- `GET /api/v1/emails?riskBucket=...` filtrează după gruparea finală pentru UI;
+- totalul de paginare este calculat după aceleași filtre finale.
+
+### 2026-04-28 - `userVerdict` suprascrie verdictul scanării în starea afișată
+
+Motiv:
+
+- emailul are deja review-ul manual salvat în `userVerdict`, `reviewedAt`, `lastManualAction`;
+- scanarea curentă are deja verdictul algoritmic în `latestScan.verdict`;
+- UI-ul are nevoie de un contract simplu, dar nu vrem să salvăm câmpuri care pot fi recalculate clar;
+- decizia utilizatorului trebuie să aibă prioritate, pentru că reprezintă confirmarea manuală asupra unui email concret.
+
+Impact:
+
+- `userVerdict` are prioritate peste verdictul scanării;
+- `userVerdict: safe` produce `effectiveVerdict: safe`, `verdictSource: user`, `isQuarantined: false`;
+- `userVerdict: phishing` produce `effectiveVerdict: phishing`, `verdictSource: user`, `isQuarantined: false`;
+- fără `userVerdict`, verdictul efectiv vine din `latestScan.verdict`, cu `verdictSource: scan`;
+- `reviewStatus` este:
+  - `reviewed` dacă există `userVerdict`;
+  - `pending_review` pentru scanări `suspicious` sau `likely_phishing` fără review manual;
+  - `no_review_needed` pentru scanări `safe` fără review manual;
+  - `unscanned` când nu există nici review manual, nici scanare;
+- răspunsurile de email nu mai expun apartenență la liste, pentru că allowlist/blocklist au fost scoase din MVP.
+
+### 2026-04-28 - Carantina este locală, nu o zonă separată în Gmail
+
+Motiv:
+
+- pentru MVP vrem să arătăm clar că un email este tratat ca risc ridicat, fără să construim încă un sistem separat de izolare;
+- Gmail nu oferă o "carantină" custom simplă pentru aplicația noastră;
+- termenul este util în UI și în raportare, dar trebuie definit strict ca stare derivată din datele backend-ului.
+
+Impact:
+
+- `isQuarantined: true` înseamnă că ultima scanare este `likely_phishing` și nu există verdict manual peste ea;
+- un email scanat ca `likely_phishing` intră în carantină locală chiar dacă nu a fost mutat în Spam;
+- un email marcat manual cu `userVerdict: phishing` iese din carantină și devine phishing confirmat manual;
+- carantina locală nu creează filtre Gmail și nu mută automat toate emailurile similare.
+
+### 2026-04-28 - Starea finală folosește `riskBucket`
+
+Motiv:
+
+- UI-ul are nevoie de o categorie simplă pentru fiecare email, fără să amestece scanarea automată cu decizia manuală;
+- `effectiveVerdict` spune verdictul final, dar `riskBucket` spune ce acțiune sau grupare este utilă pentru produs;
+- phishing-ul confirmat manual trebuie separat de carantina automată, pentru că utilizatorul deja a luat o decizie.
+
+Impact:
+
+- verdictul scanării rămâne strict algoritmic: `safe`, `suspicious`, `likely_phishing`;
+- verdictul manual rămâne în `userVerdict`: `safe` sau `phishing`;
+- verdictul final expus prin `effectiveVerdict` poate fi `safe`, `suspicious`, `likely_phishing`, `phishing` sau `null`;
+- `userVerdict: safe` produce `reviewStatus: reviewed`, `effectiveVerdict: safe`, `verdictSource: user`, `isQuarantined: false`, `riskBucket: reviewed_safe`;
+- `userVerdict: phishing` produce `reviewStatus: reviewed`, `effectiveVerdict: phishing`, `verdictSource: user`, `isQuarantined: false`, `riskBucket: confirmed_phishing`;
+- scanare `likely_phishing` fără verdict manual produce `reviewStatus: pending_review`, `effectiveVerdict: likely_phishing`, `verdictSource: scan`, `isQuarantined: true`, `riskBucket: quarantine`;
+- scanare `suspicious` fără verdict manual produce `reviewStatus: pending_review`, `effectiveVerdict: suspicious`, `verdictSource: scan`, `isQuarantined: false`, `riskBucket: needs_review`;
+- scanare `safe` fără verdict manual produce `reviewStatus: no_review_needed`, `effectiveVerdict: safe`, `verdictSource: scan`, `isQuarantined: false`, `riskBucket: safe`;
+- email fără scanare și fără verdict manual produce `reviewStatus: unscanned`, `effectiveVerdict: null`, `verdictSource: null`, `isQuarantined: false`, `riskBucket: unscanned`.
+
+### 2026-04-28 - `pending_review` înseamnă risc detectat, dar neconfirmat de utilizator
+
+Motiv:
+
+- verdictul algoritmic nu trebuie confundat cu o decizie manuală;
+- utilizatorul trebuie să poată vedea rapid ce emailuri merită verificate;
+- pentru lucrare, separarea dintre detecție automată și confirmare umană este importantă și ușor de explicat.
+
+Impact:
+
+- `reviewStatus: pending_review` apare când ultima scanare este `suspicious` sau `likely_phishing` și `userVerdict` este gol;
+- `pending_review` nu schimbă Gmail;
+- `pending_review` nu adaugă automat expeditorul în blocklist;
+- după `mark-safe` sau `mark-phishing`, statusul devine `reviewed`.
+
+### 2026-05-02 - Scoatem allowlist/blocklist din MVP
+
+Motiv:
+
+- flow-ul manual trebuie să rămână ușor de explicat și testat;
+- scoring-ul de bază trebuie să fie determinat de regulile de detecție și semnalele AI semantice, nu de liste locale administrate separat;
+- endpoint-urile pentru liste cresc suprafața MVP-ului fără să fie obligatorii pentru demonstrația principală.
+
+Impact:
+
+- `/api/v1/lists` nu mai este montat în `app.js`;
+- acțiunile `allow-sender`, `allow-domain`, `block-sender`, `block-domain` nu mai sunt expuse;
+- `mark-phishing` setează doar `userVerdict: phishing` și încearcă mutarea mesajului concret în Gmail Spam;
+- scanarea nu mai citește și nu mai aplică semnale de allowlist/blocklist;
+- răspunsurile emailurilor nu mai includ `listMembership`;
+- fișierele dedicate lists au fost eliminate din cod.
+
+### 2026-05-02 - Explainability AI structurată, controlată de backend
+
+Motiv:
+
+- explicația veche era corectă, dar prea rigidă pentru un utilizator non-tehnic;
+- frontend-ul are nevoie de un contract simplu, predictibil, fără secțiuni pe care modelul local le poate genera inconsistent;
+- vrem să folosim Ollama pentru formulare naturală, dar fără să îi dăm control asupra verdictului sau scorului.
+
+Impact:
+
+- `aiExplanation` rămâne obiect pentru frontend, dar în MVP conține doar `summary`;
+- `summary` are 1-3 fraze scurte în română și include o recomandare practică scurtă;
+- `aiExplanationMeta` salvează sursa explicației, statusul, modelul, latența și motivul de fallback;
+- pentru explicația finală, Ollama primește doar `verdict`, `score`, `ruleScore`, `aiScore`, `triggeredRules` și `aiSignals`;
+- Ollama nu primește corpul emailului pentru explicația finală, nu decide verdictul și nu schimbă scorul;
+- dacă Ollama este oprit, lent sau întoarce JSON invalid, backend-ul folosește fallback-ul controlat.
+
+### 2026-05-02 - AI poate fi pornit/oprit per utilizator
+
+Motiv:
+
+- pentru demonstrație și debugging este util să vedem clar diferența dintre scanări cu AI și scanări cu fallback;
+- setarea trebuie să fie controlabilă din API, fără modificări în cod sau restart;
+- oprirea AI nu trebuie să declanșeze rescanări inutile.
+
+Impact:
+
+- utilizatorul are `settings.aiEnabled`;
+- endpoint-ul `PATCH /api/v1/users/me/ai-settings` acceptă `aiEnabled: 0` sau `aiEnabled: 1`;
+- când `aiEnabled` este `false`, scanarea nu apelează Ollama și salvează fallback cu `fallbackReason: ai_disabled`;
+- când `aiEnabled` este `true`, scanarea apelează Ollama pentru semnale și pentru explicația naturală;
+- oprirea AI nu invalidează scanările existente;
+- pornirea AI poate invalida o scanare curentă făcută fără AI sau fără explicație generată de Ollama, astfel încât ea să poată fi completată printr-o rescanare eligibilă.
+
+### 2026-04-28 - Gmail Spam se modifică doar la `mark-phishing` manual, cu scope `gmail.modify`
+
+Motiv:
+
+- mutarea automată în Spam pe baza scanării poate produce acțiuni prea agresive pentru MVP;
+- utilizatorul trebuie să confirme explicit că un email este phishing înainte să modificăm starea lui în Gmail;
+- pentru lucrarea de licență este mai ușor de explicat separarea dintre verdict algoritmic și acțiune manuală.
+
+Impact:
+
+- scope-ul OAuth Gmail devine `https://www.googleapis.com/auth/gmail.modify`, în loc de `gmail.readonly`;
+- conturile Gmail conectate anterior trebuie reconectate ca să primească noul scope;
+- `mark-phishing` păstrează comportamentul local: setează `userVerdict: phishing`;
+- doar după salvarea locală, backend-ul încearcă `users.messages.modify` cu `addLabelIds: ["SPAM"]` și `removeLabelIds: ["INBOX"]`;
+- dacă Gmail eșuează, acțiunea locală nu se face rollback;
+- `mark-safe` rămâne local-only și nu modifică Gmail;
+- scanările automate `likely_phishing` nu mută mesaje în Spam;
+- filtrele Gmail automate nu sunt implementate; aplicația modifică doar mesajul concret asupra căruia utilizatorul a făcut `mark-phishing`.
+
+### 2026-04-28 - Raportul lunar este endpoint de date, nu automatizare
+
+Motiv:
+
+- pentru MVP este util să avem date agregate pentru dashboard sau raportare, fără complexitatea unui job programat;
+- primul pas a fost sumarul ca date pure, ca să poată fi testat separat de trimiterea emailului;
+- datele existente în `Email` și `Scan` sunt suficiente pentru un sumar lunar simplu.
+
+Impact:
+
+- endpoint-ul este `GET /api/v1/reports/monthly-summary`, protejat cu Bearer token;
+- raportul este calculat doar pentru utilizatorul autentificat;
+- `month=YYYY-MM` selectează luna raportată, iar fără query se folosește luna curentă;
+- contoarele folosesc câmpurile de eveniment existente: `Email.createdAt` pentru emailuri sincronizate, `Scan.scannedAt` pentru scanări/verdicturi/reguli/AI și `Email.reviewedAt` pentru review manual;
+- nu se introduce job, scheduler sau trimitere automată de email.
+
+### 2026-04-28 - Digestul lunar este manual-first și folosește configurare de email din env
+
+Motiv:
+
+- utilizatorul are nevoie de o acțiune simplă prin care să trimită sumarul lunar către propria adresă;
+- pentru MVP evităm scheduler, cron și reguli automate de trimitere;
+- senderul nu trebuie hardcodat în cod, pentru că diferă între mediile locale și producție.
+
+Impact:
+
+- endpoint-ul este `POST /api/v1/reports/monthly-summary/send`, protejat cu Bearer token;
+- destinatarul este emailul utilizatorului autentificat (`req.user.email`);
+- datele trimise reutilizează serviciul existent de sumar lunar;
+- template-ul de email este în română și este separat de logica de raportare;
+- trimiterea folosește `EMAIL_FROM` și `EMAIL_PASSWORD`;
+- dacă lipsește configurarea de email, endpoint-ul întoarce `sent: false` cu o eroare clară;
+- nu s-a introdus scheduler/cron și nu s-a reactivat welcome email-ul din auth;
+- dacă în viitor se adaugă automatizare, ea trebuie documentată separat; în starea curentă, digestul nu se trimite singur.
+
+### 2026-04-28 - Există o singură scanare curentă per email
+
+Motiv:
+
+- pentru MVP nu avem nevoie de istoric complet de scanări, ci de rezultatul curent afișat utilizatorului;
+- două scanări concurente pentru același email puteau crea documente duplicate dacă fluxul făcea `find` și apoi `create`;
+- duplicatele pot strica alegerea ultimei scanări și pot umfla sumarul lunar (`scannedEmails`, verdicturi, reguli frecvente, statusuri AI).
+
+Impact:
+
+- modelul `Scan` are index unic pe `userId + emailId`;
+- salvarea scanării curente folosește `findOneAndUpdate` cu `upsert: true`, deci operația este atomică la nivel MongoDB când indexul există;
+- `cleanupDuplicateScans` rămâne util pentru date vechi, dar nu este mecanismul principal de corectitudine;
+- dacă există duplicate vechi în colecția `scans`, ele trebuie curățate înainte ca MongoDB să poată construi indexul unic;
+- pentru development există scriptul `npm run cleanup:duplicate-scans`, care păstrează cea mai recentă scanare pentru fiecare pereche `userId + emailId`.

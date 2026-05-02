@@ -3,12 +3,15 @@ import mongoose from 'mongoose';
 import createError from '../common/errors/create-error.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
+import User from '../models/user.model.js';
 import { analyzeEmailSemanticsWithOllama } from './ollama-semantic.service.js';
-import { findSenderListMatchesForEmail } from './scan-list-match.service.js';
-import { buildControlledRomanianExplanation } from './scan-explanation.service.js';
+import { generateNaturalExplanationWithOllama } from './ollama-explanation.service.js';
+import {
+    buildControlledRomanianExplanationObject,
+} from './scan-explanation.service.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v3';
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v4';
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
@@ -58,12 +61,6 @@ const LINK_PATTERN_RULES = {
     },
 };
 
-const BLOCKLIST_EMAIL_POINTS = 60;
-const BLOCKLIST_DOMAIN_POINTS = 45;
-const ALLOWLIST_EMAIL_REDUCTION = 18;
-const ALLOWLIST_DOMAIN_REDUCTION = 10;
-const MIN_RULE_SCORE_WITH_OTHER_SIGNALS = 5;
-
 const toPublicScan = (scan) => ({
     _id: scan._id,
     emailId: scan.emailId,
@@ -78,6 +75,7 @@ const toPublicScan = (scan) => ({
     engineVersion: scan.engineVersion,
     aiSignals: scan.aiSignals,
     aiExplanation: scan.aiExplanation,
+    aiExplanationMeta: scan.aiExplanationMeta,
     scannedAt: scan.scannedAt,
     createdAt: scan.createdAt,
     updatedAt: scan.updatedAt,
@@ -187,115 +185,6 @@ const calculateRulesForEmail = (email) => {
             details: `Email includes ${linkCount} links.`,
             reason: 'Email includes many links.',
         });
-    }
-
-    return {
-        score,
-        ruleScore: score,
-        reasons,
-        triggeredRules,
-    };
-};
-
-const applyListSignalsToRulesResult = ({ rulesResult, listMatches }) => {
-    let score = rulesResult.ruleScore;
-    const reasons = [...rulesResult.reasons];
-    const triggeredRules = [...rulesResult.triggeredRules];
-
-    const triggerRule = ({ rule, points, details, reason }) => {
-        score += points;
-        triggeredRules.push({
-            rule,
-            points,
-            details,
-        });
-
-        if (reason) {
-            reasons.push(reason);
-        }
-    };
-
-    if (listMatches.blocklist.email) {
-        triggerRule({
-            rule: 'sender_blocklisted_email',
-            points: BLOCKLIST_EMAIL_POINTS,
-            details: `Sender email (${listMatches.senderEmail}) is present in user blocklist.`,
-            reason: 'Sender email is in your blocklist.',
-        });
-    }
-
-    if (listMatches.blocklist.domain) {
-        triggerRule({
-            rule: 'sender_blocklisted_domain',
-            points: BLOCKLIST_DOMAIN_POINTS,
-            details: `Sender domain (${listMatches.senderDomain}) is present in user blocklist.`,
-            reason: 'Sender domain is in your blocklist.',
-        });
-    }
-
-    const hasBlocklistMatch = listMatches.blocklist.email || listMatches.blocklist.domain;
-    const hasAllowlistMatch = listMatches.allowlist.email || listMatches.allowlist.domain;
-
-    if (hasBlocklistMatch && hasAllowlistMatch) {
-        triggerRule({
-            rule: 'sender_allowlist_ignored_due_to_blocklist',
-            points: 0,
-            details: 'Allowlist match detected, but blocklist takes priority for safety.',
-            reason: 'Allowlist match was ignored because blocklist match has priority.',
-        });
-    }
-
-    if (!hasBlocklistMatch && hasAllowlistMatch) {
-        const matchedScopes = [];
-        let requestedReduction = 0;
-
-        if (listMatches.allowlist.email) {
-            matchedScopes.push('email');
-            requestedReduction += ALLOWLIST_EMAIL_REDUCTION;
-        }
-
-        if (listMatches.allowlist.domain) {
-            matchedScopes.push('domain');
-            requestedReduction += ALLOWLIST_DOMAIN_REDUCTION;
-        }
-
-        const minimumScore = rulesResult.ruleScore > 0 ? MIN_RULE_SCORE_WITH_OTHER_SIGNALS : 0;
-        const maxAllowedReduction = Math.max(0, score - minimumScore);
-        const appliedReduction = Math.min(requestedReduction, maxAllowedReduction);
-
-        if (appliedReduction > 0) {
-            triggerRule({
-                rule: 'sender_allowlisted',
-                points: -appliedReduction,
-                details: `Sender matched allowlist by ${matchedScopes.join(
-                    ' + '
-                )}. Requested reduction ${requestedReduction} points; applied ${appliedReduction} points.`,
-                reason: `Sender matched your allowlist (${matchedScopes.join(
-                    ' + '
-                )}), so risk score was reduced conservatively.`,
-            });
-        } else {
-            triggerRule({
-                rule: 'sender_allowlisted_no_reduction',
-                points: 0,
-                details:
-                    'Sender matched allowlist, but score was already at minimum and could not be reduced further.',
-                reason: 'Sender matched your allowlist, but score was already at minimum.',
-            });
-        }
-
-        if (appliedReduction < requestedReduction && minimumScore > 0) {
-            triggerRule({
-                rule: 'sender_allowlist_reduction_capped',
-                points: 0,
-                details: `Allowlist reduction capped to keep at least ${minimumScore} rule points when other risk signals exist.`,
-                reason: 'Allowlist reduction was capped so other risk signals remain visible.',
-            });
-        }
-    }
-
-    if (score < 0) {
-        score = 0;
     }
 
     return {
@@ -424,23 +313,132 @@ const cleanupDuplicateScans = async ({ userId, emailId, keepScanId }) => {
 const getCurrentScanForEmail = async ({ userId, emailId }) =>
     Scan.findOne({ userId, emailId }).sort({ updatedAt: -1, scannedAt: -1 });
 
+const getUserAiEnabled = async (userId) => {
+    const user = await User.findById(userId).select('settings.aiEnabled');
+
+    return Boolean(user?.settings?.aiEnabled);
+};
+
+const buildAiDisabledSignals = () => ({
+    status: 'disabled',
+    provider: 'ollama',
+    mode: 'local',
+    latencyMs: 0,
+    evaluatedAt: new Date(),
+    disabledReason: 'ai_disabled',
+});
+
+const buildFallbackExplanationResult = ({
+    verdict,
+    triggeredRules,
+    aiSignals,
+    fallbackReason,
+}) => ({
+    explanation: buildControlledRomanianExplanationObject({
+        verdict,
+        triggeredRules,
+        aiSignals,
+    }),
+    meta: {
+        status: 'fallback',
+        source: 'backend',
+        mode: 'controlled_template',
+        promptVersion: 'explanation-fallback-v1',
+        latencyMs: 0,
+        fallbackUsed: true,
+        fallbackReason,
+        evaluatedAt: new Date(),
+    },
+});
+
+const isCurrentScanValidForCurrentAiSetting = ({ currentScan, aiEnabled }) => {
+    if (!currentScan || currentScan.engineVersion !== CURRENT_SCAN_ENGINE_VERSION) {
+        return false;
+    }
+
+    if (!aiEnabled) {
+        return true;
+    }
+
+    return (
+        currentScan.aiSignals?.status === 'evaluated' &&
+        currentScan.aiExplanationMeta?.fallbackReason !== 'ai_disabled'
+    );
+};
+
+const isDuplicateKeyError = (error) => error?.code === 11000;
+
+const hasUserVerdict = (email) => {
+    const userVerdict = email?.userVerdict;
+
+    if (userVerdict === undefined || userVerdict === null) {
+        return false;
+    }
+
+    if (typeof userVerdict === 'string') {
+        return userVerdict.trim().length > 0;
+    }
+
+    return true;
+};
+
+const toObjectId = (value) => {
+    const stringValue = String(value);
+
+    if (!mongoose.Types.ObjectId.isValid(stringValue)) {
+        return null;
+    }
+
+    return new mongoose.Types.ObjectId(stringValue);
+};
+
+const getReviewedEmailIdSet = async ({ userId, emailIds }) => {
+    const userObjectId = toObjectId(userId);
+    const emailObjectIds = emailIds.map(toObjectId).filter(Boolean);
+
+    if (!userObjectId || emailObjectIds.length === 0) {
+        return new Set();
+    }
+
+    const reviewedEmails = await Email.collection
+        .find(
+            {
+                _id: { $in: emailObjectIds },
+                userId: userObjectId,
+                userVerdict: { $exists: true, $ne: null },
+            },
+            {
+                projection: {
+                    _id: 1,
+                    userVerdict: 1,
+                },
+            }
+        )
+        .toArray();
+
+    return new Set(
+        reviewedEmails
+            .filter(hasUserVerdict)
+            .map((email) => String(email._id))
+    );
+};
+
 const upsertCurrentScanForEmail = async ({
     email,
     scanSource,
     result,
     aiSignals,
     aiExplanation,
+    aiExplanationMeta,
 }) => {
     const now = new Date();
-    const existingScan = await getCurrentScanForEmail({
+
+    const filter = {
         userId: email.userId,
         emailId: email._id,
-    });
-
-    if (!existingScan) {
-        const createdScan = await Scan.create({
-            emailId: email._id,
-            userId: email.userId,
+    };
+    const update = {
+        $set: {
             score: result.score,
             ruleScore: result.ruleScore,
             aiScore: result.aiScore,
@@ -451,32 +449,56 @@ const upsertCurrentScanForEmail = async ({
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
             aiSignals,
             aiExplanation,
+            aiExplanationMeta,
             scannedAt: now,
+        },
+        $setOnInsert: {
+            emailId: email._id,
+            userId: email.userId,
+        },
+    };
+    const options = {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+        sort: {
+            scannedAt: -1,
+            updatedAt: -1,
+            createdAt: -1,
+        },
+    };
+    let currentScan;
+
+    try {
+        currentScan = await Scan.findOneAndUpdate(filter, update, options);
+    } catch (error) {
+        if (!isDuplicateKeyError(error)) {
+            throw error;
+        }
+
+        currentScan = await Scan.findOneAndUpdate(filter, { $set: update.$set }, {
+            new: true,
+            runValidators: true,
+            sort: {
+                scannedAt: -1,
+                updatedAt: -1,
+                createdAt: -1,
+            },
         });
 
-        return createdScan;
+        if (!currentScan) {
+            throw error;
+        }
     }
 
-    existingScan.score = result.score;
-    existingScan.ruleScore = result.ruleScore;
-    existingScan.aiScore = result.aiScore;
-    existingScan.verdict = result.verdict;
-    existingScan.reasons = result.reasons;
-    existingScan.triggeredRules = result.triggeredRules;
-    existingScan.scanSource = scanSource;
-    existingScan.engineVersion = CURRENT_SCAN_ENGINE_VERSION;
-    existingScan.aiSignals = aiSignals;
-    existingScan.aiExplanation = aiExplanation;
-    existingScan.scannedAt = now;
-
-    await existingScan.save();
     await cleanupDuplicateScans({
         userId: email.userId,
         emailId: email._id,
-        keepScanId: existingScan._id,
+        keepScanId: currentScan._id,
     });
 
-    return existingScan;
+    return currentScan;
 };
 
 export const scanEmailWithRules = async ({
@@ -487,12 +509,12 @@ export const scanEmailWithRules = async ({
 }) => {
     const email = await findOwnedEmail({ emailId, userId });
     const aiInput = buildAiAnalysisInput(email);
+    const aiEnabled = await getUserAiEnabled(userId);
     const currentScan = await getCurrentScanForEmail({ userId, emailId: email._id });
 
     if (
         skipIfCurrentEngineExists &&
-        currentScan &&
-        currentScan.engineVersion === CURRENT_SCAN_ENGINE_VERSION
+        isCurrentScanValidForCurrentAiSetting({ currentScan, aiEnabled })
     ) {
         await cleanupDuplicateScans({
             userId,
@@ -508,42 +530,67 @@ export const scanEmailWithRules = async ({
     }
 
     const rulesResult = calculateRulesForEmail(email);
-    const listMatches = await findSenderListMatchesForEmail({
-        userId: email.userId,
-        email,
-    });
-    const rulesWithListSignals = applyListSignalsToRulesResult({
-        rulesResult,
-        listMatches,
-    });
-    const aiSignals = await analyzeEmailSemanticsWithOllama({
-        analysisInput: aiInput,
-    });
+    const aiSignals = aiEnabled
+        ? await analyzeEmailSemanticsWithOllama({
+              analysisInput: aiInput,
+              enabled: true,
+          })
+        : buildAiDisabledSignals();
     const aiScoreResult = calculateAiScoreFromSignals(aiSignals);
-    const finalScore = rulesWithListSignals.ruleScore + aiScoreResult.aiScore;
+    const finalScore = rulesResult.ruleScore + aiScoreResult.aiScore;
     const finalResult = {
         score: finalScore,
-        ruleScore: rulesWithListSignals.ruleScore,
+        ruleScore: rulesResult.ruleScore,
         aiScore: aiScoreResult.aiScore,
         verdict: mapScoreToVerdict(finalScore),
-        reasons: [...rulesWithListSignals.reasons, ...aiScoreResult.aiReasons],
+        reasons: [...rulesResult.reasons, ...aiScoreResult.aiReasons],
         triggeredRules: [
-            ...rulesWithListSignals.triggeredRules,
+            ...rulesResult.triggeredRules,
             ...aiScoreResult.aiTriggeredRules,
         ],
     };
-    const aiExplanation = buildControlledRomanianExplanation({
-        verdict: finalResult.verdict,
-        triggeredRules: finalResult.triggeredRules,
-        aiSignals,
-    });
+    const shouldGenerateNaturalExplanation = aiEnabled;
+    const explanationResult = shouldGenerateNaturalExplanation
+        ? await generateNaturalExplanationWithOllama({
+              verdict: finalResult.verdict,
+              score: finalResult.score,
+              ruleScore: finalResult.ruleScore,
+              aiScore: finalResult.aiScore,
+              triggeredRules: finalResult.triggeredRules,
+              aiSignals,
+          })
+        : buildFallbackExplanationResult({
+              verdict: finalResult.verdict,
+              triggeredRules: finalResult.triggeredRules,
+              aiSignals,
+              fallbackReason: 'ai_disabled',
+          });
+    const finalExplanationResult =
+        shouldGenerateNaturalExplanation && explanationResult.meta.status !== 'generated'
+            ? buildFallbackExplanationResult({
+                  verdict: finalResult.verdict,
+                  triggeredRules: finalResult.triggeredRules,
+                  aiSignals,
+                  fallbackReason: explanationResult.meta.fallbackReason || 'ollama_failed',
+              })
+            : explanationResult.meta.status === 'generated'
+              ? {
+                  explanation: explanationResult.explanation,
+                  meta: {
+                      ...explanationResult.meta,
+                      fallbackUsed: false,
+                      fallbackReason: null,
+                  },
+                }
+              : explanationResult;
 
     const scan = await upsertCurrentScanForEmail({
         email,
         scanSource,
         result: finalResult,
         aiSignals,
-        aiExplanation,
+        aiExplanation: finalExplanationResult.explanation,
+        aiExplanationMeta: finalExplanationResult.meta,
     });
 
     return {
@@ -560,6 +607,10 @@ export const runSyncScanPipeline = async ({
 }) => {
     const uniqueInsertedIds = [...new Set(insertedEmailIds.map((id) => String(id)))];
     const uniqueUpdatedIds = [...new Set(updatedEmailIds.map((id) => String(id)))];
+    const reviewedEmailIds = await getReviewedEmailIdSet({
+        userId,
+        emailIds: [...uniqueInsertedIds, ...uniqueUpdatedIds],
+    });
 
     const summary = {
         insertedCandidatesCount: uniqueInsertedIds.length,
@@ -569,10 +620,17 @@ export const runSyncScanPipeline = async ({
         scannedUpdatedCount: 0,
         skippedCount: 0,
         skippedAlreadyCurrentCount: 0,
+        skippedReviewedCount: 0,
         failedCount: 0,
     };
 
     for (const emailId of uniqueInsertedIds) {
+        if (reviewedEmailIds.has(emailId)) {
+            summary.skippedCount += 1;
+            summary.skippedReviewedCount += 1;
+            continue;
+        }
+
         try {
             const result = await scanEmailWithRules({
                 userId,
@@ -594,6 +652,12 @@ export const runSyncScanPipeline = async ({
     }
 
     for (const emailId of uniqueUpdatedIds) {
+        if (reviewedEmailIds.has(emailId)) {
+            summary.skippedCount += 1;
+            summary.skippedReviewedCount += 1;
+            continue;
+        }
+
         try {
             const result = await scanEmailWithRules({
                 userId,

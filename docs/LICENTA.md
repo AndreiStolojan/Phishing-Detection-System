@@ -48,7 +48,7 @@ MVP-ul trebuie să includă următoarele funcționalități obligatorii:
 - pentru fiecare email există un scor de risc;
 - pentru fiecare email există motive clare, ușor de înțeles;
 - există un verdict final: `safe`, `suspicious`, `likely_phishing`;
-- există acțiuni simple: `mark safe`, `block sender local`, iar `move to spam/junk` este folosit doar unde este posibil;
+- există acțiuni simple: `mark safe`, `mark phishing`, iar `move to spam/junk` este folosit doar unde este posibil;
 - structura backend-ului este modulară și ușor de extins;
 - explicațiile XAI cu Ollama se adaugă după ce fluxul principal funcționează stabil.
 
@@ -105,7 +105,6 @@ Fiecare modul trebuie să aibă un rol ușor de înțeles:
 - `mailAccounts`: conectarea și administrarea conturilor de email;
 - `emails`: salvarea, listarea și afișarea emailurilor sincronizate;
 - `scans`: logica de analiză, scor, motive și verdict;
-- `lists`: allowlist și blocklist locale;
 - `actions`: acțiuni aplicate pe emailuri;
 - `jobs`: sincronizări și scanări automate rulate în fundal.
 
@@ -122,7 +121,6 @@ Modelul mental simplu al arhitecturii este:
 | `mailAccounts` | Conturile de email conectate și starea integrării |
 | `emails` | Emailurile sincronizate și datele extrase |
 | `scans` | Scorul de risc, motivele, verdictul și istoricul analizelor |
-| `lists` | Allowlist și blocklist locale per utilizator |
 | `actions` | Marcarea manuală a emailurilor și acțiuni simple |
 | `jobs` | Sync periodic și scanări automate |
 
@@ -136,7 +134,6 @@ Colecțiile principale trebuie să rămână simple:
 | `mailAccounts` | contul de email conectat, provider, token-uri sau identificatori, stare sync |
 | `emails` | emailul brut și datele extrase utile pentru analiză |
 | `scans` | rezultatul analizelor, scor, verdict, motive, reguli declanșate |
-| `lists` | adrese și domenii din allowlist sau blocklist |
 
 Posibile câmpuri importante:
 
@@ -144,7 +141,6 @@ Posibile câmpuri importante:
 - `mailAccounts`: `userId`, `provider`, `accountEmail`, `status`, `lastSyncedAt`
 - `emails`: `userId`, `mailAccountId`, `providerMessageId`, `subject`, `from`, `to`, `headers`, `textBody`, `htmlBody`, `links`, `attachments`, `receivedAt`
 - `scans`: `emailId`, `userId`, `score`, `verdict`, `reasons`, `triggeredRules`, `scannedAt`
-- `lists`: `userId`, `type`, `value`, `scope`, `note`
 
 ## Fluxul aplicației
 

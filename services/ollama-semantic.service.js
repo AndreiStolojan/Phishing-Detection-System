@@ -222,10 +222,17 @@ const parseSemanticOutput = (rawValue) => {
     }
 };
 
-export const analyzeEmailSemanticsWithOllama = async ({ analysisInput }) => {
+export const analyzeEmailSemanticsWithOllama = async ({
+    analysisInput,
+    enabled,
+    disabledReason = 'env_disabled',
+} = {}) => {
     const now = new Date();
     const baseMeta = buildBaseMeta();
-    const aiEnabled = normalizeBoolean(AI_SEMANTIC_ENABLED, false);
+    const aiEnabled =
+        typeof enabled === 'boolean'
+            ? enabled
+            : normalizeBoolean(AI_SEMANTIC_ENABLED, false);
 
     if (!aiEnabled) {
         return {
@@ -233,6 +240,7 @@ export const analyzeEmailSemanticsWithOllama = async ({ analysisInput }) => {
             ...baseMeta,
             latencyMs: 0,
             evaluatedAt: now,
+            disabledReason,
         };
     }
 

@@ -1,4 +1,10 @@
-import { getAllUsers, getCurrentUser, getUserById, updateCurrentUser } from '../services/user.service.js';
+import {
+    getAllUsers,
+    getCurrentUser,
+    getUserById,
+    updateCurrentUser,
+    updateCurrentUserAiSettings,
+} from '../services/user.service.js';
 
 export const getUsers = async (req, res, next) => {
     try{
@@ -35,6 +41,16 @@ export const updateMe = async (req, res, next) => {
         const user = await updateCurrentUser(req.user._id, req.body);
 
         res.status(200).json({ success: true, data: user });
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const updateMeAiSettings = async (req, res, next) => {
+    try {
+        const aiSettings = await updateCurrentUserAiSettings(req.user._id, req.body);
+
+        res.status(200).json({ success: true, data: aiSettings });
     } catch (err) {
         next(err);
     }

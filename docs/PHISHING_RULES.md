@@ -30,15 +30,23 @@ Nu folosim reguli doar pentru că sună bine. Folosim reguli care:
 - regulile suspecte adaugă puncte
 - regulile care cresc încrederea pot scădea puncte
 
-## Verdict final propus
+## Verdict final implementat
+
+În cod, pragurile curente sunt definite în `services/scan.service.js`, în funcția care mapează scorul la verdict. Documentul trebuie să urmeze codul, nu invers.
 
 | Scor final | Verdict |
 | --- | --- |
-| `0 - 19` | `safe` |
-| `20 - 49` | `suspicious` |
-| `50+` | `likely_phishing` |
+| `0 - 29` | `safe` |
+| `30 - 59` | `suspicious` |
+| `60+` | `likely_phishing` |
 
-Pragurile pot fi ajustate după testare, dar această împărțire este suficient de clară pentru MVP.
+Scorul final este hibrid:
+
+- `ruleScore`: scorul rezultat din regulile clasice de phishing;
+- `aiScore`: punctaj semantic venit din semnalele Ollama, plafonat la maximum `30`;
+- `score`: suma `ruleScore + aiScore`, folosită pentru verdict.
+
+Pragurile pot fi ajustate după testare pe mai multe emailuri, dar aceasta este starea reală a codului acum.
 
 ## Reguli recomandate pentru prima versiune
 
@@ -46,15 +54,17 @@ Pragurile pot fi ajustate după testare, dar această împărțire este suficien
 | --- | --- | --- | --- | --- |
 | Limbaj urgent | Emailul insistă pe acțiune imediată | Phishing-ul folosește presiune psihologică | `+10` | `Contul tău va fi suspendat azi` |
 | Cerere de credențiale | Cere parolă, cod sau verificare cont | Este unul dintre cele mai comune semnale | `+25` | `Confirmă parola pentru a evita blocarea` |
-| Link scurtat | Conține link de tip bit.ly sau similar | Ascunde destinația reală | `+15` | `https://bit.ly/...` |
-| Domeniu suspect | Domeniul pare ciudat, foarte lung sau imită un brand | Phishing-ul folosește domenii apropiate vizual | `+20` | `paypaI-security-check.com` |
-| Mismatch nume-expeditor | Numele afișat spune un brand, dar domeniul nu corespunde | Indică posibilă impersonare | `+20` | `PayPal Support <random@other-domain.com>` |
-| Multe linkuri | Emailul conține prea multe linkuri | Uneori încearcă să împingă utilizatorul spre click | `+10` | email cu 8-10 linkuri |
-| Atașament suspect | Are atașamente potențial periculoase | Fișierele executabile sau arhivele pot ascunde malware | `+20` | `.exe`, `.scr`, `.zip` |
-| Brand impersonation | Textul sugerează că vine de la bancă, curier sau platformă cunoscută | Este un tip foarte frecvent de atac | `+15` | `Banca Transilvania`, `PayPal`, `ANAF` |
-| Link text vs URL mismatch | Textul linkului pare legitim, dar URL-ul real diferă | Înșală utilizatorul vizual | `+15` | text `google.com`, URL real diferit |
-| Expeditor în blocklist | Adresa sau domeniul există deja în blocklist local | Există un semnal local puternic | `+30` | domeniu deja blocat |
-| Expeditor în allowlist | Adresa sau domeniul există în allowlist local | Ajută la reducerea false positive | `-20` | expeditor de încredere cunoscut |
+| Link scurtat | Conține link de tip bit.ly sau similar | Ascunde destinația reală | `+20` | `https://bit.ly/...` |
+| Link cu IP | URL-ul folosește IP în loc de domeniu normal | Poate ascunde destinația reală | `+25` | `http://192.0.2.10/login` |
+| Link cu credențiale în URL | URL-ul conține user/parolă în adresă | Este un pattern riscant și neobișnuit | `+20` | `https://user:pass@example.com` |
+| Domeniu punycode | Domeniul folosește punycode | Poate indica imitare vizuală de domeniu | `+20` | `xn--...` |
+| URL foarte lung | Linkul este neobișnuit de lung | Poate ascunde parametri sau redirecturi suspecte | `+10` | URL cu mulți parametri |
+| Mismatch Reply-To | Domeniul din `Reply-To` diferă de domeniul expeditorului | Răspunsurile pot fi redirecționate către atacator | `+25` | `from: brand.com`, `reply-to: alt-domain.com` |
+| Multe linkuri | Emailul conține multe linkuri | Uneori încearcă să împingă utilizatorul spre click | `+15` pentru `6-9`, `+25` pentru `10+` | email cu 8-10 linkuri |
+| Atașament high-risk | Are atașamente potențial periculoase | Fișierele executabile pot ascunde malware | `+35` | `.exe`, `.scr`, `.js` |
+| Atașament arhivă | Are atașamente arhivă | Arhivele pot ascunde fișiere periculoase | `+12` | `.zip`, `.rar`, `.7z` |
+
+Notă: regulile clasice pentru limbaj urgent, cereri sensibile și impersonare de brand nu sunt implementate ca reguli text simple. În starea actuală, aceste semnale vin din stratul semantic Ollama și adaugă puncte în `aiScore`.
 
 ## Reguli explicate pe scurt
 
@@ -121,7 +131,7 @@ Se poate folosi o listă mică de branduri comune țintite des:
 False positive înseamnă că un email legitim este marcat ca suspect. Pentru a reduce astfel de cazuri:
 
 - nicio regulă slabă nu trebuie să decidă singură verdictul;
-- allowlist-ul trebuie să poată reduce scorul;
+- pentru MVP, allowlist/blocklist nu influențează scorul;
 - combinația dintre reguli contează mai mult decât o regulă singulară mică;
 - emailurile de tip newsletter nu trebuie penalizate prea tare doar pentru multe linkuri;
 - limbajul urgent trebuie tratat cu grijă;
@@ -144,6 +154,8 @@ Fiecare regulă declanșată ar trebui să lase o structură clară:
 ```json
 {
   "score": 45,
+  "ruleScore": 37,
+  "aiScore": 8,
   "verdict": "suspicious",
   "reasons": [
     {
@@ -160,18 +172,16 @@ Fiecare regulă declanșată ar trebui să lase o structură clară:
 }
 ```
 
-## Ordine recomandată de implementare a regulilor
+## Reguli implementate acum
 
-1. limbaj urgent
-2. cerere de credențiale
-3. linkuri scurtate
-4. domeniu suspect
-5. mismatch nume-expeditor
-6. multe linkuri
-7. atașamente suspecte
-8. blocklist și allowlist
+1. mismatch între domeniul `Reply-To` și domeniul expeditorului;
+2. linkuri scurtate;
+3. pattern-uri suspecte în linkuri: IP, credențiale în URL, URL foarte lung, punycode;
+4. extensii de atașamente high-risk sau arhive;
+5. număr mare de linkuri;
+6. semnale AI semantice locale: urgență, cereri de date sensibile, cerere de login/acțiune, social engineering, impersonare brand.
 
-Aceasta este ordinea bună pentru MVP deoarece primele reguli sunt mai simple și oferă valoare rapidă.
+Aceasta este lista care reflectă codul curent. Pentru teză, este important să fie separată clar detecția pe reguli clasice de semnalele semantice Ollama.
 
 ## Cum pot fi extinse regulile în viitor
 

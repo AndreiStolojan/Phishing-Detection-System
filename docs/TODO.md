@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, `allowlist/blocklist` influențează deja scorul, iar endpoint-urile `emails/lists/meta` sunt integrate în API
-- Progres estimativ MVP: `87%`
-- Faza curentă: `Faza 9-10 - Acțiuni manuale rămase peste flow-ul complet existent`
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists, iar digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat
+- Progres estimativ MVP: `95%`
+- Faza curentă: `Faza 13 - testare manuală și pregătire de frontend`
 
 ## Legendă
 
@@ -33,6 +33,7 @@ Milestone: documentație de bază și direcție clară
 - [x] Plan de implementare (`TODO.md`)
 - [x] Arhitectură backend (`ARCHITECTURE.md`)
 - [x] Plan API (`API_PLAN.md`)
+- [x] Checklist teste manuale backend (`MANUAL_TESTS.md`)
 - [x] Regulile de detecție (`PHISHING_RULES.md`)
 - [x] Note de învățare (`LEARNING_NOTES.md`)
 - [x] Fișier pentru progres curent (`PROGRESS.md`)
@@ -107,6 +108,7 @@ Milestone: profil minim utilizator
 
 - [x] Endpoint pentru profilul curent
 - [x] Endpoint pentru actualizare setări simple
+- [x] Endpoint pentru pornit/oprit AI per utilizator (`PATCH /api/v1/users/me/ai-settings`)
 - [x] Definire clară a datelor returnate public
 - [x] Restricționare endpoint-uri users pentru admin
 
@@ -125,6 +127,7 @@ Milestone: conectare cont de email, cu focus pe Gmail
 - [x] Endpoint pentru listare conturi conectate
 - [x] Endpoint pentru deconectare cont
 - [x] Salvare stare sync și metadate utile
+- [x] Setare `syncMaxResults` pentru sync Gmail, cu interval valid `1..50` și default `10`
 
 Dependențe: Faza 3
 
@@ -180,12 +183,15 @@ Milestone: scor și motive pentru fiecare email
 - [x] Test manual pentru scanare și `latest`
 - [x] Scan automat după sync (flow unificat, fără pas manual separat)
 - [x] Regula de rescanare la sync: scan pentru emailuri noi, iar pentru emailuri actualizate doar dacă lipsește scanarea curentă sau s-a schimbat versiunea motorului
+- [x] Protecție pentru emailurile revizuite: mesajele cu `userVerdict` sunt sărite la rescanarea automată
 - [x] Scanare de tip `upsert` (o scanare curentă per email, fără istoric duplicat)
+- [x] Protecție la concurență pentru scanarea curentă prin index unic `userId + emailId` și upsert atomic
 - [x] Integrare semnale AI semantice locale (`urgency`, `sensitiveDataRequest`, `socialEngineering`, `loginOrActionRequest`, `brandImpersonation`)
 - [x] Salvare metadata AI pentru comparare modele (`model`, `promptVersion`, `latencyMs`, `status`)
 - [x] Explainability controlată în backend, în română, cu fallback dacă Ollama nu este disponibil
 - [x] Stabilizare integrare Ollama local: fallback host local și erori AI diferențiate pentru debugging
 - [x] Introducere scor hibrid: `ruleScore + aiScore` cu limită superioară pentru componenta AI
+- [x] Respectare setare AI per utilizator: când AI este oprit nu se apelează Ollama, iar când este pornit scanările făcute fără AI pot fi completate prin rescanare eligibilă
 
 Dependențe: Faza 7
 
@@ -198,11 +204,15 @@ Milestone: emailul poate fi văzut împreună cu verdictul și acțiunile
 - [x] Endpoint listare emailuri
 - [x] Endpoint detalii email
 - [x] Endpoint rezultat scan
-- [ ] Endpoint `mark safe`
-- [ ] Endpoint `block sender local`
-- [ ] Endpoint `allow sender/domain`
-- [ ] Analiză fezabilitate `move to spam/junk`
-- [ ] Implementare `move to spam/junk` doar dacă providerul permite simplu
+- [x] Endpoint `mark safe`
+- [x] Endpoint `mark phishing`
+- [x] Expunere în endpoint-urile de email a stării derivate pentru UI (`userVerdict`, `reviewStatus`, `effectiveVerdict`, `verdictSource`, `isQuarantined`, `riskBucket`)
+- [x] Aliniere semantică finală pentru `effectiveVerdict`, `isQuarantined` și `riskBucket`
+- [x] Filtrare `GET /api/v1/emails` după starea finală pentru UI (`effectiveVerdict` și `riskBucket`), cu total de paginare aliniat
+- [x] Endpoint sumar lunar phishing (`GET /api/v1/reports/monthly-summary`)
+- [x] Endpoint trimitere manuală digest lunar phishing (`POST /api/v1/reports/monthly-summary/send`)
+- [x] Analiză fezabilitate `move to spam/junk`
+- [x] Implementare `move to spam/junk` doar la `mark-phishing` manual pentru Gmail
 
 Dependențe: Faza 8
 
@@ -210,18 +220,15 @@ Obligatoriu pentru MVP: da, cu excepția `move to spam/junk` care este condițio
 
 ## Faza 10 - Lists și reguli locale
 
-Milestone: blocklist și allowlist funcționale
+Milestone: eliminat din MVP pentru a păstra flow-ul manual simplu
 
-- [x] Creare model `ListEntry`
-- [x] Suport `allowlist`
-- [x] Suport `blocklist`
-- [x] Aplicare listelor în scorare
-- [x] Endpoint-uri pentru administrarea listelor
+- [x] Eliminare endpoint-uri publice pentru lists
+- [x] Eliminare acțiuni `allow/block sender/domain`
+- [x] Eliminare influență allowlist/blocklist din scoring
+- [x] Eliminare `listMembership` din răspunsurile emailurilor
+- [x] Simplificare `mark-phishing`: setează verdictul local și încearcă mutarea în Gmail Spam
 
-Notă: în starea actuală, listele locale sunt deja folosite de motorul de scanare pentru două cazuri simple și utile pentru MVP:
-
-- `blocklist` pe `email` sau `domain` crește scorul de risc pentru expeditor;
-- `allowlist` pe `email` sau `domain` reduce conservator scorul, fără să ascundă complet alte semnale suspecte.
+Notă: allowlist/blocklist pot rămâne idei pentru după MVP, dar nu mai sunt funcționalitate vizibilă și nu mai influențează scorul.
 
 Dependențe: Faza 9
 
@@ -233,8 +240,9 @@ Milestone: sync și scan automate de bază
 
 - [ ] Definire job manual sau programat simplu
 - [ ] Sync periodic pentru conturile active
-- [ ] Scan automată pentru emailurile noi
-- [ ] Evitare re-scan inutil
+- [x] Scan automată pentru emailurile noi în flow-ul de sync manual
+- [x] Evitare re-scan inutil în flow-ul de sync manual
+- [ ] Decizie finală dacă MVP-ul mai are nevoie de scheduler sau dacă sync-ul manual este suficient pentru demonstrație
 
 Dependențe: Faza 8
 
@@ -248,7 +256,8 @@ Milestone: explicații locale, ușor de citit
 - [x] Trimitere către Ollama local a contextului minim necesar pentru semnale
 - [x] Fallback dacă Ollama nu este disponibil
 - [x] Păstrare separată între verdictul principal și semnalele/explicația AI
-- [ ] Ajustare finală a textului de explainability pentru UI-ul de utilizator
+- [x] Ajustare finală a explicației pentru UI ca obiect simplu cu `summary` în 1-3 fraze și recomandare inclusă
+- [x] Salvare metadata explicație (`aiExplanationMeta`) pentru sursă, fallback, model și latență
 
 Dependențe: Faza 8
 
@@ -260,6 +269,10 @@ Milestone: proiect coerent și prezentabil
 
 - [ ] Curățare naming și structură
 - [ ] Verificare flux complet cap-coadă
+- [ ] Test manual `reconnect Gmail -> sync -> mark-phishing -> verificare mesaj în Gmail Spam`
+- [ ] Test manual `POST /api/v1/reports/monthly-summary/send?month=YYYY-MM` cu `EMAIL_FROM` și `EMAIL_PASSWORD`
+- [ ] Test manual pentru stările emailului: `safe`, `suspicious`, `likely_phishing`, `phishing`, `pending_review`, `reviewed`, `riskBucket`
+- [x] Document checklist pentru testele manuale ale endpoint-urilor backend (`docs/MANUAL_TESTS.md`)
 - [ ] Seed minim sau date demo
 - [ ] Capturi sau scenarii de demonstrare
 - [ ] Documentație de rulare
@@ -279,23 +292,35 @@ Obligatoriu pentru MVP: da
 - [x] Profil utilizator curent (`users/me`)
 - [x] Health check
 - [x] Conectare cont Gmail
-- [-] Sync emailuri
-- [-] Salvare emailuri
-- [-] Extracție linkuri și metadate utile
-- [-] Scor phishing bazat pe reguli
-- [-] Verdict și motive clare
+- [x] Sync emailuri
+- [x] Salvare emailuri
+- [x] Extracție linkuri și metadate utile
+- [x] Scor phishing bazat pe reguli + semnale AI locale
+- [x] Verdict și motive clare
 - [x] Listare emailuri și rezultat scan
-- [ ] `mark safe`
-- [ ] `block sender local`
+- [x] `mark safe`
+- [x] `mark phishing`
+- [x] Semantica finală pentru `userVerdict`, `effectiveVerdict`, `isQuarantined` și `riskBucket`
+- [x] Sumar lunar phishing
+- [x] Digest lunar manual pe email
+- [x] Persistență sigură pentru scanarea curentă sub concurență (`Scan` unic per `userId + emailId`)
+- [ ] Test manual cap-coadă după reconectare Gmail cu scope `gmail.modify`
+
+## Note de mentenanță locală
+
+- Dacă există duplicate vechi în colecția `scans`, ele trebuie curățate înainte ca indexul unic `userId + emailId` să poată fi construit de MongoDB.
+- Pentru development se poate rula `npm run cleanup:duplicate-scans`. Scriptul păstrează cea mai recentă scanare pentru fiecare pereche `userId + emailId` și șterge restul.
 
 ## Taskuri opționale dacă rămâne timp
 
-- [ ] `move to spam/junk` integrat complet
+- [x] `move to spam/junk` pentru Gmail doar după `mark-phishing` manual
+- [ ] allowlist/blocklist locale, dacă se decide că merită după MVP
+- [ ] filtre Gmail automate pentru emailuri viitoare, dacă se decide că merită după MVP
 - [ ] suport pentru încă un provider de email
 - [ ] dashboard mai bun pentru statistică
 - [ ] reputație URL prin servicii externe
 - [ ] verificare vârstă domeniu
-- [ ] explainability mai bogată cu Ollama
+- [ ] calibrare explainability și scor AI pe set mai mare de emailuri
 - [ ] job scheduler mai avansat
 
 ## Dependențe majore între faze
@@ -311,6 +336,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: integrarea finală a routerelor `emails`, `lists` și `meta` în `app.js` sub prefixul `/api/v1`
+Ultimul punct finalizat: checklist-ul de teste manuale backend este documentat în `docs/MANUAL_TESTS.md`, iar taskurile critice au fost aliniate cu decizia de a scoate allowlist/blocklist din MVP.
 
-Următorul pas recomandat: implementarea acțiunilor din Faza 9 (`mark safe` și `block sender local`) peste endpoint-urile deja disponibile
+Următorul pas recomandat: rulează checklist-ul din `docs/MANUAL_TESTS.md`, începând cu flow-ul cap-coadă `register -> login -> connect Gmail -> sync -> scan automat -> mark-phishing -> verificare Gmail Spam`.

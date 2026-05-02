@@ -64,11 +64,6 @@ src/
       rules/
         phishing.rules.js
         scoring.js
-    lists/
-      list-entry.model.js
-      list.controller.js
-      list.service.js
-      list.routes.js
     actions/
       action.controller.js
       action.service.js
@@ -138,20 +133,12 @@ Se ocupă de:
 - motivele scanării;
 - istoricul analizelor.
 
-### `lists`
-
-Se ocupă de:
-
-- allowlist;
-- blocklist;
-- reguli locale per utilizator.
-
 ### `actions`
 
 Se ocupă de:
 
 - `mark safe`;
-- `block sender local`;
+- `mark phishing`;
 - alte acțiuni simple asupra emailurilor.
 
 ### `jobs`

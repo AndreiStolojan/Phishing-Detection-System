@@ -25,6 +25,7 @@ export const {
     GOOGLE_REDIRECT_URI,
     ARCJET_ENV,
     ARCJET_KEY,
+    EMAIL_FROM,
     EMAIL_PASSWORD,
     ADMIN_NAME,
     ADMIN_EMAIL,

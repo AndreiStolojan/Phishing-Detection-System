@@ -4,6 +4,7 @@ import {
     getGoogleConnectUrl,
     getMailAccountsForUser,
     syncGmailEmailsForUser,
+    updateMailAccountSettingsForUser,
 } from '../services/mail-account.service.js';
 
 export const getMailAccounts = async (req, res, next) => {
@@ -77,6 +78,24 @@ export const syncMailAccount = async (req, res, next) => {
             success: true,
             message: 'Mail account synced successfully',
             data: syncResult,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateMailAccountSettings = async (req, res, next) => {
+    try {
+        const mailAccount = await updateMailAccountSettingsForUser({
+            userId: req.user._id,
+            mailAccountId: req.params.id,
+            syncMaxResults: req.body?.syncMaxResults,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Mail account settings updated successfully',
+            data: mailAccount,
         });
     } catch (error) {
         next(error);

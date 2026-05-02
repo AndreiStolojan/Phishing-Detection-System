@@ -1,8 +1,10 @@
 const verdictToSentence = {
-    safe: 'Verdictul curent indica un risc scazut pe baza regulilor active.',
-    suspicious: 'Verdictul curent indica un email suspect pe baza regulilor active.',
+    safe:
+        'Verdictul curent indica un risc scazut pe baza regulilor active. Verifica totusi expeditorul inainte de a trimite date sensibile.',
+    suspicious:
+        'Verdictul curent indica un email suspect pe baza semnalelor detectate. Evita linkurile si verifica expeditorul printr-un canal sigur.',
     likely_phishing:
-        'Verdictul curent indica o probabilitate ridicata de phishing pe baza regulilor active.',
+        'Verdictul curent indica o probabilitate ridicata de phishing pe baza semnalelor detectate. Nu accesa linkurile si nu trimite date sensibile.',
 };
 
 const ruleToPhrase = (ruleId) => {
@@ -108,4 +110,14 @@ export const buildControlledRomanianExplanation = ({
     }
 
     return sentences.join(' ').trim();
+};
+
+export const buildControlledRomanianExplanationObject = ({
+    verdict,
+}) => {
+    const summary = verdictToSentence[verdict] || verdictToSentence.safe;
+
+    return {
+        summary,
+    };
 };
