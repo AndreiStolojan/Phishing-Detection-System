@@ -17,7 +17,9 @@ import { JWT_SECRET } from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
 import { runSyncScanPipeline } from './scan.service.js';
 
-const GMAIL_SYNC_MAX_RESULTS = 5;
+const SYNC_MAX_RESULTS_DEFAULT = 10;
+const SYNC_MAX_RESULTS_MIN = 1;
+const SYNC_MAX_RESULTS_MAX = 50;
 const SYNC_ERRORS_MAX_ITEMS = 5;
 const SYNC_ERROR_MESSAGE_MAX_LENGTH = 180;
 
@@ -27,11 +29,41 @@ const toPublicMailAccount = (mailAccount) => ({
     provider: mailAccount.provider,
     accountEmail: mailAccount.accountEmail,
     status: mailAccount.status,
+    syncMaxResults: mailAccount.syncMaxResults ?? SYNC_MAX_RESULTS_DEFAULT,
     tokenExpiryDate: mailAccount.tokenExpiryDate,
     lastSyncedAt: mailAccount.lastSyncedAt,
     createdAt: mailAccount.createdAt,
     updatedAt: mailAccount.updatedAt,
 });
+
+const normalizeSyncMaxResults = (value) => {
+    if (value === undefined || value === null) {
+        return SYNC_MAX_RESULTS_DEFAULT;
+    }
+
+    const normalizedValue =
+        typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+
+    if (!Number.isInteger(normalizedValue)) {
+        throw createError(
+            'syncMaxResults must be an integer',
+            400,
+            [`Allowed range is ${SYNC_MAX_RESULTS_MIN}..${SYNC_MAX_RESULTS_MAX}.`],
+            'INVALID_SYNC_MAX_RESULTS'
+        );
+    }
+
+    if (normalizedValue < SYNC_MAX_RESULTS_MIN || normalizedValue > SYNC_MAX_RESULTS_MAX) {
+        throw createError(
+            `syncMaxResults must be between ${SYNC_MAX_RESULTS_MIN} and ${SYNC_MAX_RESULTS_MAX}`,
+            400,
+            [`Allowed range is ${SYNC_MAX_RESULTS_MIN}..${SYNC_MAX_RESULTS_MAX}.`],
+            'INVALID_SYNC_MAX_RESULTS'
+        );
+    }
+
+    return normalizedValue;
+};
 
 const sanitizeSyncErrorMessage = (error) => {
     const rawMessage = typeof error?.message === 'string' ? error.message : 'Unexpected sync error';
@@ -245,6 +277,8 @@ const refreshGoogleAccessToken = async (mailAccount) => {
 const requestGoogleJson = async ({
     mailAccount,
     url,
+    method = 'GET',
+    body,
     fallbackMessage,
     errorCode,
     unreachableCode,
@@ -256,10 +290,12 @@ const requestGoogleJson = async ({
 
         try {
             response = await fetch(url, {
-                method: 'GET',
+                method,
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
+                    ...(body ? { 'Content-Type': 'application/json' } : {}),
                 },
+                ...(body ? { body: JSON.stringify(body) } : {}),
             });
         } catch {
             throw createError(
@@ -298,8 +334,9 @@ const requestGoogleJson = async ({
 };
 
 const fetchGmailMessagesList = async (mailAccount) => {
+    const syncMaxResults = normalizeSyncMaxResults(mailAccount.syncMaxResults);
     const query = new URLSearchParams({
-        maxResults: String(GMAIL_SYNC_MAX_RESULTS),
+        maxResults: String(syncMaxResults),
     });
 
     query.append('labelIds', 'INBOX');
@@ -315,6 +352,119 @@ const fetchGmailMessagesList = async (mailAccount) => {
     });
 
     return payload.messages || [];
+};
+
+export const updateMailAccountSettingsForUser = async ({
+    userId,
+    mailAccountId,
+    syncMaxResults,
+}) => {
+    if (syncMaxResults === undefined) {
+        throw createError(
+            'syncMaxResults is required',
+            400,
+            [`Allowed range is ${SYNC_MAX_RESULTS_MIN}..${SYNC_MAX_RESULTS_MAX}.`],
+            'SYNC_MAX_RESULTS_REQUIRED'
+        );
+    }
+
+    const normalizedSyncMaxResults = normalizeSyncMaxResults(syncMaxResults);
+
+    const mailAccount = await MailAccount.findOneAndUpdate(
+        {
+            _id: mailAccountId,
+            userId,
+        },
+        {
+            $set: {
+                syncMaxResults: normalizedSyncMaxResults,
+            },
+        },
+        {
+            new: true,
+            runValidators: true,
+        }
+    );
+
+    if (!mailAccount) {
+        throw createError('Mail account not found', 404, [], 'MAIL_ACCOUNT_NOT_FOUND');
+    }
+
+    return toPublicMailAccount(mailAccount);
+};
+
+export const moveGmailMessageToSpam = async ({ userId, email }) => {
+    if (email.provider !== 'gmail') {
+        return {
+            type: 'gmail_move_to_spam',
+            status: 'skipped',
+            errorCode: 'MAIL_PROVIDER_NOT_SUPPORTED',
+            message: 'Provider action skipped because this email is not from Gmail.',
+        };
+    }
+
+    if (!email.providerMessageId) {
+        return {
+            type: 'gmail_move_to_spam',
+            status: 'failed',
+            errorCode: 'GMAIL_PROVIDER_MESSAGE_ID_MISSING',
+            message: 'Cannot move email to Gmail spam because providerMessageId is missing.',
+        };
+    }
+
+    const mailAccount = await MailAccount.findOne({
+        _id: email.mailAccountId,
+        userId,
+    });
+
+    if (!mailAccount) {
+        return {
+            type: 'gmail_move_to_spam',
+            status: 'failed',
+            errorCode: 'MAIL_ACCOUNT_NOT_FOUND',
+            message: 'Cannot move email to Gmail spam because the owning mail account is missing.',
+        };
+    }
+
+    if (mailAccount.provider !== 'gmail') {
+        return {
+            type: 'gmail_move_to_spam',
+            status: 'skipped',
+            errorCode: 'MAIL_PROVIDER_NOT_SUPPORTED',
+            message: 'Provider action skipped because the owning mail account is not Gmail.',
+        };
+    }
+
+    if (!mailAccount.accessToken) {
+        return {
+            type: 'gmail_move_to_spam',
+            status: 'failed',
+            errorCode: 'GOOGLE_ACCESS_TOKEN_MISSING',
+            message: 'Cannot move email to Gmail spam because the Gmail access token is missing.',
+        };
+    }
+
+    const url = `${GMAIL_MESSAGE_DETAILS_BASE_URL}/${encodeURIComponent(
+        email.providerMessageId
+    )}/modify`;
+
+    await requestGoogleJson({
+        mailAccount,
+        url,
+        method: 'POST',
+        body: {
+            addLabelIds: ['SPAM'],
+            removeLabelIds: ['INBOX'],
+        },
+        fallbackMessage: 'Failed to move Gmail message to spam',
+        errorCode: 'GMAIL_MOVE_TO_SPAM_FAILED',
+        unreachableCode: 'GMAIL_MOVE_TO_SPAM_UNREACHABLE',
+    });
+
+    return {
+        type: 'gmail_move_to_spam',
+        status: 'success',
+    };
 };
 
 const fetchGmailMessageDetails = async ({ mailAccount, messageId }) => {

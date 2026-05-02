@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "benchmark:ollama": "node scripts/benchmark-ollama.js",
+    "cleanup:duplicate-scans": "node scripts/cleanup-duplicate-scans.js",
     "lint": "eslint ."
   },
   "dependencies": {

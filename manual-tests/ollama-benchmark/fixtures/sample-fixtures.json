@@ -1,0 +1,30 @@
+[
+  {
+    "id": "phishing-login-request",
+    "email": {
+      "subject": "Urgent: confirm your account now",
+      "from": "Bank Security <alerts@bank-secure-check.com>",
+      "replyTo": "verify@security-check-login.io",
+      "textBody": "Your account will be blocked today. Confirm your login and password immediately to avoid suspension.",
+      "snippet": "Confirm your login and password immediately",
+      "links": ["https://bank-secure-check.com/verify-login"],
+      "senderDomain": "bank-secure-check.com",
+      "replyToDomain": "security-check-login.io",
+      "linkCount": 1
+    }
+  },
+  {
+    "id": "regular-newsletter",
+    "email": {
+      "subject": "Monthly product updates",
+      "from": "Product Team <news@trusted-company.com>",
+      "replyTo": "news@trusted-company.com",
+      "textBody": "Hello, this is a normal monthly update with product improvements and release notes.",
+      "snippet": "normal monthly update",
+      "links": ["https://trusted-company.com/changelog"],
+      "senderDomain": "trusted-company.com",
+      "replyToDomain": "trusted-company.com",
+      "linkCount": 1
+    }
+  }
+]

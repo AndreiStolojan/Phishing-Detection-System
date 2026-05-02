@@ -67,4 +67,135 @@ const welcomeTemplate = (userName, createdAt) => ({
   `
 });
 
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+const formatNumber = (value) =>
+  Number.isFinite(Number(value))
+    ? new Intl.NumberFormat('ro-RO').format(Number(value || 0))
+    : escapeHtml(value);
+
+const formatDate = (value) =>
+  new Intl.DateTimeFormat('ro-RO', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Bucharest',
+  }).format(new Date(value));
+
+const formatMonth = (month) => {
+  const [year, monthValue] = String(month).split('-');
+  const date = new Date(Date.UTC(Number(year), Number(monthValue) - 1, 1));
+
+  return new Intl.DateTimeFormat('ro-RO', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+};
+
+const renderMetric = (label, value) => `
+  <tr>
+    <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #4b5563;">
+      ${escapeHtml(label)}
+    </td>
+    <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 700; text-align: right;">
+      ${formatNumber(value)}
+    </td>
+  </tr>
+`;
+
+const renderRules = (rules = []) => {
+  if (rules.length === 0) {
+    return '<p style="margin: 0; color: #6b7280;">Nu au fost declanșate reguli în această perioadă.</p>';
+  }
+
+  return `
+    <table style="width: 100%; border-collapse: collapse;">
+      ${rules.map((item) => `
+        <tr>
+          <td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb; color: #374151;">
+            ${escapeHtml(item.rule)}
+          </td>
+          <td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 700; text-align: right;">
+            ${formatNumber(item.count)} apariții
+          </td>
+        </tr>
+      `).join('')}
+    </table>
+  `;
+};
+
+export const monthlyDigestTemplate = ({ summary, userName }) => {
+  const monthLabel = formatMonth(summary.period.month);
+  const counts = summary.counts;
+  const ai = summary.ai;
+  const safeRate = counts.scannedEmails > 0
+    ? Math.round((counts.safe / counts.scannedEmails) * 100)
+    : 0;
+
+  return {
+    subject: `Sumar lunar phishing - ${monthLabel}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f3f4f6;">
+        <div style="max-width: 680px; margin: 0 auto; padding: 32px 18px; font-family: 'Segoe UI', Arial, sans-serif;">
+          <div style="background-color: #0f172a; color: #ffffff; padding: 28px 32px; border-radius: 8px 8px 0 0;">
+            <p style="margin: 0 0 8px; color: #cbd5e1; font-size: 14px;">Raport lunar de securitate</p>
+            <h1 style="margin: 0; font-size: 26px; line-height: 1.25;">Sumar phishing pentru ${escapeHtml(monthLabel)}</h1>
+          </div>
+
+          <div style="background-color: #ffffff; padding: 28px 32px; border-radius: 0 0 8px 8px;">
+            <p style="margin: 0 0 20px; color: #374151; line-height: 1.6;">
+              Salut, ${escapeHtml(userName)}. Acesta este sumarul manual generat pentru emailurile sincronizate și scanate în aplicație.
+            </p>
+
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 26px;">
+              ${renderMetric('Emailuri sincronizate', counts.syncedEmails)}
+              ${renderMetric('Emailuri scanate', counts.scannedEmails)}
+              ${renderMetric('Emailuri sigure', counts.safe)}
+              ${renderMetric('Emailuri suspecte', counts.suspicious)}
+              ${renderMetric('Emailuri probabil phishing', counts.likelyPhishing)}
+              ${renderMetric('Emailuri în carantină', counts.quarantined)}
+              ${renderMetric('Emailuri revizuite manual', counts.reviewed)}
+              ${renderMetric('Rată emailuri sigure din scanări', `${safeRate}%`)}
+            </table>
+
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; margin-bottom: 22px;">
+              <h2 style="margin: 0 0 14px; color: #111827; font-size: 18px;">Reguli declanșate frecvent</h2>
+              ${renderRules(summary.topTriggeredRules)}
+            </div>
+
+            <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 22px;">
+              <h2 style="margin: 0 0 12px; color: #1e3a8a; font-size: 18px;">Status analiză semantică locală</h2>
+              <p style="margin: 0; color: #1f2937; line-height: 1.6;">
+                Evaluări reușite: <strong>${formatNumber(ai.evaluated)}</strong>,
+                eșuate: <strong>${formatNumber(ai.failed)}</strong>,
+                dezactivate: <strong>${formatNumber(ai.disabled)}</strong>.
+              </p>
+            </div>
+
+            <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
+              Perioadă: ${escapeHtml(summary.period.from)} - ${escapeHtml(summary.period.to)}.
+              Generat la: ${escapeHtml(formatDate(summary.generatedAt))}.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  };
+};
+
 export default welcomeTemplate;

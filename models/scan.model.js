@@ -80,8 +80,12 @@ const scanSchema = new mongoose.Schema(
             default: null,
         },
         aiExplanation: {
-            type: String,
-            default: '',
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
+        aiExplanationMeta: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
         },
         scannedAt: {
             type: Date,
@@ -94,7 +98,7 @@ const scanSchema = new mongoose.Schema(
     }
 );
 
-scanSchema.index({ userId: 1, emailId: 1 });
+scanSchema.index({ userId: 1, emailId: 1 }, { unique: true });
 
 const Scan = mongoose.model('Scan', scanSchema);
 

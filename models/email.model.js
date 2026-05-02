@@ -1,5 +1,23 @@
 import mongoose from 'mongoose';
 
+const providerActionErrorSchema = new mongoose.Schema(
+    {
+        code: {
+            type: String,
+            default: null,
+            trim: true,
+        },
+        message: {
+            type: String,
+            default: null,
+            trim: true,
+        },
+    },
+    {
+        _id: false,
+    }
+);
+
 const emailSchema = new mongoose.Schema(
     {
         userId: {
@@ -112,6 +130,45 @@ const emailSchema = new mongoose.Schema(
             type: String,
             enum: ['gmail_initial_sync', 'gmail_manual_sync', 'gmail_scheduled_sync', 'gmail_resync'],
             default: 'gmail_manual_sync',
+        },
+        userVerdict: {
+            type: String,
+            enum: ['safe', 'phishing'],
+            default: null,
+        },
+        reviewedAt: {
+            type: Date,
+            default: null,
+        },
+        lastManualAction: {
+            type: String,
+            enum: [
+                'mark_safe',
+                'mark_phishing',
+                'allow_sender',
+                'allow_domain',
+                'block_sender',
+                'block_domain',
+            ],
+            default: null,
+        },
+        lastProviderAction: {
+            type: String,
+            enum: ['gmail_move_to_spam'],
+            default: null,
+        },
+        lastProviderActionStatus: {
+            type: String,
+            enum: ['success', 'failed', 'skipped'],
+            default: null,
+        },
+        lastProviderActionAt: {
+            type: Date,
+            default: null,
+        },
+        lastProviderActionError: {
+            type: providerActionErrorSchema,
+            default: null,
         },
     },
     {

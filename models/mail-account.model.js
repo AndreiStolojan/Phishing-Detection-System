@@ -40,6 +40,16 @@ const mailAccountSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        syncMaxResults: {
+            type: Number,
+            default: 10,
+            min: [1, 'syncMaxResults must be at least 1'],
+            max: [50, 'syncMaxResults must be at most 50'],
+            validate: {
+                validator: Number.isInteger,
+                message: 'syncMaxResults must be an integer',
+            },
+        },
     },
     {
         timestamps: true,

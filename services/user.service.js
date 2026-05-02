@@ -44,3 +44,24 @@ export const updateCurrentUser = async (authenticatedUserId, payload) => {
 
     return toPublicUser(user);
 };
+
+export const updateCurrentUserAiSettings = async (authenticatedUserId, payload) => {
+    const user = await User.findById(authenticatedUserId);
+
+    if (!user) {
+        const error = new Error('User not found');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    user.settings = {
+        ...user.settings?.toObject?.(),
+        aiEnabled: payload.aiEnabled === 1,
+    };
+
+    await user.save();
+
+    return {
+        aiEnabled: user.settings.aiEnabled,
+    };
+};

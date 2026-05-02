@@ -4,7 +4,7 @@ import {
     GOOGLE_REDIRECT_URI,
 } from './env.js';
 
-export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 export const GOOGLE_OAUTH_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profile';
@@ -15,7 +15,7 @@ export const googleOAuthConfig = {
     clientId: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
     redirectUri: GOOGLE_REDIRECT_URI,
-    scopes: [GMAIL_READONLY_SCOPE],
+    scopes: [GMAIL_MODIFY_SCOPE],
 };
 
 export const assertGoogleOAuthConfig = () => {

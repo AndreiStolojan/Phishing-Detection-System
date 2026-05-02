@@ -11,6 +11,9 @@ const toPublicUser = (user) => ({
     name: user.name,
     email: user.email,
     role: user.role,
+    settings: {
+        aiEnabled: Boolean(user.settings?.aiEnabled),
+    },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
 });
