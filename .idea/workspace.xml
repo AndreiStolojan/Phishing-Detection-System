@@ -4,20 +4,69 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4374b04a-5fa9-465e-80b8-54f068f76d7a" name="Changes" comment="">
+    <list default="true" id="4374b04a-5fa9-465e-80b8-54f068f76d7a" name="Changes" comment="&quot;list for block and allow and small fixes&quot;">
+      <change beforePath="$PROJECT_DIR$/.env.development.local.example" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/app.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/controllers/user.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/controllers/user.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/API_PLAN.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/API_PLAN.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/common/errors/create-error.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/common/http/send-error-response.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/env.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/google-oauth.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/action.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/auth.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/email.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/mail-account.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/meta.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/report.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/scan.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controllers/user.controller.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/database/mongodb.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/DECISIONS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DECISIONS.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/PROGRESS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/PROGRESS.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/TODO.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/TODO.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/extras/notifications/nodemailer.js" beforeDir="false" afterPath="$PROJECT_DIR$/extras/notifications/nodemailer.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/extras/notifications/send-email.js" beforeDir="false" afterPath="$PROJECT_DIR$/extras/notifications/send-email.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/extras/security/arcjet.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/extras/security/arcjet.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/middlewares/auth.middleware.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/middlewares/error.middleware.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/middlewares/role.middleware.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/middlewares/validate.middleware.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/email.model.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/mail-account.model.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/scan.model.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/user.model.js" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/routes/user.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/routes/user.routes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/action.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/auth.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/email.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/mail-account.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/meta.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/report.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/scan.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/routes/user.routes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/benchmark-ollama.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/benchmark-ollama.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/bootstrap-admin.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/bootstrap-admin.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/mail-account.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/services/mail-account.service.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/scan.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/services/scan.service.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/user.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/services/user.service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/cleanup-duplicate-scans.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/cleanup-duplicate-scans.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/action.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/auth.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/email-parser.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/email-state.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/email.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/link-analysis.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/mail-account.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/meta.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/ollama-explanation.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/ollama-semantic.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/report.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/scan-ai-input.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/scan-explanation.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/scan.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/user.service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/validations/action.validation.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/validations/auth.validation.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/validations/user.validation.js" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -25,7 +74,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="79" />
+    <option name="cachedIndexableFilesCount" value="87" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -68,7 +117,7 @@
     &quot;node.js.selected.package.standard&quot;: &quot;&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
     &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
     &quot;ts.external.directory.path&quot;: &quot;/Applications/WebStorm.app/Contents/plugins/javascript-plugin/jsLanguageServicesImpl/external&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
@@ -85,7 +134,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-3bd3a6803838-JavaScript-WS-261.22158.274" />
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-WS-261.23567.141" />
       </set>
     </attachedChunks>
   </component>
@@ -108,12 +157,28 @@
       <workItem from="1777043830354" duration="49000" />
       <workItem from="1777043890536" duration="15217000" />
       <workItem from="1777301130295" duration="412000" />
-      <workItem from="1777301558493" duration="3136000" />
+      <workItem from="1777301558493" duration="11305000" />
+      <workItem from="1777405792013" duration="11176000" />
+      <workItem from="1777657264567" duration="1877000" />
+      <workItem from="1777715085224" duration="9103000" />
     </task>
+    <task id="LOCAL-00001" summary="&quot;list for block and allow and small fixes&quot;">
+      <option name="closed" value="true" />
+      <created>1777304733663</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1777304733663</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="&quot;list for block and allow and small fixes&quot;" />
+    <option name="LAST_COMMIT_MESSAGE" value="&quot;list for block and allow and small fixes&quot;" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

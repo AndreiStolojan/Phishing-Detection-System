@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 
-import connectToDatabase from '../database/mongodb.js';
+import connectToDatabase from '../src/database/mongodb.js';
 
 mongoose.set('autoIndex', false);
 
-const { default: Scan } = await import('../models/scan.model.js');
+const { default: Scan } = await import('../src/models/scan.model.js');
 
 const findDuplicateScanGroups = () =>
     Scan.aggregate([

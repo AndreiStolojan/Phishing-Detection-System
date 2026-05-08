@@ -1,4 +1,4 @@
-import { EMAIL_FROM } from '../../config/env.js';
+import { EMAIL_FROM } from '../../src/config/env.js';
 import {
     monthlyDigestTemplate,
 } from './email.template.js';
