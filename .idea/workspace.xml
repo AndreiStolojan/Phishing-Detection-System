@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4374b04a-5fa9-465e-80b8-54f068f76d7a" name="Changes" comment="&quot;finished backend. Deleted Allowlist/Blocklist for simplicity. Modified read.only into modify for sending phishing emails into the Spam folder&quot;" />
+    <list default="true" id="4374b04a-5fa9-465e-80b8-54f068f76d7a" name="Changes" comment="&quot;finished backend. Deleted Allowlist/Blocklist for simplicity. Modified read.only into modify for sending phishing emails into the Spam folder&quot;">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -19,6 +21,9 @@
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2,
@@ -98,7 +103,7 @@
       <workItem from="1777405792013" duration="11176000" />
       <workItem from="1777657264567" duration="1877000" />
       <workItem from="1777715085224" duration="9103000" />
-      <workItem from="1778225567538" duration="377000" />
+      <workItem from="1778225567538" duration="1296000" />
     </task>
     <task id="LOCAL-00001" summary="&quot;list for block and allow and small fixes&quot;">
       <option name="closed" value="true" />
