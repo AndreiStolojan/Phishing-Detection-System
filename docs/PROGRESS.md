@@ -15,7 +15,7 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 - Data ultimei actualizări: `2026-05-02`
 - Faza curentă: `Faza 13 - testare manuală și pregătire de frontend`
-- Status general: `auth-ul MVP este stabil, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, endpoint-urile de email expun starea finală derivată pentru UI cu riskBucket, mark-phishing salvează verdictul local și apoi încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, iar checklist-ul de testare manuală pentru backend este documentat în `docs/MANUAL_TESTS.md``
+- Status general: `auth-ul MVP este stabil, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, endpoint-urile de email expun starea finală derivată pentru UI cu riskBucket, mark-phishing salvează verdictul local și apoi încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, checklist-ul de testare manuală pentru backend este documentat în `docs/MANUAL_TESTS.md`, iar codul runtime este organizat în `src/``
 - Progres estimativ MVP: `95%`
 
 ## Notă sesiune 2026-04-24
@@ -135,6 +135,15 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Ce s-a corectat: `docs/TODO.md` nu mai listează `block sender local` și `allow sender/domain` ca taskuri critice pentru MVP, deoarece allowlist/blocklist au fost scoase din MVP și rămân opționale după MVP
 - Următorul pas imediat: rularea checklist-ului din `docs/MANUAL_TESTS.md`, în special flow-ul `register -> login -> connect Gmail -> sync -> scan automat -> mark-phishing -> verificare Gmail Spam`
 
+## Notă sesiune 2026-05-02 - reorganizare în `src/`
+
+- Data: `2026-05-02`
+- Ce s-a finalizat: codul runtime al backend-ului a fost mutat în `src/`, inclusiv `app.js`, `server.js`, `config`, `database`, `common`, `middlewares`, `models`, `controllers`, `services`, `routes` și `validations`
+- Ce s-a păstrat la rădăcină: `docs/`, `manual-tests/`, `scripts/` și `extras/`, pentru că nu fac parte direct din runtime-ul Express
+- Ce s-a aliniat: scripturile `start` și `dev` pornesc acum `src/server.js`, scripturile utilitare importă din `src/`, iar `manual-tests` este servit corect din rădăcina proiectului
+- Verificare făcută: `npm run lint` trece, iar importul aplicației prin `src/app.js` funcționează
+- Următorul pas imediat: rularea testelor manuale cap-coadă după noua structură, ca să confirmăm că nu s-a stricat flow-ul real cu MongoDB și Gmail
+
 ## Ce este gata
 
 - documentul principal de context;
@@ -148,6 +157,7 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - roadmap-ul proiectului;
 - server Express inițial;
 - separare `app.js` de `server.js`;
+- cod runtime organizat în `src/`;
 - încărcare config din `dotenv`;
 - conexiune MongoDB de bază;
 - model `User` cu `passwordHash` și `role`;
@@ -246,7 +256,7 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- checklist-ul de teste manuale backend (`docs/MANUAL_TESTS.md`) și alinierea `TODO.md` cu decizia de a scoate allowlist/blocklist din MVP.
+- reorganizarea codului runtime în `src/`, cu scripturi și importuri actualizate.
 
 Următorul pas imediat recomandat:
 
@@ -264,9 +274,8 @@ Următorul pas imediat recomandat:
 
 ## Blocaje
 
-Nu există blocaje tehnice majore. Rămân două puncte de organizare:
+Nu există blocaje tehnice majore. Rămâne un punct de validare:
 
-- încă nu este făcută reorganizarea în `src/` și pe modulele finale;
 - trebuie făcut test manual cap-coadă înainte de a considera MVP-ul stabil pentru prezentare.
 
 ## Notițe rapide pentru sesiunea următoare

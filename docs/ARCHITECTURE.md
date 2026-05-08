@@ -16,7 +16,7 @@ Arhitectura trebuie să fie:
 - bună pentru MVP;
 - suficient de clară pentru o lucrare de licență.
 
-## Structura de foldere recomandată
+## Structura de foldere curentă
 
 ```text
 src/
@@ -24,68 +24,52 @@ src/
   server.js
   config/
     env.js
-    db.js
+    google-oauth.js
+  database/
+    mongodb.js
   common/
     errors/
-    utils/
-    constants/
+    http/
   middlewares/
     auth.middleware.js
     error.middleware.js
+    role.middleware.js
     validate.middleware.js
-  modules/
-    auth/
-      auth.controller.js
-      auth.service.js
-      auth.routes.js
-      auth.validation.js
-    users/
-      user.model.js
-      user.controller.js
-      user.service.js
-      user.routes.js
-    mailAccounts/
-      mail-account.model.js
-      mail-account.controller.js
-      mail-account.service.js
-      mail-account.routes.js
-      providers/
-        gmail.provider.js
-    emails/
-      email.model.js
-      email.controller.js
-      email.service.js
-      email.routes.js
-      email.parser.js
-    scans/
-      scan.model.js
-      scan.controller.js
-      scan.service.js
-      rules/
-        phishing.rules.js
-        scoring.js
-    actions/
-      action.controller.js
-      action.service.js
-      action.routes.js
-    jobs/
-      sync.job.js
-      scan.job.js
+  models/
+  controllers/
+  services/
   routes/
-    index.js
+  validations/
+
+docs/
+manual-tests/
+scripts/
+extras/
 ```
 
-Notă: dacă proiectul este foarte mic la început, unele fișiere pot lipsi temporar, dar structura trebuie păstrată ca direcție.
+Aceasta este structura aleasă pentru MVP: codul care rulează aplicația stă în `src/`, iar documentația, testele manuale, scripturile și integrările opționale stau la rădăcina proiectului.
+
+Motivul este pragmatic: separăm clar codul aplicației de restul repo-ului, dar nu facem încă un refactor mare în `src/modules/*`. Pentru etapa curentă este mai important să păstrăm backend-ul stabil pentru testare și frontend.
+
+O reorganizare viitoare pe module, de tip `src/modules/auth`, `src/modules/emails`, poate fi făcută după stabilizarea MVP-ului și după ce contractele API sunt folosite de frontend.
 
 ## Responsabilitatea fiecărui folder
 
 | Folder | Responsabilitate |
 | --- | --- |
 | `src/config` | configurări de mediu, conexiune DB, valori globale |
+| `src/database` | conexiunea MongoDB |
 | `src/common` | utilitare comune, erori, constante |
 | `src/middlewares` | logică care se execută între request și controller |
-| `src/modules` | modulele principale ale aplicației |
-| `src/routes` | punctul central unde sunt montate rutele |
+| `src/models` | modelele Mongoose |
+| `src/controllers` | controller-ele HTTP |
+| `src/services` | logica principală de business |
+| `src/routes` | definirea rutelor Express |
+| `src/validations` | scheme de validare pentru input |
+| `docs` | documentația proiectului |
+| `manual-tests` | fișiere și resurse pentru testare manuală |
+| `scripts` | scripturi utilitare rulate manual |
+| `extras` | integrări opționale sau auxiliare |
 
 ## Modulele backend
 
@@ -247,3 +231,4 @@ Middleware-ul:
 - Păstrează Gmail ca provider principal la început.
 - Păstrează motorul de reguli independent de Ollama.
 - Fă posibilă testarea manuală a fiecărui flux.
+- Pentru MVP, păstrează organizarea pe layere în `src/` și evită mutarea agresivă în `src/modules/*` până când flow-ul cap-coadă și frontend-ul sunt stabile.

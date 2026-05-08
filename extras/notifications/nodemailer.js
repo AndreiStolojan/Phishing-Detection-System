@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 
-import { EMAIL_FROM, EMAIL_PASSWORD } from '../../config/env.js';
+import { EMAIL_FROM, EMAIL_PASSWORD } from '../../src/config/env.js';
 
 export const getMissingEmailConfig = () => {
     const missing = [];

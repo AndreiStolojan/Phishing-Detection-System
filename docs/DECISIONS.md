@@ -13,6 +13,22 @@ Format recomandat pentru deciziile viitoare:
 
 ## Decizii inițiale
 
+### 2026-05-02 - Codul runtime este mutat în `src/`, fără refactor complet pe module
+
+Motiv:
+
+- proiectul are nevoie de o separare clară între codul aplicației și documentație, scripturi, teste manuale sau integrări opționale;
+- pentru MVP este mai sigur să păstrăm organizarea actuală pe layere (`controllers`, `services`, `models`, `routes`) decât să facem acum un refactor mare în `src/modules/*`;
+- frontend-ul urmează să consume contractele API, deci stabilitatea este mai importantă decât o reorganizare internă agresivă.
+
+Impact:
+
+- `app.js`, `server.js`, `config`, `database`, `common`, `middlewares`, `models`, `controllers`, `services`, `routes` și `validations` stau în `src/`;
+- `docs/`, `manual-tests/`, `scripts/` și `extras/` rămân la rădăcina proiectului;
+- scripturile `start` și `dev` pornesc `src/server.js`;
+- scripturile utilitare importă din `src/`;
+- un refactor pe module (`src/modules/auth`, `src/modules/emails` etc.) rămâne opțional după stabilizarea MVP-ului și a frontend-ului.
+
 ### 2026-04-02 - Proiectul rămâne un monolit modular
 
 Motiv:

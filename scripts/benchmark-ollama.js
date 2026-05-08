@@ -271,8 +271,8 @@ const runWorkerBenchmark = async ({ model, fixturesPath }) => {
 
     const [{ analyzeEmailSemanticsWithOllama }, { buildAiAnalysisInput }] =
         await Promise.all([
-            import('../services/ollama-semantic.service.js'),
-            import('../services/scan-ai-input.service.js'),
+            import('../src/services/ollama-semantic.service.js'),
+            import('../src/services/scan-ai-input.service.js'),
         ]);
 
     const benchmarkCases = await loadFixtureCases(fixturesPath);

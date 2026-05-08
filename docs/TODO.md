@@ -14,7 +14,7 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists, iar digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, iar codul runtime este organizat în `src/`
 - Progres estimativ MVP: `95%`
 - Faza curentă: `Faza 13 - testare manuală și pregătire de frontend`
 
@@ -46,9 +46,9 @@ Dependențe: fără dependențe anterioare
 
 Milestone: aplicație Express pornită curat
 
-- [-] Inițializare structură backend modulară
-- [ ] Reorganizare codul existent în `src/` și pe module
-- [ ] Configurare directoare principale
+- [x] Inițializare structură backend modulară
+- [x] Reorganizare codul runtime în `src/`
+- [x] Configurare directoare principale
 - [x] Configurare `express`
 - [x] Separare `app.js` de `server.js`
 - [x] Configurare `dotenv`
@@ -56,7 +56,7 @@ Milestone: aplicație Express pornită curat
 - [x] Configurare middleware de bază
 - [x] Configurare handling pentru erori
 - [x] Endpoint simplu de health check
-- [-] Scripturi utile în `package.json`
+- [x] Scripturi utile în `package.json`
 - [-] Aliniere naming pentru endpoint-uri și fișiere
 
 Dependențe: Faza 0
@@ -268,6 +268,7 @@ Obligatoriu pentru MVP: nu, este etapa imediat după MVP-ul funcțional
 Milestone: proiect coerent și prezentabil
 
 - [ ] Curățare naming și structură
+- [x] Mutare cod runtime în `src/`, fără refactor mare pe module
 - [ ] Verificare flux complet cap-coadă
 - [ ] Test manual `reconnect Gmail -> sync -> mark-phishing -> verificare mesaj în Gmail Spam`
 - [ ] Test manual `POST /api/v1/reports/monthly-summary/send?month=YYYY-MM` cu `EMAIL_FROM` și `EMAIL_PASSWORD`
@@ -336,6 +337,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: checklist-ul de teste manuale backend este documentat în `docs/MANUAL_TESTS.md`, iar taskurile critice au fost aliniate cu decizia de a scoate allowlist/blocklist din MVP.
+Ultimul punct finalizat: codul runtime a fost mutat în `src/`, iar scripturile și importurile au fost aliniate la noua structură.
 
 Următorul pas recomandat: rulează checklist-ul din `docs/MANUAL_TESTS.md`, începând cu flow-ul cap-coadă `register -> login -> connect Gmail -> sync -> scan automat -> mark-phishing -> verificare Gmail Spam`.

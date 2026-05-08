@@ -1,6 +1,6 @@
 import arcjet, { detectBot, shield, tokenBucket } from '@arcjet/node';
 
-import { ARCJET_KEY } from '../../config/env.js';
+import { ARCJET_KEY } from '../../src/config/env.js';
 
 const aj = arcjet({
     key: ARCJET_KEY,
