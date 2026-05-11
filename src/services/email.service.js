@@ -283,6 +283,8 @@ const buildLatestScanLookupStages = () => [
                         ruleScore: 1,
                         aiScore: 1,
                         verdict: 1,
+                        aiExplanation: 1,
+                        aiExplanationMeta: 1,
                         scannedAt: 1,
                     },
                 },
@@ -421,7 +423,7 @@ const findLatestScanForOwnedEmail = async ({ userId, emailId }) => {
         emailId,
     })
         .sort({ scannedAt: -1, updatedAt: -1, createdAt: -1 })
-        .select('_id score ruleScore aiScore verdict scannedAt')
+        .select('_id score ruleScore aiScore verdict aiExplanation aiExplanationMeta scannedAt')
         .lean();
 
     return latestScan || null;

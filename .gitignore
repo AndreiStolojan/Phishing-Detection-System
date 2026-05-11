@@ -67,3 +67,5 @@ manual-tests/*
 extras/*
 scripts/*
 AGENTS.md
+.postman/
+postman/
