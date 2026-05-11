@@ -1,0 +1,10 @@
+$kind: http-request
+name: Gmail connect start
+url: "{{baseUrlLicenta}}/mail-accounts/google/start"
+method: GET
+auth:
+  credentials:
+    - key: token
+      value: "{{token}}"
+  type: bearer
+order: 1778500081740

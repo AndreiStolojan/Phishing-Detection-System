@@ -1,0 +1,10 @@
+$kind: http-request
+name: Email Details Raw
+url: "{{baseUrlLicenta}}/emails/6a01c59929dcd6e942edbfed/raw"
+method: GET
+auth:
+  credentials:
+    - key: token
+      value: "{{token}}"
+  type: bearer
+order: 1549732760467079

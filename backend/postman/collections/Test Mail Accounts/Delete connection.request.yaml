@@ -1,0 +1,9 @@
+$kind: http-request
+name: Delete connection
+url: "{{baseUrlLicenta}}/mail-accounts/{{emailId}}"
+method: DELETE
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 4251877170228636

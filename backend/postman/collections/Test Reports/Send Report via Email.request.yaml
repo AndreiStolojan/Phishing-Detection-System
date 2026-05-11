@@ -1,0 +1,5 @@
+$kind: http-request
+name: Send Report via Email
+url: ""
+method: GET
+order: 2187685617355537

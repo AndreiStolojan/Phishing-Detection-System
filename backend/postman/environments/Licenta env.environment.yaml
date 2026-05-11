@@ -1,0 +1,13 @@
+name: Licenta env
+values:
+  - key: baseUrlLicenta
+    value: 'http://localhost:5500/api/v1'
+  - key: userId
+    value: ''
+  - key: token
+    value: ''
+  - key: emailId
+    value: ''
+  - key: scanId
+    value: ''
+color: 0

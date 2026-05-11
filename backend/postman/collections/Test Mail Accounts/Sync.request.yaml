@@ -1,0 +1,9 @@
+$kind: http-request
+name: Sync
+url: "{{baseUrlLicenta}}/mail-accounts/{{emailId}}/sync"
+method: POST
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 4253676960761532

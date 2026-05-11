@@ -1,0 +1,5 @@
+$kind: http-request
+name: Latest scan
+url: ""
+method: GET
+order: 2028024525124928

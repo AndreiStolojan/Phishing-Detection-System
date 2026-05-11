@@ -1,0 +1,20 @@
+$kind: http-request
+name: Register
+url: "{{baseUrlLicenta}}/auth/register"
+method: POST
+body:
+  type: json
+  content: |-
+    {
+        "name": "Andrei Stolojan",
+        "email": "andreistolojan@gmail.com",
+        "password": "123123"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      const res = pm.response.json();
+
+      pm.environment.set("userId", res.data.user._id);
+    language: text/javascript
+order: 1778498916489

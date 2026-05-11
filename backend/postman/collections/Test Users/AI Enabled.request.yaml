@@ -1,0 +1,15 @@
+$kind: http-request
+name: AI Enabled
+url: "{{baseUrlLicenta}}/users/me/ai-settings"
+method: PATCH
+body:
+  type: json
+  content: |-
+    {
+        "aiEnabled": 1
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 4298984490623938

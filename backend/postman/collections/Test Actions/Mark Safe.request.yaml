@@ -1,0 +1,9 @@
+$kind: http-request
+name: Mark Safe
+url: "{{baseUrlLicenta}}/actions/emails/{{scanId}}/mark-safe"
+method: POST
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 1778503798991

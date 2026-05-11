@@ -1,0 +1,5 @@
+$kind: http-request
+name: Scan email
+url: ""
+method: GET
+order: 4095046285700550

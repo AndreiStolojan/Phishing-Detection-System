@@ -1,0 +1,15 @@
+$kind: http-request
+name: Change Name
+url: "{{baseUrlLicenta}}/users/me"
+method: PATCH
+body:
+  type: json
+  content: |-
+    {
+        "name": "Matei Dima"
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 3822971990587583

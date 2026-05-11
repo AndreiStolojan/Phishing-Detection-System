@@ -1,0 +1,16 @@
+$kind: http-request
+name: Me
+url: "{{baseUrlLicenta}}/users/me"
+method: GET
+headers:
+  - key: ""
+    value: ""
+    disabled: true
+body:
+  type: json
+  content: ""
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 1778499615368

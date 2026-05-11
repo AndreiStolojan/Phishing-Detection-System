@@ -1,0 +1,9 @@
+$kind: http-request
+name: Monthly Summary
+url: "{{baseUrlLicenta}}/reports/monthly-summary"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 1778504088028

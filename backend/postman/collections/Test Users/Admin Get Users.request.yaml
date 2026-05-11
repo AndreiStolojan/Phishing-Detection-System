@@ -1,0 +1,9 @@
+$kind: http-request
+name: Admin Get Users
+url: "{{baseUrlLicenta}}/users"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 4350790669487403

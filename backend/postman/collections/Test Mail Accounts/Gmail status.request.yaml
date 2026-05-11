@@ -1,0 +1,16 @@
+$kind: http-request
+name: Gmail status
+url: "{{baseUrlLicenta}}/mail-accounts"
+method: GET
+auth:
+  credentials:
+    token: "{{token}}"
+  type: bearer
+scripts:
+  - type: afterResponse
+    code: |-
+      const res = pm.response.json();
+
+      pm.environment.set("emailId", res.data[0]._id);
+    language: text/javascript
+order: 1418488099026978

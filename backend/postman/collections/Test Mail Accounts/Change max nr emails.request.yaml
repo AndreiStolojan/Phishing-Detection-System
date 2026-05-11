@@ -1,0 +1,15 @@
+$kind: http-request
+name: Change max nr emails
+url: "{{baseUrlLicenta}}/mail-accounts/{{emailId}}/settings"
+method: PATCH
+body:
+  type: json
+  content: |-
+    {
+        "syncMaxResults": 5
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
+order: 3395324407033342
