@@ -159,6 +159,13 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Ce s-a păstrat: documentația proiectului rămâne în `docs/`, iar endpoint-urile API nu s-au schimbat.
 - Următorul pas imediat: verifică backend-ul din nou din `backend/`, apoi construiește frontend-ul minim peste API-ul existent.
 
+## Notă sesiune 2026-05-11 - README profesional
+
+- Data: `2026-05-11`
+- Ce s-a finalizat: `README.md` a fost rescris ca prezentare profesională pentru recrutori, cu descrierea proiectului, statusul real, stack-ul, arhitectura, setup local, endpoint-uri principale, limitări și ce rămâne de făcut.
+- Ce s-a păstrat: nu s-au schimbat endpoint-uri, cod runtime sau flow-uri backend.
+- Următorul pas imediat: construirea frontend-ului minim pentru demonstrație peste API-ul backend existent.
+
 ## Ce este gata
 
 - documentul principal de context;
@@ -271,7 +278,7 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- backend-ul a fost mutat în `backend/`, fără schimbarea endpoint-urilor API.
+- README-ul a fost rescris pentru prezentare profesională către recrutori, fără schimbări de cod runtime.
 
 Următorul pas imediat recomandat:
 

@@ -278,7 +278,8 @@ Milestone: proiect coerent și prezentabil
 - [x] Document checklist pentru testele manuale ale endpoint-urilor backend (`docs/MANUAL_TESTS.md`)
 - [ ] Seed minim sau date demo
 - [ ] Capturi sau scenarii de demonstrare
-- [ ] Documentație de rulare
+- [x] Documentație de rulare în `README.md`
+- [x] README profesional pentru recrutori, cu status și limitări
 - [ ] Documentație pentru prezentare
 - [ ] Revizuire riscuri și limitări
 
