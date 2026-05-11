@@ -1,0 +1,38 @@
+### Manual auth smoke test
+### File temporar pentru verificare rapida. Il putem sterge dupa testare.
+
+@baseUrl = http://localhost:5500/api/v1
+@contentType = application/json
+
+### 1. Register
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "name": "Auth Test User",
+  "email": "auth-test@example.com",
+  "password": "parola123"
+}
+
+### 2. Login
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "auth-test@example.com",
+  "password": "parola123"
+}
+
+### Dupa login:
+### 1. copiaza tokenul din raspuns
+### 2. pune-l mai jos la @token
+@token = PASTE_JWT_HERE
+
+### 3. Current user
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{token}}
+
+### 4. Admin-only users list
+### Pentru un user normal ar trebui sa raspunda cu 403 Forbidden.
+GET {{baseUrl}}/users
+Authorization: Bearer {{token}}
