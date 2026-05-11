@@ -62,10 +62,8 @@ typings/
 
 # IDE
 .idea/*
-docs/*
 manual-tests/*
 extras/*
 scripts/*
-AGENTS.md
-.postman/
-postman/
+/.postman/
+/postman/
