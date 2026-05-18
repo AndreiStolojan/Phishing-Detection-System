@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, testarea manuală a endpoint-urilor backend a trecut, iar backend-ul este izolat în `backend/`
-- Progres estimativ MVP: `97%`
-- Faza curentă: `Faza 13 - testare manuală și pregătire de frontend`
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, testarea manuală a endpoint-urilor backend a trecut, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite acoperă auth, dashboard Gmail, listă emailuri, detaliu email, acțiuni manuale, rapoarte, settings, avatar utilizator, chat de contact și polish vizual modern.
+- Progres estimativ MVP: `99%`
+- Faza curentă: `Faza 14 - frontend minim pentru demonstrație`
 
 ## Legendă
 
@@ -287,6 +287,36 @@ Dependențe: Faza 9 minim
 
 Obligatoriu pentru MVP: da
 
+## Faza 14 - Frontend minim pentru demonstrație
+
+Milestone: interfață web simplă peste API-ul backend existent
+
+- [x] Documentare plan frontend pe termen lung (`docs/FRONTEND_PLAN.md`)
+- [x] Documentare taskuri mici pentru agenți (`docs/FRONTEND_AGENT_TASKS.md`)
+- [x] Inițializare folder `frontend/` cu React + Vite
+- [x] Creare structură `frontend/src/` sănătoasă
+- [x] Configurare temă dark-only pentru MVP
+- [x] Implementare client API cu Bearer token
+- [x] Implementare auth frontend peste backend (`register/login/users/me`)
+- [x] Adaptare UI login/register din `frontent-raw`, fără Firebase
+- [x] Layout aplicație cu navigare
+- [x] Dashboard cu status Gmail și sync manual
+- [x] Listare emailuri cu filtre după `riskBucket`
+- [x] Detalii email cu scanare, reguli și `aiExplanation`
+- [x] Acțiuni `mark-safe` și `mark-phishing`
+- [x] Raport lunar și trimitere digest manual
+- [x] Settings pentru profil, AI on/off și `syncMaxResults`
+- [x] Avatar utilizator încărcat local, comprimat în browser și salvat pe profil
+- [x] Chat/contact suport din interfață, cu trimitere către adresa configurată în `EMAIL_FROM`
+- [x] Polish vizual: brand `XAI Phishing Shield`, iconițe mai clare, sidebar/topbar modern și footer `@XAI - drepturi rezervate`
+- [x] Animații fine pentru tranzițiile dintre pagini și stările comune de loading/error/empty
+- [x] Charturi și statistici relevante pentru dashboard și rapoarte folosind datele existente
+- [ ] Verificare flow demo cap-coadă din frontend
+
+Dependențe: Faza 13 și API backend stabil
+
+Obligatoriu pentru MVP: da
+
 ## Taskuri critice pentru MVP
 
 - [x] Server Express funcțional
@@ -321,7 +351,7 @@ Obligatoriu pentru MVP: da
 - [ ] allowlist/blocklist locale, dacă se decide că merită după MVP
 - [ ] filtre Gmail automate pentru emailuri viitoare, dacă se decide că merită după MVP
 - [ ] suport pentru încă un provider de email
-- [ ] dashboard mai bun pentru statistică
+- [x] dashboard mai bun pentru statistică
 - [ ] reputație URL prin servicii externe
 - [ ] verificare vârstă domeniu
 - [ ] calibrare explainability și scor AI pe set mai mare de emailuri
@@ -340,6 +370,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: testarea manuală a endpoint-urilor backend a trecut, iar `GET /api/v1/emails` și `GET /api/v1/emails/:id` afișează corect `aiExplanation` și `aiExplanationMeta` când scanarea le-a generat.
+Ultimul punct finalizat: frontend-ul MVP a primit polish vizual, animații, charturi, avatar utilizator și chat/contact suport integrat cu backend-ul.
 
-Următorul pas recomandat: construirea frontend-ului minim pentru demonstrație peste contractele API deja testate.
+Următorul pas recomandat: rularea testului demo cap-coadă din browser cu backend, frontend, MongoDB, Gmail OAuth și configurarea de email pornite.

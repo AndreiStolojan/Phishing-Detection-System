@@ -13,10 +13,10 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-05-11`
-- Faza curentă: `Faza 13 - testare manuală și pregătire de frontend`
-- Status general: `auth-ul MVP este stabil, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, endpoint-urile de email expun starea finală derivată pentru UI cu riskBucket și afișează `aiExplanation` când există, mark-phishing salvează verdictul local și apoi încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, checklist-ul de testare manuală pentru backend a fost rulat cu succes, iar backend-ul este izolat în `backend/``
-- Progres estimativ MVP: `97%`
+- Data ultimei actualizări: `2026-05-19`
+- Faza curentă: `Faza 14 - frontend minim pentru demonstrație`
+- Status general: auth-ul MVP este stabil, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, endpoint-urile de email expun starea finală derivată pentru UI cu riskBucket și afișează `aiExplanation` când există, mark-phishing salvează verdictul local și apoi încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, checklist-ul de testare manuală pentru backend a fost rulat cu succes, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite acoperă auth, dashboard Gmail, listă emailuri, detaliu email, acțiuni manuale, rapoarte, settings, avatar utilizator, chat/contact suport, animații și charturi.
+- Progres estimativ MVP: `99%`
 
 ## Notă sesiune 2026-04-24
 
@@ -166,6 +166,49 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Ce s-a păstrat: nu s-au schimbat endpoint-uri, cod runtime sau flow-uri backend.
 - Următorul pas imediat: construirea frontend-ului minim pentru demonstrație peste API-ul backend existent.
 
+## Notă sesiune 2026-05-11 - plan frontend și taskuri pentru agenți
+
+- Data: `2026-05-11`
+- Ce s-a finalizat: a fost documentat planul frontend pe termen lung în `docs/FRONTEND_PLAN.md`, cu structură propusă pentru `frontend/src/`, pagini MVP, reguli de UI și decizia de temă dark-only pentru prima versiune.
+- Ce s-a adăugat: `docs/FRONTEND_AGENT_TASKS.md` împarte implementarea frontend în taskuri mici, paralelizabile, fiecare cu fișiere probabile, endpoint-uri și criteriu de finalizare.
+- Ce s-a decis: `frontent-raw/` rămâne doar sursă de inspirație pentru UI-ul de login/register; nu se preia Firebase și nu se păstrează brandul vechi `AthleteAtlas`.
+- Următorul pas imediat: inițializarea folderului `frontend/` cu React + Vite, temă dark-only și structura `src/` descrisă în plan.
+
+## Notă sesiune 2026-05-18 - frontend auth inițial
+
+- Data: `2026-05-18`
+- Ce s-a finalizat: a fost inițializat `frontend/` cu React + Vite, React Router, MUI, temă dark-only, client API central, stocare token JWT în `localStorage`, `AuthContext`, `ProtectedRoute`, pagină de login/register adaptată din `frontent-raw` fără Firebase și un dashboard placeholder protejat.
+- Ce s-a verificat: `npm run build` trece în `frontend/`, dev serverul răspunde pe `http://127.0.0.1:5173/login`, proxy-ul Vite trimite corect `/api/v1/*` către backend pe portul `5500`, iar `/api/v1/health` răspunde prin frontend.
+- Limitare: verificarea vizuală în Browser-ul intern nu a putut fi rulată deoarece unealta `node_repl js` nu este disponibilă în sesiunea curentă; verificarea s-a făcut prin build și request-uri HTTP locale.
+- Următorul pas imediat: test manual din browser pentru `register -> dashboard -> refresh -> logout -> login`, apoi implementarea layout-ului principal și a dashboardului cu status Gmail + sync manual.
+
+## Notă sesiune 2026-05-18 - layout și dashboard Gmail
+
+- Data: `2026-05-18`
+- Ce s-a finalizat: frontend-ul are layout protejat cu sidebar/topbar, navigare către Dashboard, Emailuri, Rapoarte și Setări, pagini placeholder pentru ecranele următoare, componente comune pentru loading/error/empty și dashboard funcțional peste endpoint-urile `GET /api/v1/meta/status`, `GET /api/v1/mail-accounts`, `GET /api/v1/mail-accounts/google/start` și `POST /api/v1/mail-accounts/:id/sync`.
+- Ce poate testa utilizatorul: după login, pagina Dashboard afișează contoare pentru conturi/emailuri/scanări, status Gmail, conectare Gmail și buton de sync manual pentru contul Gmail activ.
+- Ce s-a verificat: `npm run build` trece în `frontend/`, rutele `/dashboard` și `/emails` sunt servite de Vite, proxy-ul frontend către backend răspunde la `/api/v1/health`, iar `/api/v1/meta/status` întoarce corect `401` fără token.
+- Următorul pas imediat: implementarea listei de emailuri cu filtre după `riskBucket`, apoi detaliul emailului cu scanare, reguli, `aiExplanation` și acțiunile `mark-safe`/`mark-phishing`.
+
+## Notă sesiune 2026-05-18 - ecrane frontend MVP
+
+- Data: `2026-05-18`
+- Ce s-a finalizat: au fost implementate lista de emailuri cu filtre `riskBucket`, căutare și paginare, detaliul emailului cu scanarea curentă, motive, reguli declanșate și `aiExplanation.summary`, acțiunile `mark-safe`, `mark-phishing` și rescan manual, pagina de rapoarte lunare cu trimitere digest manual și pagina Settings pentru profil, AI on/off și `syncMaxResults`.
+- Ce s-a integrat: ruta protejată `/emails/:id` a fost montată în `App.jsx`, iar paginile folosesc API-urile frontend dedicate pentru `emails`, `scans`, `actions`, `reports`, `users` și `mailAccounts`.
+- Ce s-a verificat: `npm run build` trece în `frontend/`; rutele `/emails`, `/emails/:id`, `/reports` și `/settings` sunt servite de Vite; proxy-ul către backend răspunde la `/api/v1/health`; endpoint-ul `/api/v1/emails` întoarce corect `401` fără token.
+- Limitare: nu a fost rulat încă testul manual cap-coadă cu un utilizator autentificat și cont Gmail conectat.
+- Următorul pas imediat: test manual complet `login -> dashboard -> connect/sync Gmail -> emails -> email detail -> mark-phishing -> reports -> settings`, apoi polish și documentarea pașilor de demo.
+
+## Notă sesiune 2026-05-19 - polish frontend, avatar și contact suport
+
+- Data: `2026-05-19`
+- Ce s-a finalizat: frontend-ul a primit polish vizual pentru `XAI Phishing Shield`, tranziții între pagini cu `framer-motion`, charturi/statistici cu `recharts`, avatar utilizator în profil/topbar, drawer de chat/contact accesibil din topbar și status mai clar pentru trimiterea digestului lunar.
+- Ce s-a adăugat în backend: `User.avatarDataUrl`, actualizare profil prin `PATCH /api/v1/users/me` cu `avatarDataUrl`, endpoint protejat `POST /api/v1/contact/message` și rută montată sub `/api/v1/contact`.
+- Ce s-a păstrat: logica de phishing, Gmail sync, scorarea, AI-ul și acțiunile manuale existente nu au fost schimbate.
+- Ce s-a verificat: `npm --prefix frontend run build -- --outDir /private/tmp/xai-licenta-frontend-build --emptyOutDir` trece, iar `npm --prefix backend run lint` trece.
+- Limitare: nu a fost rulat încă testul vizual/manual cap-coadă în browser cu user real, Gmail conectat și email config complet.
+- Următorul pas imediat: pornește backend-ul pe `5500`, frontend-ul Vite și rulează demo-ul `login -> avatar -> dashboard -> sync Gmail -> emails -> reports -> send digest -> chat contact`.
+
 ## Ce este gata
 
 - documentul principal de context;
@@ -264,8 +307,11 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - filtre pentru `GET /api/v1/emails` bazate pe starea finală expusă UI-ului: `verdict` filtrează după `effectiveVerdict`, iar `riskBucket` filtrează după gruparea finală;
 - `mark-phishing` salvează verdictul local înainte de acțiunea Gmail, deci eșecurile externe nu pierd `userVerdict: phishing`;
 - setare locală `syncMaxResults` pe `MailAccount`, cu interval valid `1..50` și default `10`;
+- avatar utilizator salvat în `User.avatarDataUrl` și returnat în profilul public;
+- endpoint protejat `POST /api/v1/contact/message`, care trimite mesajul de contact către `EMAIL_FROM`;
 - emailurile cu `userVerdict` sunt sărite la auto-rescan în flow-ul de sync, indiferent de schimbări de model sau `engineVersion`;
-- rutele `auth`, `users`, `mail-accounts`, `emails`, `meta`, `reports`, `scans` și `actions` sunt montate în `app.js` sub prefixul `/api/v1`.
+- rutele `auth`, `users`, `mail-accounts`, `emails`, `meta`, `reports`, `scans`, `actions` și `contact` sunt montate în `app.js` sub prefixul `/api/v1`.
+- frontend-ul are polish modern pentru `XAI Phishing Shield`, animații, charturi, avatar și drawer de chat/contact.
 
 ## Ce NU este încă început
 
@@ -278,18 +324,11 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- README-ul a fost rescris pentru prezentare profesională către recrutori, fără schimbări de cod runtime.
+- frontend-ul MVP are ecranele principale plus polish vizual, avatar utilizator, chat/contact suport, animații și charturi.
 
 Următorul pas imediat recomandat:
 
-- construiește frontend-ul minim pentru demonstrație:
-  - register/login și păstrare token;
-  - conectare Gmail;
-  - sync manual;
-  - listare emailuri cu `riskBucket`;
-  - detalii email cu `latestScan.aiExplanation`;
-  - acțiuni `mark-safe` și `mark-phishing`;
-  - sumar lunar.
+- rulează testul manual cap-coadă din frontend și notează ajustările vizuale sau de demo rămase.
 
 ## Blocaje
 
@@ -297,7 +336,7 @@ Nu există blocaje tehnice majore cunoscute pentru backend.
 
 Rămân de finalizat:
 
-- frontend-ul minim pentru demonstrație;
+- verificarea flow-ului demo cap-coadă din frontend;
 - documentația de rulare;
 - scenariul de demo și capturile pentru prezentare;
 - alegerea modelului Ollama final pentru demo, în funcție de latență și stabilitate locală.

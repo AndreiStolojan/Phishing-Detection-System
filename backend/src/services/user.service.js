@@ -1,6 +1,8 @@
 import User from '../models/user.model.js';
 import { toPublicUser } from './auth.service.js';
 
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+
 export const getAllUsers = async () => {
     const users = await User.find();
     return users.map(toPublicUser);
@@ -39,7 +41,14 @@ export const updateCurrentUser = async (authenticatedUserId, payload) => {
         throw error;
     }
 
-    user.name = payload.name;
+    if (hasOwn(payload, 'name')) {
+        user.name = payload.name;
+    }
+
+    if (hasOwn(payload, 'avatarDataUrl')) {
+        user.avatarDataUrl = payload.avatarDataUrl || null;
+    }
+
     await user.save();
 
     return toPublicUser(user);

@@ -9,6 +9,7 @@ import User from '../models/user.model.js';
 const toPublicUser = (user) => ({
     _id: user._id,
     name: user.name,
+    avatarDataUrl: user.avatarDataUrl ?? null,
     email: user.email,
     role: user.role,
     settings: {

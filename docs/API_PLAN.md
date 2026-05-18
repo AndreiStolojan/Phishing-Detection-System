@@ -20,6 +20,7 @@ Prefix recomandat pentru API:
 - `/api/v1/meta`
 - `/api/v1/reports`
 - `/api/v1/scans`
+- `/api/v1/contact`
 
 ## Principii pentru API
 
@@ -45,6 +46,26 @@ Prefix recomandat pentru API:
 | `PATCH` | `/api/v1/users/me/ai-settings` | Pornește/oprește AI pentru scanările viitoare ale utilizatorului | `aiEnabled: 0 sau 1` | `aiEnabled` boolean | Da |
 | `GET` | `/api/v1/users` | Listează utilizatori (admin) | fără body | listă utilizatori | Da (admin) |
 | `GET` | `/api/v1/users/:id` | Detalii utilizator (admin) | param `id` | utilizator | Da (admin) |
+
+Contract pentru `PATCH /api/v1/users/me`:
+
+- endpoint-ul este protejat cu Bearer token;
+- acceptă `name`, `avatarDataUrl` sau ambele;
+- `name` trebuie să aibă între 2 și 50 de caractere;
+- `avatarDataUrl` poate fi:
+  - `null` sau string gol pentru eliminarea avatarului;
+  - data URL `image/png`, `image/jpeg` sau `image/webp` în base64;
+- limita pentru `avatarDataUrl` este `700000` caractere;
+- răspunsul public al utilizatorului include `avatarDataUrl`, ca frontend-ul să poată afișa poza în topbar și în Settings.
+
+Exemplu:
+
+```json
+{
+  "name": "Andrei",
+  "avatarDataUrl": "data:image/jpeg;base64,..."
+}
+```
 
 Contract pentru `PATCH /api/v1/users/me/ai-settings`:
 
@@ -315,6 +336,56 @@ Exemplu de răspuns când lipsește configurarea de email:
 }
 ```
 
+## Contact
+
+| Metodă | Rută | Scop | Input principal | Output principal | Auth |
+| --- | --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/contact/message` | Trimite un mesaj de contact/suport către adresa configurată pentru aplicație | `message`, `subject` opțional | `sent`, `recipient`, `messageId`, `generatedAt` sau eroare email | Da |
+
+Contract pentru `POST /api/v1/contact/message`:
+
+- endpoint-ul este protejat cu Bearer token;
+- `message` este obligatoriu și are limită de `10000` caractere în backend;
+- `subject` este opțional și are limită de `120` caractere;
+- destinatarul este mereu `EMAIL_FROM`, adică aceeași adresă folosită ca sender pentru emailurile aplicației;
+- `replyTo` este emailul utilizatorului autentificat;
+- dacă lipsește configurarea de email, răspunsul este `503`, cu `sent: false` și cod `EMAIL_CONFIG_MISSING`;
+- dacă Nodemailer/Gmail refuză trimiterea, răspunsul este `502`, cu `sent: false` și cod `EMAIL_SEND_FAILED`.
+
+Exemplu de răspuns reușit:
+
+```json
+{
+  "success": true,
+  "message": "Contact message sent.",
+  "data": {
+    "sent": true,
+    "recipient": "xai@example.com",
+    "messageId": "<message-id>",
+    "generatedAt": "2026-05-19T12:00:00.000Z"
+  }
+}
+```
+
+Exemplu când lipsește configurarea:
+
+```json
+{
+  "success": false,
+  "message": "Email configuration is missing: EMAIL_FROM, EMAIL_PASSWORD.",
+  "data": {
+    "sent": false,
+    "recipient": null,
+    "generatedAt": "2026-05-19T12:00:00.000Z",
+    "error": {
+      "code": "EMAIL_CONFIG_MISSING",
+      "message": "Email configuration is missing: EMAIL_FROM, EMAIL_PASSWORD.",
+      "missing": ["EMAIL_FROM", "EMAIL_PASSWORD"]
+    }
+  }
+}
+```
+
 ## Endpoint-uri utile de suport
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
@@ -347,6 +418,7 @@ Exemplu pentru eroare:
 - Pentru MVP, strategia aleasă este `Bearer token` trimis în header-ul `Authorization`.
 - `logout` nu invalidează tokenul pe server, ci doar cere clientului să șteargă tokenul salvat local.
 - Endpoint-ul principal pentru identificarea utilizatorului curent rămâne `GET /api/v1/users/me` (fără `/auth/me`).
+- Profilul public al utilizatorului include `avatarDataUrl`; pentru MVP poza este salvată ca data URL comprimat, nu ca fișier separat.
 - Flow-ul Gmail actual este bazat pe `google/start -> google/callback`.
 - Scope-ul Google OAuth folosit acum este `https://www.googleapis.com/auth/gmail.modify`, deoarece aplicația trebuie să poată muta manual un mesaj în Spam prin Gmail API.
 - Conturile Gmail conectate înainte de schimbarea de scope trebuie reconectate, altfel Google poate refuza acțiunea provider-side cu eroare de permisiuni insuficiente.
@@ -377,6 +449,7 @@ Exemplu pentru eroare:
 - `google/start` este protejat cu JWT-ul aplicației, iar `google/callback` se bazează pe `state`, nu pe header-ul `Authorization`.
 - Raportul lunar `GET /api/v1/reports/monthly-summary` este doar un endpoint de date; nu pornește automatizări și nu trimite email.
 - Trimiterea raportului lunar se face doar manual prin `POST /api/v1/reports/monthly-summary/send`; nu există cron sau trimitere automată.
+- Mesajele din chat/contact se trimit manual prin `POST /api/v1/contact/message` către `EMAIL_FROM`.
 - `mail-accounts` trebuie gândit astfel încât să poată primi și alți provideri în viitor, fără a complica MVP-ul acum.
 - Gmail filters nu sunt implementate: aplicația poate muta un mesaj individual în Spam după `mark-phishing`, dar nu creează filtre automate în Gmail.
 - Endpoint-urile de scanare trebuie să poată returna clar:

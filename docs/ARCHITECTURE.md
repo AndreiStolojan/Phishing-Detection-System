@@ -58,6 +58,73 @@ Motivul este pragmatic: separăm clar backend-ul de viitorul frontend, dar nu fa
 
 O reorganizare viitoare pe module, de tip `backend/src/modules/auth`, `backend/src/modules/emails`, poate fi făcută după stabilizarea MVP-ului și după ce contractele API sunt folosite de frontend.
 
+## Structura frontend curentă
+
+Frontend-ul a fost creat separat în:
+
+```text
+frontend/
+  package.json
+  package-lock.json
+  index.html
+  vite.config.js
+  src/
+    main.jsx
+    App.jsx
+    api/
+      actionsApi.js
+      apiClient.js
+      authApi.js
+      contactApi.js
+      emailsApi.js
+      mailAccountsApi.js
+      metaApi.js
+      reportsApi.js
+      scansApi.js
+      usersApi.js
+    components/
+      auth/
+      chat/
+      common/
+      dashboard/
+      emails/
+      layout/
+      reports/
+    pages/
+    context/
+    hooks/
+    styles/
+    utils/
+```
+
+Planul complet pentru frontend este în `docs/FRONTEND_PLAN.md`.
+
+În etapa curentă frontend-ul acoperă fluxul MVP principal:
+
+- client API central peste `/api/v1`;
+- token JWT în `localStorage`;
+- `AuthContext` și `ProtectedRoute`;
+- pagină login/register fără Firebase;
+- layout protejat cu navigare între Dashboard, Emailuri, Rapoarte și Setări;
+- dashboard funcțional pentru status Gmail, contoare, conectare Gmail și sync manual;
+- listă emailuri cu filtre `riskBucket`, căutare și paginare simplă;
+- detaliu email cu scanare, reguli declanșate, motive, explicație AI și acțiuni manuale;
+- rapoarte lunare cu trimitere digest manual;
+- settings pentru profil, avatar, AI on/off și `syncMaxResults`;
+- drawer de chat/contact care trimite mesaj către adresa configurată în `EMAIL_FROM`;
+- charturi și statistici pentru dashboard/rapoarte, construite din datele deja expuse de API;
+- animații fine între pagini și stări comune de loading/error/empty.
+
+Reguli importante pentru frontend:
+
+- folosește API-ul backend existent, fără schimbare de endpoint-uri;
+- folosește auth-ul backend cu `Bearer token`;
+- nu folosește Firebase;
+- păstrează tema dark-only pentru MVP;
+- folosește proxy-ul Vite pentru `/api/v1` către backend-ul local pe `http://localhost:5500` în development;
+- folosește `riskBucket`, `effectiveVerdict`, `reviewStatus` și `latestScan` exact cum sunt returnate de backend;
+- nu mută logica de phishing în frontend.
+
 ## Responsabilitatea fiecărui folder
 
 | Folder | Responsabilitate |
@@ -75,6 +142,13 @@ O reorganizare viitoare pe module, de tip `backend/src/modules/auth`, `backend/s
 | `backend/manual-tests` | fișiere și resurse pentru testare manuală backend |
 | `backend/scripts` | scripturi utilitare rulate manual pentru backend |
 | `backend/extras` | integrări backend opționale sau auxiliare |
+| `frontend/src/api` | funcții pentru comunicarea cu backend-ul |
+| `frontend/src/components` | componente UI refolosibile, inclusiv layout, charturi și chat/contact |
+| `frontend/src/pages` | ecrane principale ale aplicației |
+| `frontend/src/context` | stare globală simplă, mai ales auth |
+| `frontend/src/hooks` | logică frontend refolosibilă |
+| `frontend/src/styles` | tema dark-only și stiluri globale |
+| `frontend/src/utils` | funcții mici de formatare și storage |
 
 ## Modulele backend
 
@@ -93,6 +167,7 @@ Se ocupă de:
 
 - modelul utilizatorului;
 - profilul curent;
+- avatarul utilizatorului pentru MVP;
 - setări simple ale utilizatorului.
 
 ### `mailAccounts`
@@ -129,6 +204,14 @@ Se ocupă de:
 - `mark safe`;
 - `mark phishing`;
 - alte acțiuni simple asupra emailurilor.
+
+### `contact`
+
+Se ocupă de:
+
+- mesajele de contact trimise din interfață;
+- validarea payload-ului `message` + `subject`;
+- trimiterea emailului către `EMAIL_FROM` prin integrarea Nodemailer existentă.
 
 ### `jobs`
 

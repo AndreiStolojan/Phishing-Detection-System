@@ -13,6 +13,86 @@ Format recomandat pentru deciziile viitoare:
 
 ## Decizii inițiale
 
+### 2026-05-19 - Avatarul utilizatorului se salvează ca `avatarDataUrl` pentru MVP
+
+Motiv:
+
+- utilizatorul a cerut poze pentru fiecare user, dar MVP-ul nu are încă storage separat pentru fișiere;
+- un data URL comprimat în browser este suficient pentru o poză mică de profil;
+- evităm introducerea prematură a unui sistem de upload, bucket, semnare URL-uri și curățare fișiere.
+
+Impact:
+
+- modelul `User` are câmpul `avatarDataUrl`, cu limită de `700000` caractere;
+- `GET /api/v1/users/me` returnează `avatarDataUrl`;
+- `PATCH /api/v1/users/me` acceptă `name` și/sau `avatarDataUrl`;
+- frontend-ul comprimă imaginea local înainte să o trimită la backend;
+- dacă proiectul trece la producție reală, avatarul poate fi mutat ulterior într-un storage dedicat.
+
+### 2026-05-19 - Chatul de suport trimite email către `EMAIL_FROM`
+
+Motiv:
+
+- cerința curentă este un canal simplu de contact din aplicație, nu un sistem complet de mesagerie;
+- backend-ul are deja infrastructură Nodemailer pentru digestul lunar;
+- pentru MVP este mai ușor de testat și explicat un mesaj trimis către aceeași adresă configurată pentru emailurile aplicației.
+
+Impact:
+
+- există endpoint protejat `POST /api/v1/contact/message`;
+- mesajul include utilizatorul autentificat și setează `replyTo` la emailul lui;
+- destinatarul este `EMAIL_FROM`;
+- dacă lipsește configurarea email, endpoint-ul întoarce eroare controlată;
+- frontend-ul afișează drawer de contact accesibil din topbar.
+
+### 2026-05-19 - Polish-ul frontend folosește `framer-motion` și `recharts`
+
+Motiv:
+
+- utilizatorul a cerut tranziții mai fine, pagini mai estetice și statistici relevante;
+- `framer-motion` acoperă animațiile de pagină și microinteracțiunile fără să schimbe logica aplicației;
+- `recharts` permite charturi simple peste datele existente, fără să mutăm calcule importante în frontend.
+
+Impact:
+
+- `frontend/package.json` include `framer-motion` și `recharts`;
+- layout-ul are tranziții între pagini cu respect pentru `prefers-reduced-motion`;
+- dashboard-ul și rapoartele afișează charturi/statistici construite din endpoint-urile existente;
+- logica de phishing, Gmail sync, AI și acțiunile manuale rămân în backend.
+
+### 2026-05-18 - Frontend-ul folosește Vite proxy pentru API în development
+
+Motiv:
+
+- backend-ul nu are nevoie să fie modificat pentru CORS în această etapă;
+- frontend-ul poate chema simplu `/api/v1/...`, la fel ca în documentația API;
+- Vite trimite request-urile locale către backend-ul de development pe `http://localhost:5500`;
+- păstrăm schimbarea strict în frontend și reducem riscul asupra backend-ului deja testat.
+
+Impact:
+
+- `frontend/vite.config.js` conține proxy pentru `/api/v1`;
+- în development, frontend-ul rulează pe `5173`, iar backend-ul pe `5500`;
+- clientul API poate folosi implicit `/api/v1`;
+- pentru alt mediu se poate seta `VITE_API_BASE_URL`, fără să schimbăm codul componentelor.
+
+### 2026-05-11 - Frontend-ul MVP folosește temă dark-only și auth-ul backend, nu Firebase
+
+Motiv:
+
+- backend-ul are deja auth stabil cu JWT Bearer token, deci frontend-ul trebuie să consume acest contract, nu să introducă Firebase Auth;
+- `frontent-raw/` conține UI util pentru login/register, dar logica Firebase și brandul vechi nu aparțin proiectului de phishing;
+- păstrarea unei singure teme dark reduce timpul de implementare și evită polish vizual prematur;
+- cromatica finală poate fi schimbată după ce fluxul principal funcționează.
+
+Impact:
+
+- se va crea un folder separat `frontend/`, cu `src/`;
+- UI-ul de auth poate refolosi idei vizuale din `frontent-raw`, dar fără Firebase;
+- tokenul se salvează local pentru MVP și se trimite ca `Authorization: Bearer <token>`;
+- nu se implementează toggle dark/light în prima versiune;
+- planul detaliat este în `docs/FRONTEND_PLAN.md`, iar taskurile pentru agenți sunt în `docs/FRONTEND_AGENT_TASKS.md`.
+
 ### 2026-05-11 - Backend-ul este izolat în `backend/`
 
 Motiv:

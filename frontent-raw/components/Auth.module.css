@@ -1,0 +1,63 @@
+/* Auth.module.css */
+.container {
+    text-align: center;
+    margin-top: 50px;
+}
+
+.form {
+    display: inline-block;
+    text-align: left;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.inputGroup {
+    margin-bottom: 15px;
+}
+
+.inputLabel {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.inputField {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.submitButton {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.submitButton:hover {
+    background-color: #0056b3;
+}
+
+.toggleLink {
+    color: #007BFF;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.toggleLink:hover {
+    color: #0056b3;
+}
+
+.errorMessage {
+    color: red;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
