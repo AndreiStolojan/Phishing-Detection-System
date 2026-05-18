@@ -8,6 +8,11 @@ const userSchema = new mongoose.Schema({
         minlength: 2,
         maxlength: 50,
     },
+    avatarDataUrl: {
+        type: String,
+        default: null,
+        maxlength: 700000,
+    },
     email: {
         type: String,
         required: true,

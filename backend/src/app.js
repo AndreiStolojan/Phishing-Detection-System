@@ -9,6 +9,7 @@ import metaRouter from './routes/meta.routes.js';
 import scanRouter from './routes/scan.routes.js';
 import actionRouter from './routes/action.routes.js';
 import reportRouter from './routes/report.routes.js';
+import contactRouter from './routes/contact.routes.js';
 import sendErrorResponse from './common/http/send-error-response.js';
 import errorMiddleware from './middlewares/error.middleware.js';
 
@@ -16,8 +17,8 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use('/manual-tests', express.static(path.join(__dirname, '..', 'manual-tests')));
 
 app.use('/api/v1/auth', authRouter);
@@ -28,6 +29,7 @@ app.use('/api/v1/meta', metaRouter);
 app.use('/api/v1/scans', scanRouter);
 app.use('/api/v1/actions', actionRouter);
 app.use('/api/v1/reports', reportRouter);
+app.use('/api/v1/contact', contactRouter);
 
 app.get('/api/v1/health', (req, res) => {
   res.status(200).json({
