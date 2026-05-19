@@ -1,8 +1,10 @@
 import {
   Alert,
   Box,
+  Button,
   Chip,
   CircularProgress,
+  Divider,
   Paper,
   Stack,
   Typography,
@@ -17,6 +19,25 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ro-RO', {
   timeStyle: 'short',
 });
 
+const dateFormatter = new Intl.DateTimeFormat('ro-RO', {
+  dateStyle: 'medium',
+});
+
+const monthFormatter = new Intl.DateTimeFormat('ro-RO', {
+  month: 'long',
+  year: 'numeric',
+});
+
+const numberFormatter = new Intl.NumberFormat('ro-RO');
+
+const toSafeNumber = (value) => {
+  const numericValue = Number(value ?? 0);
+
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const formatNumber = (value) => numberFormatter.format(toSafeNumber(value));
+
 const formatDateTime = (value) => {
   if (!value) {
     return '-';
@@ -25,6 +46,30 @@ const formatDateTime = (value) => {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime()) ? 'data necunoscuta' : dateTimeFormatter.format(date);
+};
+
+const formatDate = (value) => {
+  if (!value) {
+    return 'data necunoscuta';
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? 'data necunoscuta' : dateFormatter.format(date);
+};
+
+const formatMonthLabel = (value) => {
+  if (!value) {
+    return 'luna selectata';
+  }
+
+  const date = new Date(`${value}-01T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return monthFormatter.format(date);
 };
 
 const getStatusMeta = (status) => {
@@ -56,7 +101,7 @@ const getStatusMeta = (status) => {
   }
 
   return {
-    label: 'Pregatit',
+    label: 'Netimis',
     color: 'default',
     icon: <SendRoundedIcon fontSize="small" />,
     toneColor: '#94a3b8',
@@ -114,15 +159,49 @@ const DetailRow = ({ label, value, strong = false }) => (
   </Stack>
 );
 
+const MetricTile = ({ label, value, tone = 'text.primary' }) => (
+  <Box
+    sx={{
+      minWidth: 0,
+      border: '1px solid rgba(148, 163, 184, 0.12)',
+      borderRadius: 1.5,
+      px: 1.5,
+      py: 1.25,
+      bgcolor: 'rgba(2, 6, 23, 0.24)',
+    }}
+  >
+    <Typography variant="caption" color="text.secondary" fontWeight={900}>
+      {label}
+    </Typography>
+    <Typography variant="h6" fontWeight={900} sx={{ color: tone, overflowWrap: 'anywhere' }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
 const ReportDeliveryStatus = ({
   status = 'idle',
   result = null,
   error = null,
   selectedMonth,
+  summary = null,
+  onSend,
+  isSending = false,
+  disabled = false,
 }) => {
   const meta = getStatusMeta(status);
   const errorObject = getErrorObject({ result, error });
   const fallbackErrorMessage = getFallbackErrorMessage(error);
+  const resultPeriod = result?.period
+    || error?.payload?.data?.period
+    || error?.data?.data?.period
+    || error?.response?.data?.data?.period
+    || null;
+  const period = resultPeriod || summary?.period || null;
+  const counts = summary?.counts ?? {};
+  const suspiciousTotal = toSafeNumber(counts.suspicious);
+  const likelyPhishingTotal = toSafeNumber(counts.likelyPhishing);
+  const riskTotal = suspiciousTotal + likelyPhishingTotal;
   const recipient = result?.recipient
     || error?.payload?.data?.recipient
     || error?.data?.data?.recipient
@@ -146,11 +225,11 @@ const ReportDeliveryStatus = ({
           'linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.84) 100%)',
       }}
     >
-      <Stack spacing={2}>
+      <Stack spacing={2.5}>
         <Stack
-          direction="row"
+          direction={{ xs: 'column', md: 'row' }}
           spacing={1.5}
-          alignItems="flex-start"
+          alignItems={{ xs: 'stretch', md: 'flex-start' }}
           justifyContent="space-between"
         >
           <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
@@ -170,22 +249,65 @@ const ReportDeliveryStatus = ({
             </Box>
             <Box sx={{ minWidth: 0 }}>
               <Typography component="h2" variant="h6" fontWeight={900}>
-                Digest lunar
+                Trimite digest
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Statusul ultimei trimiteri manuale.
+                Emailul include sumarul pentru luna selectata si merge catre utilizatorul autentificat.
               </Typography>
             </Box>
           </Stack>
 
-          <Chip
-            size="small"
-            color={meta.color}
-            variant={status === 'idle' ? 'outlined' : 'filled'}
-            label={meta.label}
-            sx={{ fontWeight: 900, borderRadius: 1 }}
-          />
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1}
+            alignItems={{ xs: 'stretch', sm: 'center' }}
+            justifyContent="flex-end"
+          >
+            <Chip
+              size="small"
+              color={meta.color}
+              variant={status === 'idle' ? 'outlined' : 'filled'}
+              label={meta.label}
+              sx={{ fontWeight: 900, borderRadius: 1 }}
+            />
+            <Button
+              variant="contained"
+              startIcon={
+                isSending ? <CircularProgress size={16} color="inherit" /> : <SendRoundedIcon />
+              }
+              onClick={onSend}
+              disabled={disabled}
+              sx={{ minWidth: { xs: '100%', sm: 170 } }}
+            >
+              {isSending ? 'Se trimite...' : 'Trimite digest'}
+            </Button>
+          </Stack>
         </Stack>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              lg: 'repeat(4, minmax(0, 1fr))',
+            },
+            gap: 1,
+          }}
+        >
+          <MetricTile label="Perioada" value={formatMonthLabel(period?.month || selectedMonth)} />
+          <MetricTile label="Emailuri scanate" value={formatNumber(counts.scannedEmails)} />
+          <MetricTile
+            label="Suspecte + phishing"
+            value={formatNumber(riskTotal)}
+            tone={riskTotal > 0 ? 'warning.main' : 'success.main'}
+          />
+          <MetricTile
+            label="Destinatar"
+            value={recipient || 'contul autentificat'}
+            tone="primary.main"
+          />
+        </Box>
 
         {status === 'sending' ? (
           <Alert
@@ -197,7 +319,7 @@ const ReportDeliveryStatus = ({
               bgcolor: 'rgba(14, 116, 144, 0.14)',
             }}
           >
-            Se genereaza si se trimite digestul pentru luna {selectedMonth || '-'}.
+            Se genereaza si se trimite digestul pentru {formatMonthLabel(selectedMonth)}.
           </Alert>
         ) : null}
 
@@ -215,10 +337,13 @@ const ReportDeliveryStatus = ({
         ) : null}
 
         <Stack spacing={1}>
-          <DetailRow label="Luna raportului" value={selectedMonth} />
-          <DetailRow label="Destinatar" value={recipient} strong={status === 'sent'} />
-          <DetailRow label="Message ID" value={result?.messageId} strong={status === 'sent'} />
-          <DetailRow label="Generat la" value={formatDateTime(generatedAt)} />
+          <DetailRow
+            label="Interval raportat"
+            value={period?.from && period?.to ? `${formatDate(period.from)} - ${formatDate(period.to)}` : '-'}
+          />
+          <DetailRow label="Ora trimiterii" value={formatDateTime(generatedAt)} strong={status === 'sent'} />
+          <DetailRow label="Emailuri suspecte" value={formatNumber(suspiciousTotal)} />
+          <DetailRow label="Probabil phishing" value={formatNumber(likelyPhishingTotal)} />
 
           {status === 'failed' ? (
             <>
@@ -231,6 +356,15 @@ const ReportDeliveryStatus = ({
             </>
           ) : null}
         </Stack>
+
+        {result?.messageId && status === 'sent' ? (
+          <>
+            <Divider sx={{ borderColor: 'rgba(148, 163, 184, 0.12)' }} />
+            <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+              ID tehnic mesaj: {result.messageId}
+            </Typography>
+          </>
+        ) : null}
       </Stack>
     </Paper>
   );

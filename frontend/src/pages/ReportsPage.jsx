@@ -11,16 +11,11 @@ import {
   Typography,
 } from '@mui/material';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import DangerousRoundedIcon from '@mui/icons-material/DangerousRounded';
 import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded';
-import MarkEmailReadRoundedIcon from '@mui/icons-material/MarkEmailReadRounded';
-import OutboxRoundedIcon from '@mui/icons-material/OutboxRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import ReviewsRoundedIcon from '@mui/icons-material/ReviewsRounded';
-import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 
 import { getMonthlySummary, sendMonthlySummaryDigest } from '../api/reportsApi.js';
@@ -39,6 +34,11 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ro-RO', {
 
 const dateFormatter = new Intl.DateTimeFormat('ro-RO', {
   dateStyle: 'medium',
+});
+
+const monthFormatter = new Intl.DateTimeFormat('ro-RO', {
+  month: 'long',
+  year: 'numeric',
 });
 
 const numberFormatter = new Intl.NumberFormat('ro-RO');
@@ -74,6 +74,20 @@ const formatDate = (value) => {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime()) ? 'data necunoscuta' : dateFormatter.format(date);
+};
+
+const formatMonthLabel = (value) => {
+  if (!value) {
+    return 'luna curenta';
+  }
+
+  const date = new Date(`${value}-01T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return monthFormatter.format(date);
 };
 
 const formatNumber = (value) => numberFormatter.format(toSafeNumber(value));
@@ -155,7 +169,6 @@ const ReportsPage = () => {
   const suspiciousTotal = toSafeNumber(counts.suspicious);
   const likelyPhishingTotal = toSafeNumber(counts.likelyPhishing);
   const reviewedTotal = toSafeNumber(counts.reviewed);
-  const markedSafeTotal = toSafeNumber(counts.markedSafe);
   const markedPhishingTotal = toSafeNumber(counts.markedPhishing);
   const quarantinedTotal = toSafeNumber(counts.quarantined);
   const aiEvaluatedTotal = toSafeNumber(ai.evaluated);
@@ -170,45 +183,29 @@ const ReportsPage = () => {
 
   const cards = useMemo(() => ([
     {
-      title: 'Emailuri sincronizate',
-      value: syncedTotal,
-      helper: 'Emailuri salvate pentru luna aleasa',
-      icon: <EmailRoundedIcon fontSize="small" />,
-      accentColor: 'primary.main',
-      progress: syncedTotal > 0 ? 100 : 0,
-      eyebrow: 'Ingestie',
-    },
-    {
       title: 'Emailuri scanate',
       value: scannedTotal,
-      helper: `${scanCoverage}% din emailurile sincronizate`,
-      icon: <SecurityRoundedIcon fontSize="small" />,
-      accentColor: 'secondary.main',
+      helper: syncedTotal > 0
+        ? `${scanCoverage}% raportat la emailurile sincronizate luna aceasta`
+        : 'Rezultate de scanare din luna selectată',
+      icon: <EmailRoundedIcon fontSize="small" />,
+      accentColor: 'primary.main',
       progress: scanCoverage,
-      eyebrow: 'Detectie',
+      eyebrow: 'Activitate',
     },
     {
-      title: 'Sigur',
-      value: safeTotal,
-      helper: `${getPercentage(safeTotal, scannedTotal)}% din scanari`,
-      icon: <CheckCircleRoundedIcon fontSize="small" />,
-      accentColor: 'success.main',
-      progress: getPercentage(safeTotal, scannedTotal),
-      eyebrow: 'Verdict',
-    },
-    {
-      title: 'Suspecte',
-      value: suspiciousTotal,
-      helper: 'Necesita verificare manuala',
+      title: 'De verificat',
+      value: reviewQueueEstimate,
+      helper: 'Suspecte sau probabil phishing, fără verdict manual',
       icon: <WarningAmberRoundedIcon fontSize="small" />,
-      accentColor: 'warning.main',
-      progress: getPercentage(suspiciousTotal, scannedTotal),
-      eyebrow: 'Verdict',
+      accentColor: reviewQueueEstimate > 0 ? 'warning.main' : 'success.main',
+      progress: getPercentage(reviewQueueEstimate, scannedTotal),
+      eyebrow: 'Review',
     },
     {
       title: 'Probabil phishing',
       value: likelyPhishingTotal,
-      helper: 'Risc ridicat calculat de backend',
+      helper: 'Risc ridicat calculat de motorul backend',
       icon: <DangerousRoundedIcon fontSize="small" />,
       accentColor: 'error.main',
       progress: getPercentage(likelyPhishingTotal, scannedTotal),
@@ -217,50 +214,29 @@ const ReportsPage = () => {
     {
       title: 'Revizuite manual',
       value: reviewedTotal,
-      helper: `${manualReviewRate}% din emailurile scanate`,
+      helper: `${manualReviewRate}% din scanări au primit verdict manual`,
       icon: <ReviewsRoundedIcon fontSize="small" />,
       accentColor: 'primary.main',
       progress: manualReviewRate,
       eyebrow: 'Review',
     },
     {
-      title: 'Marcate safe',
-      value: markedSafeTotal,
-      helper: 'Corectii manuale catre sigur',
-      icon: <MarkEmailReadRoundedIcon fontSize="small" />,
-      accentColor: 'success.main',
-      progress: getPercentage(markedSafeTotal, reviewedTotal),
-      eyebrow: 'Manual',
-    },
-    {
-      title: 'Marcate phishing',
+      title: 'Confirmate phishing',
       value: markedPhishingTotal,
-      helper: 'Confirmari manuale de phishing',
+      helper: 'Emailuri confirmate manual ca atac',
       icon: <FactCheckRoundedIcon fontSize="small" />,
       accentColor: 'error.main',
       progress: getPercentage(markedPhishingTotal, reviewedTotal),
       eyebrow: 'Manual',
     },
-    {
-      title: 'Carantinate',
-      value: quarantinedTotal,
-      helper: 'Emailuri tratate ca risc final ridicat',
-      icon: <OutboxRoundedIcon fontSize="small" />,
-      accentColor: 'warning.main',
-      progress: getPercentage(quarantinedTotal, scannedTotal),
-      eyebrow: 'Protectie',
-    },
   ]), [
     likelyPhishingTotal,
     manualReviewRate,
     markedPhishingTotal,
-    markedSafeTotal,
-    quarantinedTotal,
     reviewedTotal,
-    safeTotal,
+    reviewQueueEstimate,
     scanCoverage,
     scannedTotal,
-    suspiciousTotal,
     syncedTotal,
   ]);
 
@@ -288,7 +264,7 @@ const ReportsPage = () => {
   const aiChartData = useMemo(() => ([
     {
       key: 'evaluated',
-      label: 'Evaluate',
+      label: 'Procesate de AI',
       value: aiEvaluatedTotal,
       color: '#38bdf8',
     },
@@ -338,7 +314,7 @@ const ReportsPage = () => {
   }, [selectedMonth]);
 
   return (
-    <Container maxWidth="xl" disableGutters>
+    <Container maxWidth={false} disableGutters sx={{ width: '100%' }}>
       <Stack spacing={3}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -348,11 +324,14 @@ const ReportsPage = () => {
         >
           <Box>
             <Typography component="h1" variant="h5" fontWeight={900}>
-              Rapoarte securitate
+              Rapoarte lunare de securitate
             </Typography>
-            <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 760 }}>
-              Sumar lunar pentru emailurile sincronizate, verdicturile de phishing,
-              review-ul manual si digestul trimis pe email.
+            <Typography
+              color="text.secondary"
+              sx={{ mt: 1, maxWidth: 820, fontSize: { xs: '0.95rem', md: '1rem' } }}
+            >
+              Sumar pentru verdicturi, review manual, reguli euristice și semnale AI.
+              Digestul poate fi trimis după verificarea datelor.
             </Typography>
           </Box>
 
@@ -392,18 +371,6 @@ const ReportsPage = () => {
             >
               Actualizeaza raport
             </Button>
-
-            <Button
-              variant="contained"
-              startIcon={
-                isSending ? <CircularProgress size={16} color="inherit" /> : <SendRoundedIcon />
-              }
-              onClick={handleSendDigest}
-              disabled={isLoading || isSending || !summary}
-              sx={{ minWidth: 158 }}
-            >
-              {isSending ? 'Se trimite...' : 'Trimite digest'}
-            </Button>
           </Stack>
         </Stack>
 
@@ -427,18 +394,12 @@ const ReportsPage = () => {
           <>
             <Box
               sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  lg: 'minmax(0, 1.1fr) minmax(360px, 0.9fr)',
-                },
-                gap: 2,
+                maxWidth: '100%',
               }}
             >
               <Paper
                 elevation={0}
                 sx={{
-                  height: '100%',
                   border: '1px solid rgba(148, 163, 184, 0.18)',
                   borderRadius: 2,
                   p: { xs: 2, md: 2.5 },
@@ -458,7 +419,7 @@ const ReportsPage = () => {
                         Perioada raportului
                       </Typography>
                       <Typography variant="h5" fontWeight={900}>
-                        {period.month || selectedMonth}
+                        {formatMonthLabel(period.month || selectedMonth)}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         {formatDate(period.from)} - {formatDate(period.to)}
@@ -506,9 +467,9 @@ const ReportsPage = () => {
                     }}
                   >
                     {[
-                      ['Risk posture', riskShare > 0 ? `${riskShare}% risc` : 'fara risc detectat', riskShare > 0 ? '#f59e0b' : '#4ade80'],
-                      ['Review queue', reviewQueueEstimate, reviewQueueEstimate > 0 ? '#f59e0b' : '#4ade80'],
-                      ['AI coverage', `${aiCoverage}%`, aiCoverage > 0 ? '#38bdf8' : '#94a3b8'],
+                      ['Nivel de risc', riskShare > 0 ? `${riskShare}% risc` : 'fara risc detectat', riskShare > 0 ? '#f59e0b' : '#4ade80'],
+                      ['De verificat', reviewQueueEstimate, reviewQueueEstimate > 0 ? '#f59e0b' : '#4ade80'],
+                      ['Acoperire AI', `${aiCoverage}%`, aiCoverage > 0 ? '#38bdf8' : '#94a3b8'],
                     ].map(([label, value, color]) => (
                       <Box
                         key={label}
@@ -531,13 +492,6 @@ const ReportsPage = () => {
                   </Box>
                 </Stack>
               </Paper>
-
-              <ReportDeliveryStatus
-                status={deliveryState.status}
-                result={deliveryState.result}
-                error={deliveryState.error}
-                selectedMonth={selectedMonth}
-              />
             </Box>
 
             <Box
@@ -546,7 +500,7 @@ const ReportsPage = () => {
                 gridTemplateColumns: {
                   xs: '1fr',
                   sm: 'repeat(2, minmax(0, 1fr))',
-                  lg: 'repeat(3, minmax(0, 1fr))',
+                  xl: 'repeat(5, minmax(0, 1fr))',
                 },
                 gap: 2,
               }}
@@ -565,6 +519,17 @@ const ReportsPage = () => {
                 />
               ))}
             </Box>
+
+            <ReportDeliveryStatus
+              status={deliveryState.status}
+              result={deliveryState.result}
+              error={deliveryState.error}
+              selectedMonth={selectedMonth}
+              summary={summary}
+              onSend={handleSendDigest}
+              isSending={isSending}
+              disabled={isLoading || isSending || !summary}
+            />
 
             <Box
               sx={{
@@ -600,7 +565,7 @@ const ReportsPage = () => {
 
               <RiskDistributionChart
                 title="Status AI"
-                subtitle="AI-ul este auxiliar: verdictul principal ramane calculat de regulile backend."
+                subtitle="Diagnostic pentru Ollama. Chiar și cu AI oprit, scanarea euristică rulează în continuare."
                 chartType="bar"
                 data={aiChartData}
                 footerLabel="Acoperire AI"

@@ -10,12 +10,14 @@ const StatCard = ({
   progress,
   eyebrow,
   isLoading = false,
+  isRefreshing = false,
 }) => (
   <Paper
     component={motion.div}
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.28, ease: 'easeOut' }}
+    whileHover={{ y: -3 }}
+    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
     elevation={0}
     sx={{
       height: '100%',
@@ -28,6 +30,8 @@ const StatCard = ({
       boxShadow: '0 20px 60px rgba(2, 6, 23, 0.24)',
       overflow: 'hidden',
       position: 'relative',
+      transition: 'border-color 180ms ease, transform 180ms ease',
+      borderColor: isRefreshing ? 'rgba(56, 189, 248, 0.36)' : 'rgba(148, 163, 184, 0.18)',
       '&::before': {
         content: '""',
         position: 'absolute',
@@ -38,6 +42,22 @@ const StatCard = ({
       },
     }}
   >
+    {isRefreshing ? (
+      <LinearProgress
+        aria-label="Se actualizeaza statistica"
+        sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          bgcolor: 'transparent',
+          '& .MuiLinearProgress-bar': {
+            bgcolor: accentColor,
+          },
+        }}
+      />
+    ) : null}
     <Stack spacing={2} sx={{ height: '100%' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
         <Box sx={{ minWidth: 0 }}>
@@ -71,7 +91,17 @@ const StatCard = ({
         {isLoading ? (
           <Skeleton variant="text" width={96} height={48} />
         ) : (
-          <Typography variant="h3" component="p" fontWeight={900} lineHeight={1}>
+          <Typography
+            component={motion.p}
+            key={value}
+            initial={{ opacity: 0.72, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            variant="h3"
+            fontWeight={900}
+            lineHeight={1}
+            sx={{ m: 0 }}
+          >
             {value}
           </Typography>
         )}

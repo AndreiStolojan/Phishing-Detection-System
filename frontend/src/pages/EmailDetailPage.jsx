@@ -200,7 +200,7 @@ const EmailDetailPage = () => {
 
   if (isLoading && !email) {
     return (
-      <Box sx={{ maxWidth: 1120 }}>
+      <Box sx={{ width: '100%' }}>
         <LoadingState message="Se incarca detaliul emailului..." minHeight={280} />
       </Box>
     );
@@ -208,7 +208,7 @@ const EmailDetailPage = () => {
 
   if (loadError && !email) {
     return (
-      <Box sx={{ maxWidth: 960 }}>
+      <Box sx={{ width: '100%' }}>
         <Stack spacing={2}>
           <Button
             component={RouterLink}
@@ -230,7 +230,7 @@ const EmailDetailPage = () => {
   }
 
   return (
-    <Box sx={{ maxWidth: 1120 }}>
+    <Box sx={{ width: '100%' }}>
       <Stack spacing={2.5}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -248,8 +248,8 @@ const EmailDetailPage = () => {
             >
               Inapoi la emailuri
             </Button>
-            <Typography component="h1" variant="h5" fontWeight={800}>
-              Detaliu email
+            <Typography component="h1" variant="h4" fontWeight={800}>
+              Analiza emailului
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 0.5, overflowWrap: 'anywhere' }}>
               {email?.subject || 'Fara subiect'}
@@ -262,7 +262,7 @@ const EmailDetailPage = () => {
             onClick={() => loadDetailData({ showPageLoader: false }).catch(() => {})}
             disabled={Boolean(activeAction)}
           >
-            Refresh
+            Reincarca
           </Button>
         </Stack>
 
@@ -274,19 +274,30 @@ const EmailDetailPage = () => {
           </Alert>
         ) : null}
 
-        <EmailDetailPanel email={email} />
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.45fr) minmax(360px, 0.85fr)' },
+            gap: 2,
+            alignItems: 'start',
+          }}
+        >
+          <EmailDetailPanel email={email} />
 
-        <ScanSummary scan={visibleScan} />
+          <Stack spacing={2}>
+            <ScanSummary scan={visibleScan} />
 
-        <ReviewActions
-          email={email}
-          activeAction={activeAction}
-          actionError={actionError}
-          actionFeedback={actionFeedback}
-          onMarkSafe={handleMarkSafe}
-          onMarkPhishing={handleMarkPhishing}
-          onRescan={handleRescan}
-        />
+            <ReviewActions
+              email={email}
+              activeAction={activeAction}
+              actionError={actionError}
+              actionFeedback={actionFeedback}
+              onMarkSafe={handleMarkSafe}
+              onMarkPhishing={handleMarkPhishing}
+              onRescan={handleRescan}
+            />
+          </Stack>
+        </Box>
       </Stack>
     </Box>
   );

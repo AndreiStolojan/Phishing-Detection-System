@@ -14,34 +14,15 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import ReportProblemRoundedIcon from '@mui/icons-material/ReportProblemRounded';
 
+import { formatDateTime } from '../../utils/formatDate.js';
+import {
+  formatManualAction,
+  formatProviderActionStatus,
+  formatReviewStatus,
+  formatTechnicalLabel,
+  formatVerdict,
+} from '../../utils/formatRisk.js';
 import ErrorMessage from '../common/ErrorMessage.jsx';
-
-const reviewStatusLabels = {
-  reviewed: 'Revizuit manual',
-  pending_review: 'Asteapta review',
-  no_review_needed: 'Nu necesita review',
-  unscanned: 'Nescanat',
-};
-
-const manualActionLabels = {
-  mark_safe: 'Marcat sigur',
-  mark_phishing: 'Marcat phishing',
-};
-
-const dateFormatter = new Intl.DateTimeFormat('ro-RO', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
-
-const formatDateTime = (value) => {
-  if (!value) {
-    return 'inca nerevizuit';
-  }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? 'data necunoscuta' : dateFormatter.format(date);
-};
 
 const getProviderActionFromEmail = (email) => {
   if (!email?.lastProviderAction) {
@@ -93,7 +74,7 @@ const getProviderAlertProps = (providerAction) => {
   return {
     severity: 'info',
     title: 'Status provider',
-    message: providerAction.message || `Status provider: ${providerAction.status}`,
+    message: providerAction.message || `Status provider: ${formatProviderActionStatus(providerAction.status)}`,
   };
 };
 
@@ -144,14 +125,14 @@ const ReviewActions = ({
 
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             <Chip
-              label={reviewStatusLabels[email?.reviewStatus] || 'Status necunoscut'}
+              label={formatReviewStatus(email?.reviewStatus)}
               size="small"
               variant="outlined"
               sx={{ borderColor: 'rgba(148, 163, 184, 0.28)' }}
             />
             {email?.lastManualAction ? (
               <Chip
-                label={manualActionLabels[email.lastManualAction] || email.lastManualAction}
+                label={formatManualAction(email.lastManualAction)}
                 color={email.userVerdict === 'phishing' ? 'error' : 'success'}
                 size="small"
               />
@@ -171,7 +152,7 @@ const ReviewActions = ({
               Verdict manual
             </Typography>
             <Typography variant="body2">
-              {email?.userVerdict || 'fara verdict manual'}
+              {formatVerdict(email?.userVerdict)}
             </Typography>
           </Box>
 
@@ -180,7 +161,7 @@ const ReviewActions = ({
               Revizuit la
             </Typography>
             <Typography variant="body2">
-              {formatDateTime(email?.reviewedAt)}
+              {formatDateTime(email?.reviewedAt, 'inca nerevizuit')}
             </Typography>
           </Box>
         </Box>
@@ -213,7 +194,7 @@ const ReviewActions = ({
             onClick={onRescan}
             disabled={isBusy}
           >
-            Rescan
+            Rescaneaza
           </Button>
         </Stack>
 
@@ -238,12 +219,12 @@ const ReviewActions = ({
             {providerAlert.message}
             {providerAction?.errorCode ? (
               <Typography variant="caption" sx={{ display: 'block', mt: 0.75 }}>
-                Cod: {providerAction.errorCode}
+                Cod: {formatTechnicalLabel(providerAction.errorCode)}
               </Typography>
             ) : null}
             {providerAction?.actedAt ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Raportat la {formatDateTime(providerAction.actedAt)}
+                Raportat la {formatDateTime(providerAction.actedAt, 'data necunoscuta')}
               </Typography>
             ) : null}
           </Alert>

@@ -3,9 +3,13 @@ import {
   Box,
   Button,
   Container,
+  FormControl,
   IconButton,
   InputAdornment,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Tab,
   Tabs,
@@ -17,11 +21,12 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 
 import { getEmails } from '../api/emailsApi.js';
+import { getMailAccounts } from '../api/mailAccountsApi.js';
 import EmptyState from '../components/common/EmptyState.jsx';
 import ErrorMessage, { getErrorMessage } from '../components/common/ErrorMessage.jsx';
 import LoadingState from '../components/common/LoadingState.jsx';
 import EmailList from '../components/emails/EmailList.jsx';
-import { riskBucketOptions } from '../utils/formatRisk.js';
+import { formatProvider, formatProviderActionStatus, riskBucketOptions } from '../utils/formatRisk.js';
 
 const DEFAULT_LIMIT = 10;
 
@@ -50,13 +55,16 @@ const EmailsPage = () => {
   const [emails, setEmails] = useState([]);
   const [pagination, setPagination] = useState(emptyPagination);
   const [riskBucket, setRiskBucket] = useState('all');
+  const [mailAccountId, setMailAccountId] = useState('all');
+  const [mailAccounts, setMailAccounts] = useState([]);
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  const hasActiveFilters = riskBucket !== 'all' || query.trim().length > 0;
+  const hasActiveFilters =
+    riskBucket !== 'all' || mailAccountId !== 'all' || query.trim().length > 0;
 
   const loadEmails = useCallback(async () => {
     setIsLoading(true);
@@ -68,6 +76,7 @@ const EmailsPage = () => {
         limit: DEFAULT_LIMIT,
         q: query.trim(),
         riskBucket,
+        mailAccountId: mailAccountId === 'all' ? undefined : mailAccountId,
       });
 
       setEmails(Array.isArray(result?.items) ? result.items : []);
@@ -77,11 +86,39 @@ const EmailsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [page, query, riskBucket]);
+  }, [mailAccountId, page, query, riskBucket]);
 
   useEffect(() => {
     loadEmails();
   }, [loadEmails]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getMailAccounts()
+      .then((result) => {
+        if (!isMounted) {
+          return;
+        }
+
+        const items = Array.isArray(result?.items)
+          ? result.items
+          : Array.isArray(result)
+            ? result
+            : [];
+
+        setMailAccounts(items);
+      })
+      .catch(() => {
+        if (isMounted) {
+          setMailAccounts([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const currentPage = pagination.page || page;
   const totalPages = pagination.totalPages || 1;
@@ -101,8 +138,25 @@ const EmailsPage = () => {
     return `${start}-${end} din ${total} emailuri`;
   }, [currentPage, pagination.limit, pagination.total]);
 
+  const gmailAccountOptions = useMemo(() => (
+    mailAccounts
+      .filter((account) => account?._id)
+      .map((account) => ({
+        value: account._id,
+        label: account.accountEmail || account.email || 'Cont Gmail fara email',
+        meta: `${formatProvider(account.provider)}${
+          account.status ? ` - ${formatProviderActionStatus(account.status)}` : ''
+        }`,
+      }))
+  ), [mailAccounts]);
+
   const handleRiskBucketChange = (_, nextRiskBucket) => {
     setRiskBucket(nextRiskBucket);
+    setPage(1);
+  };
+
+  const handleMailAccountChange = (event) => {
+    setMailAccountId(event.target.value);
     setPage(1);
   };
 
@@ -120,6 +174,7 @@ const EmailsPage = () => {
 
   const handleResetFilters = () => {
     setRiskBucket('all');
+    setMailAccountId('all');
     setSearchInput('');
     setQuery('');
     setPage(1);
@@ -184,8 +239,8 @@ const EmailsPage = () => {
         py: { xs: 3, md: 4 },
       }}
     >
-      <Container maxWidth="lg" disableGutters>
-        <Stack spacing={2.5}>
+      <Container maxWidth={false} disableGutters sx={{ width: '100%' }}>
+        <Stack spacing={2.5} sx={{ width: '100%' }}>
           <Stack
             direction={{ xs: 'column', md: 'row' }}
             justifyContent="space-between"
@@ -196,9 +251,9 @@ const EmailsPage = () => {
               <Typography component="h1" variant="h4" fontWeight={800}>
                 Emailuri
               </Typography>
-              <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 720 }}>
-                Verifica emailurile sincronizate, filtreaza dupa risc si deschide detaliile
-                pentru explicatii si actiuni manuale.
+              <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 820 }}>
+                Inbox-ul sincronizat pentru demonstratia MVP: filtrezi rapid dupa risc,
+                cont Gmail si text, apoi intri in detalii pentru explicatii si review manual.
               </Typography>
             </Box>
 
@@ -210,7 +265,7 @@ const EmailsPage = () => {
               disabled={isLoading}
               sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
             >
-              Refresh
+              Reincarca
             </Button>
           </Stack>
 
@@ -260,6 +315,31 @@ const EmailsPage = () => {
                 alignItems={{ xs: 'stretch', md: 'center' }}
                 onSubmit={handleSearchSubmit}
               >
+                <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 280 } }}>
+                  <InputLabel id="mail-account-filter-label">Cont Gmail</InputLabel>
+                  <Select
+                    labelId="mail-account-filter-label"
+                    label="Cont Gmail"
+                    value={mailAccountId}
+                    onChange={handleMailAccountChange}
+                    disabled={isLoading}
+                  >
+                    <MenuItem value="all">Toate conturile Gmail</MenuItem>
+                    {gmailAccountOptions.map((account) => (
+                      <MenuItem key={account.value} value={account.value}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" noWrap>
+                            {account.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" noWrap>
+                            {account.meta}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
                 <TextField
                   fullWidth
                   size="small"

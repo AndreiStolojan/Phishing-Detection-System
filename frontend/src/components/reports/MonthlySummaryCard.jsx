@@ -23,7 +23,8 @@ const MonthlySummaryCard = ({
     component={motion.div}
     initial={{ opacity: 0, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.24, ease: 'easeOut' }}
+    whileHover={{ y: -3 }}
+    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
     elevation={0}
     sx={{
       height: '100%',
@@ -54,7 +55,12 @@ const MonthlySummaryCard = ({
               {eyebrow}
             </Typography>
           ) : null}
-          <Typography variant="body2" color="text.secondary" fontWeight={800} noWrap>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            fontWeight={800}
+            sx={{ overflowWrap: 'anywhere' }}
+          >
             {title}
           </Typography>
         </Box>

@@ -96,6 +96,15 @@ const theme = createTheme({
             backgroundColor: 'rgba(34, 211, 238, 0.08)',
           },
         },
+        outlinedError: {
+          borderColor: 'rgba(251, 113, 133, 0.36)',
+          backgroundColor: 'rgba(127, 29, 29, 0.18)',
+          color: '#fecdd3',
+          '&:hover': {
+            borderColor: 'rgba(251, 113, 133, 0.64)',
+            backgroundColor: 'rgba(251, 113, 133, 0.1)',
+          },
+        },
       },
     },
     MuiIconButton: {

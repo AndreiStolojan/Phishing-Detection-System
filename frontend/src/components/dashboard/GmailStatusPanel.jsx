@@ -17,6 +17,7 @@ import ErrorOutlineRounded from '@mui/icons-material/ErrorOutlineRounded';
 import LinkRounded from '@mui/icons-material/LinkRounded';
 import MarkEmailReadRounded from '@mui/icons-material/MarkEmailReadRounded';
 import SyncRounded from '@mui/icons-material/SyncRounded';
+import { motion } from 'framer-motion';
 
 const dateFormatter = new Intl.DateTimeFormat('ro-RO', {
   dateStyle: 'medium',
@@ -52,6 +53,50 @@ const getSyncErrorText = (syncError) => {
     || JSON.stringify(syncError);
 };
 
+const syncSourceLabels = {
+  gmail_initial_sync: 'Prima sincronizare Gmail',
+  gmail_manual_sync: 'Sincronizare manuala Gmail',
+  gmail_scheduled_sync: 'Sincronizare programata Gmail',
+  gmail_resync: 'Resincronizare Gmail',
+};
+
+const scanSummaryLabels = {
+  insertedCandidatesCount: 'Emailuri noi eligibile',
+  updatedCandidatesCount: 'Emailuri actualizate eligibile',
+  scannedCount: 'Scanate automat',
+  scannedInsertedCount: 'Emailuri noi scanate',
+  scannedUpdatedCount: 'Emailuri actualizate scanate',
+  skippedCount: 'Sarite',
+  skippedAlreadyCurrentCount: 'Deja la zi',
+  skippedReviewedCount: 'Revizuite manual',
+  failedCount: 'Esuate',
+};
+
+const accountStatusLabels = {
+  active: 'activ',
+  disconnected: 'deconectat',
+  expired: 'token expirat',
+  error: 'eroare',
+  pending: 'in asteptare',
+  revoked: 'acces revocat',
+};
+
+const formatTechnicalLabel = (value) => {
+  if (!value) {
+    return 'necunoscut';
+  }
+
+  const normalized = String(value)
+    .replaceAll('_', ' ')
+    .toLowerCase();
+
+  return normalized.replace(/\bgmail\b/g, 'Gmail');
+};
+
+const getSyncSourceLabel = (source) => syncSourceLabels[source] || formatTechnicalLabel(source);
+
+const getScanSummaryLabel = (key) => scanSummaryLabels[key] || formatTechnicalLabel(key);
+
 const formatSyncSummaryValue = (value) => {
   if (typeof value === 'boolean') {
     return value ? 'da' : 'nu';
@@ -76,6 +121,7 @@ const getScanSummaryItems = (scanSummary) => {
     ))
     .map(([key, value]) => ({
       key,
+      label: getScanSummaryLabel(key),
       value: formatSyncSummaryValue(value),
     }));
 };
@@ -85,11 +131,7 @@ const getAccountStatusLabel = (status) => {
     return 'status necunoscut';
   }
 
-  if (status === 'active') {
-    return 'activ';
-  }
-
-  return status;
+  return accountStatusLabels[status] || formatTechnicalLabel(status);
 };
 
 const SyncMetric = ({ label, value, color = 'text.primary' }) => (
@@ -122,6 +164,9 @@ const GmailStatusPanel = ({
   error = null,
   onConnect,
   onSync,
+  reviewQueueCount = 0,
+  confirmedPhishingCount = 0,
+  likelyPhishingQueueCount = 0,
 }) => {
   const isActive = gmailAccount?.status === 'active';
   const statusLabel = hasGmailConnected ? 'Gmail conectat' : 'Gmail neconectat';
@@ -129,15 +174,21 @@ const GmailStatusPanel = ({
   const syncErrors = Array.isArray(syncResult?.syncErrors) ? syncResult.syncErrors : [];
   const scanSummaryItems = getScanSummaryItems(syncResult?.scanSummary);
   const canSync = Boolean(gmailAccount?._id && isActive);
+  const hasReviewQueue = Number(reviewQueueCount) > 0;
+  const hasConfirmedPhishing = Number(confirmedPhishingCount) > 0;
   const syncMetricItems = syncResult ? [
-    ['Fetched', syncResult.fetchedCount ?? 0, 'primary.main'],
-    ['Inserted', syncResult.insertedCount ?? 0, 'success.main'],
-    ['Updated', syncResult.updatedCount ?? 0, 'secondary.main'],
-    ['Skipped', syncResult.skippedCount ?? 0, 'warning.main'],
+    ['Citite din Gmail', syncResult.fetchedCount ?? 0, 'primary.main'],
+    ['Noi salvate', syncResult.insertedCount ?? 0, 'success.main'],
+    ['Actualizate', syncResult.updatedCount ?? 0, 'secondary.main'],
+    ['Sarite', syncResult.skippedCount ?? 0, 'warning.main'],
   ] : [];
 
   return (
     <Paper
+      component={motion.section}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
       elevation={0}
       sx={{
         border: '1px solid rgba(148, 163, 184, 0.18)',
@@ -172,10 +223,10 @@ const GmailStatusPanel = ({
                 </Box>
               <Box>
                 <Typography component="h2" variant="h6" fontWeight={900}>
-                  Status Gmail
+                  Scanare Gmail
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Conectarea Gmail alimenteaza sync-ul si scanarea automata dupa fiecare rulare.
+                  Rulează sincronizarea; backend-ul salvează emailurile și pornește scanarea automată.
                 </Typography>
               </Box>
             </Stack>
@@ -245,12 +296,12 @@ const GmailStatusPanel = ({
                 </Typography>
               </Stack>
             ) : (
-              <Stack spacing={1}>
+              <Stack spacing={1.2}>
                 <Typography variant="h6" fontWeight={900}>
-                  Nu exista un cont Gmail activ.
+                  Conecteaza Gmail ca prim pas.
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Conecteaza Gmail pentru a putea sincroniza emailuri si porni scanarea automata.
+                  Fara un cont Gmail activ, dashboardul nu are emailuri reale de sincronizat si scanat.
                 </Typography>
               </Stack>
             )}
@@ -266,31 +317,41 @@ const GmailStatusPanel = ({
           >
             <Stack spacing={1.5}>
               <Typography variant="body2" color="text.secondary" fontWeight={800}>
-                Actiuni Gmail
+                Acțiune principală
               </Typography>
-              <Button
-                variant={canSync ? 'contained' : 'outlined'}
-                color="primary"
-                startIcon={isSyncLoading ? <CircularProgress size={16} color="inherit" /> : <SyncRounded />}
-                onClick={onSync}
-                disabled={isLoading || isConnectLoading || isSyncLoading || !canSync}
-                fullWidth
-              >
-                {isSyncLoading ? 'Se sincronizeaza...' : 'Sincronizeaza si scaneaza'}
-              </Button>
-              <Button
-                variant={hasGmailConnected ? 'outlined' : 'contained'}
-                color={hasGmailConnected ? 'inherit' : 'primary'}
-                startIcon={isConnectLoading ? <CircularProgress size={16} color="inherit" /> : <LinkRounded />}
-                onClick={onConnect}
-                disabled={isLoading || isConnectLoading || isSyncLoading}
-                fullWidth
-              >
-                {hasGmailConnected ? 'Reconecteaza Gmail' : 'Conecteaza Gmail'}
-              </Button>
+              {hasGmailConnected ? (
+                <Button
+                  variant={canSync ? 'contained' : 'outlined'}
+                  color="primary"
+                  startIcon={isSyncLoading ? <CircularProgress size={16} color="inherit" /> : <SyncRounded />}
+                  onClick={onSync}
+                  disabled={isLoading || isConnectLoading || isSyncLoading || !canSync}
+                  fullWidth
+                  size="large"
+                >
+                  {isSyncLoading ? 'Se sincronizeaza si se scaneaza...' : 'Sincronizeaza si scaneaza'}
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={isConnectLoading ? <CircularProgress size={16} color="inherit" /> : <LinkRounded />}
+                  onClick={onConnect}
+                  disabled={isLoading || isConnectLoading || isSyncLoading}
+                  fullWidth
+                  size="large"
+                >
+                  {isConnectLoading ? 'Se deschide conectarea...' : 'Conecteaza Gmail'}
+                </Button>
+              )}
               {!canSync && gmailAccount && (
                 <Typography variant="caption" color="text.secondary">
                   Sync-ul este disponibil doar pentru un cont Gmail cu status activ.
+                </Typography>
+              )}
+              {!hasGmailConnected && (
+                <Typography variant="caption" color="text.secondary">
+                  Dupa conectare, revino aici pentru sincronizare si scanare.
                 </Typography>
               )}
             </Stack>
@@ -299,22 +360,68 @@ const GmailStatusPanel = ({
 
         {syncResult && (
           <Alert
-            severity={syncErrors.length > 0 ? 'warning' : 'success'}
+            severity={syncErrors.length > 0 || hasReviewQueue ? 'warning' : 'success'}
             variant="outlined"
             sx={{
-              borderColor: syncErrors.length > 0
+              borderColor: syncErrors.length > 0 || hasReviewQueue
                 ? 'rgba(245, 158, 11, 0.34)'
                 : 'rgba(74, 222, 128, 0.34)',
-              bgcolor: syncErrors.length > 0
+              bgcolor: syncErrors.length > 0 || hasReviewQueue
                 ? 'rgba(120, 53, 15, 0.16)'
                 : 'rgba(20, 83, 45, 0.16)',
             }}
           >
             <Stack spacing={2}>
               <Box>
-                <Typography fontWeight={900}>Ultima sincronizare manuala</Typography>
+                <Typography fontWeight={900}>Scanarea s-a terminat</Typography>
                 <Typography variant="body2">
-                  Sincronizat la: {formatDateTime(syncResult.syncedAt)}
+                  {hasReviewQueue
+                    ? `Ai ${reviewQueueCount} emailuri de verificat manual.`
+                    : 'Nu există emailuri noi în coada de verificare.'}
+                </Typography>
+                <Typography variant="body2">
+                  {hasConfirmedPhishing
+                    ? `${confirmedPhishingCount} emailuri sunt deja confirmate ca phishing.`
+                    : 'Emailurile confirmate ca phishing vor apărea separat după review manual.'}
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(3, minmax(0, 1fr))',
+                  },
+                  gap: 1,
+                }}
+              >
+                <SyncMetric
+                  label="De verificat"
+                  value={reviewQueueCount}
+                  color={hasReviewQueue ? 'warning.main' : 'success.main'}
+                />
+                <SyncMetric
+                  label="Probabil phishing"
+                  value={likelyPhishingQueueCount}
+                  color={likelyPhishingQueueCount > 0 ? 'error.main' : 'success.main'}
+                />
+                <SyncMetric
+                  label="Confirmate phishing"
+                  value={confirmedPhishingCount}
+                  color={hasConfirmedPhishing ? 'error.main' : 'text.primary'}
+                />
+              </Box>
+
+              <Divider sx={{ borderColor: 'rgba(148, 163, 184, 0.14)' }} />
+
+              <Box>
+                <Typography fontWeight={900}>Detalii tehnice ultima rulare</Typography>
+                <Typography variant="body2">
+                  Tip rulare: {getSyncSourceLabel(syncResult.syncSource)}
+                </Typography>
+                <Typography variant="body2">
+                  Finalizată la: {formatDateTime(syncResult.syncedAt)}
                 </Typography>
               </Box>
 
@@ -343,7 +450,7 @@ const GmailStatusPanel = ({
                       <Chip
                         key={item.key}
                         size="small"
-                        label={`${item.key}: ${item.value}`}
+                        label={`${item.label}: ${item.value}`}
                         sx={{
                           borderRadius: 1,
                           bgcolor: 'rgba(148, 163, 184, 0.1)',
