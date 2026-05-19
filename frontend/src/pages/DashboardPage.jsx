@@ -18,8 +18,10 @@ import StorageRounded from '@mui/icons-material/StorageRounded';
 import SyncRounded from '@mui/icons-material/SyncRounded';
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 
+import { getEmails } from '../api/emailsApi.js';
 import { getMailAccounts, startGoogleMailAccountConnection, syncMailAccount } from '../api/mailAccountsApi.js';
 import { getMetaStatus } from '../api/metaApi.js';
+import { getMonthlySummary } from '../api/reportsApi.js';
 import GmailStatusPanel from '../components/dashboard/GmailStatusPanel.jsx';
 import RiskDistributionChart from '../components/dashboard/RiskDistributionChart.jsx';
 import StatCard from '../components/dashboard/StatCard.jsx';
@@ -29,6 +31,15 @@ const emptyCounts = {
   mailAccountsCount: 0,
   emailsCount: 0,
   scansCount: 0,
+};
+
+const emptyRiskBucketCounts = {
+  safe: 0,
+  needs_review: 0,
+  quarantine: 0,
+  reviewed_safe: 0,
+  confirmed_phishing: 0,
+  unscanned: 0,
 };
 
 const getErrorMessage = (error) => (
@@ -66,6 +77,34 @@ const toSafeNumber = (value) => {
 
 const formatNumber = (value) => numberFormatter.format(toSafeNumber(value));
 
+const getCurrentMonthValue = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+
+  return `${now.getFullYear()}-${month}`;
+};
+
+const getEmailBucketTotal = async (riskBucket) => {
+  const result = await getEmails({
+    riskBucket,
+    page: 1,
+    limit: 1,
+  });
+
+  return toSafeNumber(result?.pagination?.total);
+};
+
+const getRiskBucketCounts = async () => {
+  const entries = await Promise.all(
+    Object.keys(emptyRiskBucketCounts).map(async (riskBucket) => [
+      riskBucket,
+      await getEmailBucketTotal(riskBucket),
+    ])
+  );
+
+  return Object.fromEntries(entries);
+};
+
 const getScanCoverage = ({ emailsCount, scansCount }) => {
   if (emailsCount <= 0) {
     return 0;
@@ -78,6 +117,8 @@ const getRiskPosture = ({
   hasGmailConnected,
   emailsCount,
   unscannedCount,
+  reviewQueueCount,
+  confirmedPhishingCount,
   scanCoverage,
 }) => {
   if (!hasGmailConnected) {
@@ -87,6 +128,26 @@ const getRiskPosture = ({
       chip: 'Necesita conectare',
       chipColor: 'warning',
       accentColor: '#f59e0b',
+    };
+  }
+
+  if (reviewQueueCount > 0) {
+    return {
+      label: 'Necesită verificare',
+      helper: 'Există emailuri suspecte sau cu risc ridicat care merită inspectate manual.',
+      chip: 'Verifică emailurile',
+      chipColor: 'warning',
+      accentColor: '#f59e0b',
+    };
+  }
+
+  if (confirmedPhishingCount > 0) {
+    return {
+      label: 'Phishing confirmat',
+      helper: 'Ai emailuri confirmate manual ca phishing. Raportul lunar le păstrează separat.',
+      chip: 'Confirmări active',
+      chipColor: 'error',
+      accentColor: '#f87171',
     };
   }
 
@@ -102,8 +163,8 @@ const getRiskPosture = ({
 
   if (scanCoverage < 80) {
     return {
-      label: 'Scanari in urma',
-      helper: 'Exista emailuri salvate care nu au inca scanare persistata.',
+      label: 'Acoperire incompletă',
+      helper: 'Există emailuri salvate care nu au încă rezultat de scanare persistat.',
       chip: 'Atentie',
       chipColor: 'warning',
       accentColor: '#f59e0b',
@@ -113,7 +174,7 @@ const getRiskPosture = ({
   if (unscannedCount > 0) {
     return {
       label: 'Aproape complet',
-      helper: 'Majoritatea emailurilor au scanare, dar mai exista cateva intrari restante.',
+      helper: 'Majoritatea emailurilor au scanare, dar mai există câteva intrări nescanate.',
       chip: 'Monitorizare',
       chipColor: 'info',
       accentColor: '#38bdf8',
@@ -122,16 +183,59 @@ const getRiskPosture = ({
 
   return {
     label: 'Flux stabil',
-    helper: 'Emailurile salvate au scanari persistate si pot fi inspectate in lista de emailuri.',
+    helper: 'Emailurile salvate au scanări persistate, iar lista de verificare este goală.',
     chip: 'Operational',
     chipColor: 'success',
     accentColor: '#4ade80',
   };
 };
 
+const getNextStepCopy = ({
+  hasGmailConnected,
+  emailsCount,
+  unscannedCount,
+  scanCoverage,
+  reviewQueueCount,
+}) => {
+  if (!hasGmailConnected) {
+    return {
+      title: 'Conecteaza Gmail',
+      description: 'Primul pas este conectarea contului Gmail. Dupa OAuth, dashboardul poate sincroniza emailuri reale.',
+    };
+  }
+
+  if (emailsCount === 0) {
+    return {
+      title: 'Ruleaza primul sync',
+      description: 'Gmail este conectat. Urmatorul pas este sincronizarea, care salveaza emailurile si porneste scanarea automata.',
+    };
+  }
+
+  if (unscannedCount > 0 || scanCoverage < 100) {
+    return {
+      title: 'Sincronizeaza si scaneaza',
+      description: 'Exista emailuri fara scanare persistata. Ruleaza sync pentru a completa analiza unde este nevoie.',
+    };
+  }
+
+  if (reviewQueueCount > 0) {
+    return {
+      title: 'Verifică emailurile suspecte',
+      description: 'Scanarea este la zi. Următorul pas este review-ul manual pentru emailurile suspecte.',
+    };
+  }
+
+  return {
+    title: 'Verifica emailurile cu risc',
+    description: 'Fluxul este la zi. Urmatorul pas practic este inspectarea emailurilor suspecte in lista de emailuri.',
+  };
+};
+
 const DashboardPage = () => {
   const { user } = useAuth();
   const [metaStatus, setMetaStatus] = useState(null);
+  const [monthlySummary, setMonthlySummary] = useState(null);
+  const [riskBucketCounts, setRiskBucketCounts] = useState(emptyRiskBucketCounts);
   const [mailAccounts, setMailAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnectLoading, setIsConnectLoading] = useState(false);
@@ -145,13 +249,20 @@ const DashboardPage = () => {
     setLoadError(null);
 
     try {
-      const [nextMetaStatus, nextMailAccounts] = await Promise.all([
+      const [nextMetaStatus, nextMailAccounts, nextMonthlySummary, nextRiskBucketCounts] = await Promise.all([
         getMetaStatus(),
         getMailAccounts(),
+        getMonthlySummary({ month: getCurrentMonthValue() }),
+        getRiskBucketCounts(),
       ]);
 
       setMetaStatus(nextMetaStatus);
       setMailAccounts(Array.isArray(nextMailAccounts) ? nextMailAccounts : []);
+      setMonthlySummary(nextMonthlySummary);
+      setRiskBucketCounts({
+        ...emptyRiskBucketCounts,
+        ...(nextRiskBucketCounts ?? {}),
+      });
     } catch (error) {
       setLoadError(getErrorMessage(error));
     } finally {
@@ -179,38 +290,57 @@ const DashboardPage = () => {
   const hasGmailConnected = Boolean(flags.hasGmailConnected || activeGmailAccount);
   const hasAiEnabled = Boolean(flags.aiEnabled);
   const hasSemanticAi = Boolean(flags.aiSemanticEnabled);
-  const mailAccountsCount = toSafeNumber(counts.mailAccountsCount);
   const emailsCount = toSafeNumber(counts.emailsCount);
   const scansCount = toSafeNumber(counts.scansCount);
   const scanCoverage = getScanCoverage({ emailsCount, scansCount });
-  const unscannedCount = Math.max(emailsCount - scansCount, 0);
+  const unscannedCount = toSafeNumber(riskBucketCounts.unscanned);
+  const safeCount = toSafeNumber(riskBucketCounts.safe) + toSafeNumber(riskBucketCounts.reviewed_safe);
+  const reviewQueueCount = toSafeNumber(riskBucketCounts.needs_review) + toSafeNumber(riskBucketCounts.quarantine);
+  const likelyPhishingQueueCount = toSafeNumber(riskBucketCounts.quarantine);
+  const confirmedPhishingCount = toSafeNumber(riskBucketCounts.confirmed_phishing);
+  const isRefreshing = isLoading && Boolean(metaStatus);
   const posture = getRiskPosture({
     hasGmailConnected,
     emailsCount,
     unscannedCount,
+    reviewQueueCount,
+    confirmedPhishingCount,
     scanCoverage,
   });
+  const nextStep = getNextStepCopy({
+    hasGmailConnected,
+    emailsCount,
+    unscannedCount,
+    scanCoverage,
+    reviewQueueCount,
+  });
 
-  const pipelineChartData = useMemo(() => ([
+  const monthlyCounts = monthlySummary?.counts ?? {};
+  const monthlySafeTotal = toSafeNumber(monthlyCounts.safe);
+  const monthlySuspiciousTotal = toSafeNumber(monthlyCounts.suspicious);
+  const monthlyLikelyPhishingTotal = toSafeNumber(monthlyCounts.likelyPhishing);
+  const monthlyRiskTotal = monthlySuspiciousTotal + monthlyLikelyPhishingTotal;
+
+  const verdictChartData = useMemo(() => ([
     {
-      key: 'accounts',
-      label: 'Conturi',
-      value: mailAccountsCount,
-      color: '#38bdf8',
+      key: 'safe',
+      label: 'Sigur',
+      value: monthlySafeTotal,
+      color: '#4ade80',
     },
     {
-      key: 'emails',
-      label: 'Emailuri',
-      value: emailsCount,
-      color: '#22c55e',
-    },
-    {
-      key: 'scans',
-      label: 'Scanari',
-      value: scansCount,
+      key: 'suspicious',
+      label: 'Suspect',
+      value: monthlySuspiciousTotal,
       color: '#f59e0b',
     },
-  ]), [emailsCount, mailAccountsCount, scansCount]);
+    {
+      key: 'likely_phishing',
+      label: 'Probabil phishing',
+      value: monthlyLikelyPhishingTotal,
+      color: '#f87171',
+    },
+  ]), [monthlyLikelyPhishingTotal, monthlySafeTotal, monthlySuspiciousTotal]);
 
   const handleConnectGmail = useCallback(async () => {
     setActionError(null);
@@ -252,8 +382,8 @@ const DashboardPage = () => {
   }, [activeGmailAccount, loadDashboardData]);
 
   return (
-    <Container maxWidth="xl" disableGutters>
-      <Stack spacing={3}>
+    <Container maxWidth={false} disableGutters sx={{ width: '100%' }}>
+      <Stack spacing={3} sx={{ width: '100%' }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
           alignItems={{ xs: 'stretch', md: 'flex-start' }}
@@ -262,16 +392,32 @@ const DashboardPage = () => {
         >
           <Box>
             <Typography component="h1" variant="h4" fontWeight={900}>
-              Panou securitate email
+              Dashboard securitate email
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 760 }}>
-              Monitorizeaza conexiunea Gmail, acoperirea scanarii si starea fluxului de
-              detectie phishing pentru contul curent.
+              {nextStep.description}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              Utilizator: {user?.name || user?.email || 'Utilizator'}
-              {user?.email ? ` (${user.email})` : ''}
-            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+              <Chip
+                size="small"
+                color={hasGmailConnected ? 'success' : 'warning'}
+                label={hasGmailConnected ? 'Gmail conectat' : 'Gmail lipseste'}
+                sx={{ borderRadius: 1, fontWeight: 900 }}
+              />
+              <Chip
+                size="small"
+                color={unscannedCount > 0 ? 'warning' : 'success'}
+                variant="outlined"
+                label={nextStep.title}
+                sx={{ borderRadius: 1, fontWeight: 900 }}
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`Utilizator: ${user?.name || user?.email || 'Utilizator'}`}
+                sx={{ borderRadius: 1, fontWeight: 800 }}
+              />
+            </Stack>
           </Box>
 
           <Button
@@ -286,9 +432,11 @@ const DashboardPage = () => {
               alignSelf: { xs: 'stretch', md: 'flex-start' },
               minWidth: 188,
               borderColor: 'rgba(148, 163, 184, 0.26)',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            Actualizeaza status
+            {isRefreshing ? 'Se actualizeaza...' : 'Actualizeaza status'}
           </Button>
         </Stack>
 
@@ -298,49 +446,78 @@ const DashboardPage = () => {
           </Alert>
         )}
 
+        <GmailStatusPanel
+          gmailAccount={visibleGmailAccount}
+          hasGmailConnected={hasGmailConnected}
+          isLoading={isLoading}
+          isConnectLoading={isConnectLoading}
+          isSyncLoading={isSyncLoading}
+          syncResult={syncResult}
+          error={actionError}
+          onConnect={handleConnectGmail}
+          onSync={handleSyncGmail}
+          reviewQueueCount={reviewQueueCount}
+          confirmedPhishingCount={confirmedPhishingCount}
+          likelyPhishingQueueCount={likelyPhishingQueueCount}
+        />
+
         <Box
           sx={{
             display: 'grid',
             gridTemplateColumns: {
               xs: '1fr',
               sm: 'repeat(2, minmax(0, 1fr))',
-              lg: 'repeat(3, minmax(0, 1fr))',
+              xl: 'repeat(4, minmax(0, 1fr))',
             },
             gap: 2,
           }}
         >
           <StatCard
-            eyebrow="Conectivitate"
-            title="Conturi email"
-            value={formatNumber(mailAccountsCount)}
-            helper={hasGmailConnected ? 'Gmail activ pentru sync' : 'Gmail nu este conectat'}
+            eyebrow="Review"
+            title="Necesită verificare"
+            value={formatNumber(reviewQueueCount)}
+            helper="Emailuri suspecte sau cu risc ridicat, încă nerevizuite"
+            icon={<WarningAmberRounded fontSize="small" />}
+            accentColor={reviewQueueCount > 0 ? 'warning.main' : 'success.main'}
+            progress={emailsCount > 0 ? Math.min(100, Math.round((reviewQueueCount / emailsCount) * 100)) : 0}
+            isLoading={isLoading && !metaStatus}
+            isRefreshing={isRefreshing}
+          />
+          <StatCard
+            eyebrow="Risc ridicat"
+            title="Probabil phishing"
+            value={formatNumber(likelyPhishingQueueCount)}
+            helper="Emailuri încadrate de scanare ca risc ridicat"
+            icon={<SecurityRounded fontSize="small" />}
+            accentColor={likelyPhishingQueueCount > 0 ? 'error.main' : 'success.main'}
+            progress={emailsCount > 0 ? Math.min(100, Math.round((likelyPhishingQueueCount / emailsCount) * 100)) : 0}
+            isLoading={isLoading && !metaStatus}
+            isRefreshing={isRefreshing}
+          />
+          <StatCard
+            eyebrow="Manual"
+            title="Confirmate phishing"
+            value={formatNumber(confirmedPhishingCount)}
+            helper="Emailuri marcate manual ca phishing"
             icon={<EmailRounded fontSize="small" />}
-            accentColor={hasGmailConnected ? 'success.main' : 'warning.main'}
-            progress={hasGmailConnected ? 100 : 0}
+            accentColor={confirmedPhishingCount > 0 ? 'error.main' : 'primary.main'}
             isLoading={isLoading && !metaStatus}
+            isRefreshing={isRefreshing}
           />
           <StatCard
-            eyebrow="Ingestie"
-            title="Emailuri salvate"
-            value={formatNumber(emailsCount)}
-            helper="Total emailuri sincronizate in baza de date"
-            icon={<StorageRounded fontSize="small" />}
-            accentColor="primary.main"
-            isLoading={isLoading && !metaStatus}
-          />
-          <StatCard
-            eyebrow="Detectie"
-            title="Scanari persistate"
-            value={formatNumber(scansCount)}
+            eyebrow="Acoperire"
+            title="Scanare automată"
+            value={`${scanCoverage}%`}
             helper={
               hasAiEnabled || hasSemanticAi
-                ? `Acoperire ${scanCoverage}% cu reguli + AI optional`
-                : `Acoperire ${scanCoverage}% prin reguli`
+                ? `${formatNumber(scansCount)} rezultate cu reguli + AI opțional`
+                : `${formatNumber(scansCount)} rezultate prin reguli euristice`
             }
-            icon={<SecurityRounded fontSize="small" />}
+            icon={<StorageRounded fontSize="small" />}
             accentColor="secondary.main"
             progress={scanCoverage}
             isLoading={isLoading && !metaStatus}
+            isRefreshing={isRefreshing}
           />
         </Box>
 
@@ -349,7 +526,7 @@ const DashboardPage = () => {
             display: 'grid',
             gridTemplateColumns: {
               xs: '1fr',
-              lg: 'minmax(320px, 0.8fr) minmax(0, 1.2fr)',
+              xl: 'minmax(360px, 0.72fr) minmax(0, 1.28fr)',
             },
             gap: 2,
           }}
@@ -364,8 +541,26 @@ const DashboardPage = () => {
               background:
                 'linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.84) 100%)',
               boxShadow: '0 22px 70px rgba(2, 6, 23, 0.22)',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
+            {isRefreshing ? (
+              <LinearProgress
+                aria-label="Se actualizeaza postura de risc"
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 3,
+                  bgcolor: 'transparent',
+                  '& .MuiLinearProgress-bar': {
+                    bgcolor: posture.accentColor,
+                  },
+                }}
+              />
+            ) : null}
             <Stack spacing={2.25}>
               <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
                 <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
@@ -389,10 +584,10 @@ const DashboardPage = () => {
                   </Box>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography component="h2" variant="h6" fontWeight={900}>
-                      Risk posture
+                      Starea protecției
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Calculat doar din starea Gmail si acoperirea scanarii.
+                      Calculată din starea Gmail, coada de review și scanările salvate.
                     </Typography>
                   </Box>
                 </Stack>
@@ -456,7 +651,7 @@ const DashboardPage = () => {
                   }}
                 >
                   <Typography variant="caption" color="text.secondary" fontWeight={800}>
-                    Coada scanare
+                    Nescanate
                   </Typography>
                   <Typography variant="h6" fontWeight={900}>
                     {formatNumber(unscannedCount)}
@@ -472,10 +667,10 @@ const DashboardPage = () => {
                   }}
                 >
                   <Typography variant="caption" color="text.secondary" fontWeight={800}>
-                    AI semantic
+                    Emailuri sigure
                   </Typography>
                   <Typography variant="h6" fontWeight={900}>
-                    {hasAiEnabled || hasSemanticAi ? 'activ' : 'oprit'}
+                    {formatNumber(safeCount)}
                   </Typography>
                 </Box>
               </Box>
@@ -483,41 +678,30 @@ const DashboardPage = () => {
           </Paper>
 
           <RiskDistributionChart
-            title="Pipeline date"
-            subtitle="Volumul disponibil in dashboard: conturi, emailuri salvate si scanari persistate."
-            chartType="bar"
-            data={pipelineChartData}
-            footerLabel="Acoperire scanare"
-            footerValue={`${scanCoverage}%`}
+            title="Verdicturi luna curentă"
+            subtitle="Distribuția scanărilor din raportul lunar curent."
+            data={verdictChartData}
+            centerLabel="scanări"
+            footerLabel="Emailuri cu risc"
+            footerValue={formatNumber(monthlyRiskTotal)}
             insights={[
               {
-                label: 'Emailuri fara scanare',
-                value: unscannedCount,
-                color: unscannedCount > 0 ? '#f59e0b' : '#4ade80',
+                label: 'Necesită verificare acum',
+                value: reviewQueueCount,
+                color: reviewQueueCount > 0 ? '#f59e0b' : '#4ade80',
               },
               {
-                label: 'Gmail',
-                value: hasGmailConnected ? 'conectat' : 'neconectat',
-                color: hasGmailConnected ? '#4ade80' : '#f59e0b',
+                label: 'Confirmate phishing',
+                value: confirmedPhishingCount,
+                color: confirmedPhishingCount > 0 ? '#f87171' : '#94a3b8',
               },
             ]}
             isLoading={isLoading && !metaStatus}
-            emptyTitle="Nu exista date sincronizate"
-            emptyDescription="Conecteaza Gmail si ruleaza sync pentru a popula pipeline-ul."
+            emptyTitle="Nu există verdicturi în luna curentă"
+            emptyDescription="Sincronizează Gmail pentru a genera scanări și statistici."
+            isRefreshing={isRefreshing}
           />
         </Box>
-
-        <GmailStatusPanel
-          gmailAccount={visibleGmailAccount}
-          hasGmailConnected={hasGmailConnected}
-          isLoading={isLoading}
-          isConnectLoading={isConnectLoading}
-          isSyncLoading={isSyncLoading}
-          syncResult={syncResult}
-          error={actionError}
-          onConnect={handleConnectGmail}
-          onSync={handleSyncGmail}
-        />
 
         <Stack direction="row" spacing={1} alignItems="center" color="text.secondary">
           <SyncRounded fontSize="inherit" />

@@ -13,6 +13,95 @@ Format recomandat pentru deciziile viitoare:
 
 ## Decizii inițiale
 
+### 2026-05-19 - Frontend-ul final nu mai păstrează folderul `frontent-raw/`
+
+Motiv:
+
+- folderul brut conținea Firebase Auth și brandul vechi `AthleteAtlas`, care nu mai aparțin aplicației finale;
+- UI-ul de auth a fost deja adaptat în `frontend/` peste auth-ul backend cu Bearer token;
+- păstrarea folderului vechi putea crea confuzie la prezentare și în documentație.
+
+Impact:
+
+- `frontent-raw/` a fost șters din repo;
+- documentația frontend menționează doar istoric faptul că a fost sursă de inspirație;
+- aplicația finală rămâne pe `frontend/`, fără Firebase și fără cod nefolosit de auth vechi.
+
+### 2026-05-19 - Topbar-ul nu mai este sursă de titluri sau control desktop pentru sidebar
+
+Motiv:
+
+- titlurile din topbar se dublau cu titlurile paginilor și puteau crea suprapuneri vizuale;
+- sidebar-ul avea deja control propriu, deci controlul din topbar era redundant;
+- utilizatorul a cerut un singur control, cu icon de meniu, plasat în sidebar.
+
+Impact:
+
+- topbar-ul rămâne pentru acțiuni globale precum Settings și Contact suport;
+- titlul și subtitlul fiecărei pagini sunt afișate doar în conținutul paginii;
+- pe desktop, controlul de sidebar este doar în sidebar;
+- pe mobil, topbar-ul păstrează hamburger-ul necesar pentru deschiderea navigării.
+
+### 2026-05-19 - Dashboard-ul afișează întâi acțiunea Gmail și starea de review
+
+Motiv:
+
+- utilizatorul pornește de la întrebarea practică: „ce trebuie să fac acum?”;
+- `Conturi` și `Emailuri fără scanare` erau metrici slabe pentru MVP, mai ales când există un singur Gmail și scanarea euristică rulează și cu AI oprit;
+- datele existente pot fi folosite mai bine fără endpoint nou.
+
+Impact:
+
+- primul bloc din Dashboard este scanarea Gmail;
+- statisticile principale sunt `Necesită verificare`, `Probabil phishing`, `Confirmate phishing` și `Scanare automată`;
+- `Pipeline date` a fost înlocuit cu distribuția verdicturilor lunii curente;
+- numărul de emailuri nescanate este tratat prin `riskBucket=unscanned`, nu prin starea AI.
+
+### 2026-05-19 - Rapoartele separă regulile euristice de semnalele AI
+
+Motiv:
+
+- pentru licență trebuie să fie clar ce este regulă explicită și ce este semnal semantic auxiliar;
+- Ollama nu este motorul principal de detecție;
+- textele tehnice precum `totalPoints` sunt mai greu de înțeles pentru utilizator.
+
+Impact:
+
+- lista de reguli frecvente are secțiuni separate pentru `Reguli euristice` și `Semnale AI`;
+- regulile reale din backend sunt mapate în texte mai intuitive;
+- punctele sunt prezentate ca `Impact în scor`;
+- statusul AI rămâne diagnostic, nu indicator principal de securitate.
+
+### 2026-05-19 - Dashboard-ul este pentru acțiuni zilnice, Settings pentru administrarea contului Gmail
+
+Motiv:
+
+- utilizatorul a cerut ca Dashboard să fie mai intuitiv și să nu amestece sync-ul zilnic cu administrarea contului;
+- conectarea Gmail este necesară doar când nu există cont conectat;
+- ștergerea/deconectarea unui cont este o acțiune de setări, nu o acțiune de monitorizare.
+
+Impact:
+
+- Dashboard afișează `Conectează Gmail` doar când nu există cont Gmail;
+- după conectare, Dashboard afișează acțiunea principală `Sincronizează și scanează`;
+- Settings folosește endpoint-ul existent `DELETE /api/v1/mail-accounts/:id` pentru deconectare;
+- lista de emailuri poate filtra după `mailAccountId`, dar rapoartele rămân agregate pe utilizator pentru MVP.
+
+### 2026-05-19 - Sidebar-ul devine controlul principal de spațiu al aplicației
+
+Motiv:
+
+- aplicația trebuie să folosească mai bine ecranele de laptop/desktop fără să piardă navigarea;
+- un sidebar collapsible permite trecerea rapidă între navigare completă și spațiu maxim pentru date;
+- redimensionarea controlată ajută pe monitoare diferite fără să introducă setări complicate.
+
+Impact:
+
+- sidebar-ul desktop are stări expanded/collapsed;
+- lățimea expanded este redimensionabilă între limite controlate;
+- starea și lățimea se persistă în `localStorage`;
+- profilul și logout-ul sunt mutate în sidebar, iar topbar-ul rămâne pentru titlul paginii și acțiuni globale.
+
 ### 2026-05-19 - Avatarul utilizatorului se salvează ca `avatarDataUrl` pentru MVP
 
 Motiv:
@@ -81,14 +170,14 @@ Impact:
 Motiv:
 
 - backend-ul are deja auth stabil cu JWT Bearer token, deci frontend-ul trebuie să consume acest contract, nu să introducă Firebase Auth;
-- `frontent-raw/` conține UI util pentru login/register, dar logica Firebase și brandul vechi nu aparțin proiectului de phishing;
+- folderul brut folosit inițial ca inspirație conținea UI util pentru login/register, dar logica Firebase și brandul vechi nu aparțineau proiectului de phishing;
 - păstrarea unei singure teme dark reduce timpul de implementare și evită polish vizual prematur;
 - cromatica finală poate fi schimbată după ce fluxul principal funcționează.
 
 Impact:
 
 - se va crea un folder separat `frontend/`, cu `src/`;
-- UI-ul de auth poate refolosi idei vizuale din `frontent-raw`, dar fără Firebase;
+- UI-ul de auth a refolosit doar idei vizuale, fără Firebase;
 - tokenul se salvează local pentru MVP și se trimite ca `Authorization: Bearer <token>`;
 - nu se implementează toggle dark/light în prima versiune;
 - planul detaliat este în `docs/FRONTEND_PLAN.md`, iar taskurile pentru agenți sunt în `docs/FRONTEND_AGENT_TASKS.md`.

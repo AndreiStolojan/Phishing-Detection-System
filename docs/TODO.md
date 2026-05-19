@@ -14,7 +14,7 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, testarea manuală a endpoint-urilor backend a trecut, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite acoperă auth, dashboard Gmail, listă emailuri, detaliu email, acțiuni manuale, rapoarte, settings, avatar utilizator, chat de contact și polish vizual modern.
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, testarea manuală a endpoint-urilor backend a trecut, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite acoperă auth, dashboard Gmail, listă emailuri, detaliu email, acțiuni manuale, rapoarte, settings, avatar utilizator, chat de contact, sidebar collapsible/resizable și polish vizual modern.
 - Progres estimativ MVP: `99%`
 - Faza curentă: `Faza 14 - frontend minim pentru demonstrație`
 
@@ -298,7 +298,7 @@ Milestone: interfață web simplă peste API-ul backend existent
 - [x] Configurare temă dark-only pentru MVP
 - [x] Implementare client API cu Bearer token
 - [x] Implementare auth frontend peste backend (`register/login/users/me`)
-- [x] Adaptare UI login/register din `frontent-raw`, fără Firebase
+- [x] Implementare UI login/register fără Firebase, pe auth-ul backend
 - [x] Layout aplicație cu navigare
 - [x] Dashboard cu status Gmail și sync manual
 - [x] Listare emailuri cu filtre după `riskBucket`
@@ -309,8 +309,17 @@ Milestone: interfață web simplă peste API-ul backend existent
 - [x] Avatar utilizator încărcat local, comprimat în browser și salvat pe profil
 - [x] Chat/contact suport din interfață, cu trimitere către adresa configurată în `EMAIL_FROM`
 - [x] Polish vizual: brand `XAI Phishing Shield`, iconițe mai clare, sidebar/topbar modern și footer `@XAI - drepturi rezervate`
+- [x] Sidebar collapsible/resizable pe desktop, cu animație smooth pentru extinderea paginii
+- [x] Mutare profil și logout în sidebar; topbar doar pentru titlul paginii, Settings și chat
+- [x] Folosire `DELETE /api/v1/mail-accounts/:id` în Settings pentru deconectarea contului Gmail
+- [x] Simplificare Dashboard: conectare Gmail doar când nu există cont, sync + scan când contul este activ
+- [x] Filtru după cont Gmail în lista de emailuri
+- [x] Mapări UI pentru enum-uri/statusuri tehnice, fără underscore brut în ecranele principale
+- [x] Polish digest lunar: status orientat pe informații utile, nu pe ID-uri tehnice
 - [x] Animații fine pentru tranzițiile dintre pagini și stările comune de loading/error/empty
 - [x] Charturi și statistici relevante pentru dashboard și rapoarte folosind datele existente
+- [x] Curățare `frontent-raw/` după adaptarea UI-ului de auth
+- [x] Polish UX final pentru sidebar, dashboard, rapoarte și settings full width
 - [ ] Verificare flow demo cap-coadă din frontend
 
 Dependențe: Faza 13 și API backend stabil
@@ -370,6 +379,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: frontend-ul MVP a primit polish vizual, animații, charturi, avatar utilizator și chat/contact suport integrat cu backend-ul.
+Ultimul punct finalizat: frontend-ul MVP a primit sidebar cu un singur control de meniu, topbar fără titluri duplicate, dashboard orientat pe acțiunea de scanare Gmail, rapoarte cu reguli euristice separate de semnale AI, Settings full width și curățarea folderului `frontent-raw/`.
 
 Următorul pas recomandat: rularea testului demo cap-coadă din browser cu backend, frontend, MongoDB, Gmail OAuth și configurarea de email pornite.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Alert,
   Avatar,
@@ -22,7 +23,7 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 
-import { getMailAccounts, updateMailAccountSettings } from '../api/mailAccountsApi.js';
+import { disconnectMailAccount, getMailAccounts, updateMailAccountSettings } from '../api/mailAccountsApi.js';
 import { updateAiSettings, updateCurrentUser } from '../api/usersApi.js';
 import EmptyState from '../components/common/EmptyState.jsx';
 import ErrorMessage, { getErrorMessage } from '../components/common/ErrorMessage.jsx';
@@ -186,23 +187,58 @@ const getProviderLabel = (provider) => {
     return 'Provider necunoscut';
   }
 
-  if (provider === 'google' || provider === 'gmail') {
+  const normalizedProvider = String(provider).toLowerCase();
+
+  if (normalizedProvider === 'google' || normalizedProvider === 'gmail') {
     return 'Gmail';
   }
 
-  return provider;
+  return String(provider)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
 
 const getStatusLabel = (status) => {
   if (!status) {
-    return 'status necunoscut';
+    return 'Status necunoscut';
   }
 
-  if (status === 'active') {
-    return 'activ';
+  const statusLabels = {
+    active: 'Activ',
+    connected: 'Conectat',
+    disconnected: 'Deconectat',
+    error: 'Eroare',
+    expired: 'Expirat',
+    revoked: 'Acces revocat',
+    sync_failed: 'Sync eșuat',
+    needs_reconnect: 'Necesită reconectare',
+    pending: 'În așteptare',
+    disabled: 'Dezactivat',
+  };
+
+  const normalizedStatus = String(status).toLowerCase();
+
+  if (statusLabels[normalizedStatus]) {
+    return statusLabels[normalizedStatus];
   }
 
-  return status;
+  return String(status)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const getStatusColor = (status) => {
+  const normalizedStatus = String(status ?? '').toLowerCase();
+
+  if (normalizedStatus === 'active' || normalizedStatus === 'connected') {
+    return 'success';
+  }
+
+  if (normalizedStatus === 'disconnected' || normalizedStatus === 'disabled') {
+    return 'default';
+  }
+
+  return 'warning';
 };
 
 const getUpdatedAccountFromResponse = (response) => (
@@ -218,6 +254,7 @@ const mergeAiEnabledIntoUser = (baseUser, aiEnabled) => ({
 });
 
 const SettingsPage = () => {
+  const location = useLocation();
   const { user, refreshCurrentUser } = useAuth();
   const [currentUser, setCurrentUser] = useState(user);
   const [name, setName] = useState(user?.name ?? '');
@@ -236,6 +273,8 @@ const SettingsPage = () => {
   const [aiError, setAiError] = useState(null);
   const [aiSuccess, setAiSuccess] = useState(null);
   const [savingAccountId, setSavingAccountId] = useState(null);
+  const [deletingAccountId, setDeletingAccountId] = useState(null);
+  const [confirmingDeleteAccountId, setConfirmingDeleteAccountId] = useState(null);
   const [accountErrors, setAccountErrors] = useState({});
   const [accountSuccess, setAccountSuccess] = useState({});
 
@@ -280,6 +319,7 @@ const SettingsPage = () => {
 
       setMailAccounts(nextAccounts);
       setAccountForms(buildAccountFormState(nextAccounts));
+      setConfirmingDeleteAccountId(null);
     } catch (error) {
       setLoadError(error);
     } finally {
@@ -290,6 +330,19 @@ const SettingsPage = () => {
   useEffect(() => {
     loadMailAccounts();
   }, [loadMailAccounts]);
+
+  useEffect(() => {
+    if (location.hash !== '#profile') {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      document.getElementById('profile')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, [location.hash]);
 
   const normalizedName = name.trim();
   const savedName = currentUser?.name ?? '';
@@ -493,8 +546,75 @@ const SettingsPage = () => {
     }
   }, [accountForms]);
 
+  const handleAskDeleteAccount = useCallback((accountId) => {
+    setConfirmingDeleteAccountId(accountId);
+    setAccountErrors((previousErrors) => ({
+      ...previousErrors,
+      [accountId]: null,
+    }));
+    setAccountSuccess((previousSuccess) => ({
+      ...previousSuccess,
+      [accountId]: null,
+    }));
+  }, []);
+
+  const handleCancelDeleteAccount = useCallback(() => {
+    setConfirmingDeleteAccountId(null);
+  }, []);
+
+  const handleDeleteAccount = useCallback(async (account) => {
+    const accountId = getAccountId(account);
+
+    if (!accountId) {
+      return;
+    }
+
+    setDeletingAccountId(accountId);
+    setAccountErrors((previousErrors) => ({
+      ...previousErrors,
+      [accountId]: null,
+    }));
+    setAccountSuccess((previousSuccess) => ({
+      ...previousSuccess,
+      [accountId]: null,
+    }));
+
+    try {
+      await disconnectMailAccount(accountId);
+
+      setMailAccounts((previousAccounts) => previousAccounts.filter((previousAccount) => (
+        getAccountId(previousAccount) !== accountId
+      )));
+      setAccountForms((previousForms) => {
+        const { [accountId]: _removedAccountForm, ...nextForms } = previousForms;
+
+        return nextForms;
+      });
+      setAccountErrors((previousErrors) => {
+        const { [accountId]: _removedAccountError, ...nextErrors } = previousErrors;
+
+        return nextErrors;
+      });
+      setAccountSuccess((previousSuccess) => {
+        const { [accountId]: _removedAccountSuccess, ...nextSuccess } = previousSuccess;
+
+        return nextSuccess;
+      });
+      setConfirmingDeleteAccountId(null);
+    } catch (error) {
+      setAccountErrors((previousErrors) => ({
+        ...previousErrors,
+        [accountId]: getErrorMessage(error),
+      }));
+    } finally {
+      setDeletingAccountId(null);
+    }
+  }, []);
+
   return (
-    <Box sx={{ maxWidth: 1080 }}>
+    <Box sx={{
+      width: '100%',
+    }}>
       <Stack spacing={3}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
@@ -504,11 +624,11 @@ const SettingsPage = () => {
         >
           <Box>
             <Typography component="h1" variant="h5" fontWeight={800}>
-              Setări
+              Setări aplicație
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 720 }}>
-              Administrează profilul, explicațiile AI și limita de emailuri sincronizate
-              pentru fiecare cont conectat.
+              Profilul utilizatorului este separat de opțiunile de scanare,
+              AI local și sincronizare Gmail.
             </Typography>
           </Box>
 
@@ -524,7 +644,7 @@ const SettingsPage = () => {
           </Button>
         </Stack>
 
-        <Paper elevation={0} sx={panelSx}>
+        <Paper id="profile" elevation={0} sx={{ ...panelSx, scrollMarginTop: 96 }}>
           <Stack spacing={2.5}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Box
@@ -542,7 +662,7 @@ const SettingsPage = () => {
               </Box>
               <Box sx={{ minWidth: 0 }}>
                 <Typography component="h2" variant="h6" fontWeight={800}>
-                  Profil
+                  Profil utilizator
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                   {displayEmail}
@@ -631,7 +751,7 @@ const SettingsPage = () => {
                       setProfileSuccess(null);
                     }}
                     error={Boolean(profileError && isNameInvalid)}
-                    helperText="Numele apare în bara de sus și în profilul utilizatorului."
+                    helperText="Numele apare în sidebar și în profilul utilizatorului."
                     disabled={isProfileSaving}
                     fullWidth
                   />
@@ -674,7 +794,7 @@ const SettingsPage = () => {
                 </Box>
                 <Box>
                   <Typography component="h2" variant="h6" fontWeight={800}>
-                    Explicații AI
+                    AI local pentru explicații
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Verdictul rămâne calculat de regulile backend-ului.
@@ -722,10 +842,10 @@ const SettingsPage = () => {
               </Box>
               <Box>
                 <Typography component="h2" variant="h6" fontWeight={800}>
-                  Conturi email
+                  Gmail și sincronizare
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Sync max controlează câte emailuri citește backend-ul la o sincronizare.
+                  Controlează câte emailuri citește backend-ul la o sincronizare și poți deconecta Gmail.
                 </Typography>
               </Box>
             </Stack>
@@ -759,8 +879,11 @@ const SettingsPage = () => {
                   const savedValue = String(getAccountSyncMaxResults(account));
                   const isDirty = formValue !== savedValue;
                   const isSaving = savingAccountId === accountId;
+                  const isDeleting = deletingAccountId === accountId;
+                  const isConfirmingDelete = confirmingDeleteAccountId === accountId;
                   const accountError = accountErrors[accountId] || '';
                   const accountMessage = accountSuccess[accountId] || '';
+                  const isAccountBusy = isSaving || isDeleting;
 
                   return (
                     <Box key={accountId ?? account.accountEmail} sx={nestedPanelSx}>
@@ -769,9 +892,9 @@ const SettingsPage = () => {
                           direction={{ xs: 'column', md: 'row' }}
                           alignItems={{ xs: 'stretch', md: 'flex-start' }}
                           justifyContent="space-between"
-                          spacing={2}
+                          spacing={{ xs: 2, lg: 3 }}
                         >
-                          <Box sx={{ minWidth: 0 }}>
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Typography variant="subtitle1" fontWeight={800} sx={{ overflowWrap: 'anywhere' }}>
                               {account.accountEmail || 'Email necunoscut'}
                             </Typography>
@@ -779,17 +902,17 @@ const SettingsPage = () => {
                               <Chip size="small" label={getProviderLabel(account.provider)} />
                               <Chip
                                 size="small"
-                                color={account.status === 'active' ? 'success' : 'warning'}
+                                color={getStatusColor(account.status)}
                                 label={`Status: ${getStatusLabel(account.status)}`}
                               />
                             </Stack>
                           </Box>
 
                           <Stack
-                            direction={{ xs: 'column', sm: 'row' }}
+                            direction={{ xs: 'column', sm: 'row', md: 'column', lg: 'row' }}
                             spacing={1.5}
-                            alignItems={{ xs: 'stretch', sm: 'flex-start' }}
-                            sx={{ minWidth: { md: 340 } }}
+                            alignItems={{ xs: 'stretch', sm: 'flex-start', md: 'stretch', lg: 'flex-start' }}
+                            sx={{ width: { xs: '100%', md: 360, lg: 520 } }}
                           >
                             <TextField
                               label="Sync max"
@@ -798,9 +921,9 @@ const SettingsPage = () => {
                               onChange={(event) => handleAccountInputChange(accountId, event.target.value)}
                               error={Boolean(accountError || validationError)}
                               helperText={accountError || validationError || 'Interval permis: 1-50'}
-                              disabled={isSaving || !accountId}
+                              disabled={isAccountBusy || !accountId}
                               inputProps={{ min: 1, max: 50, step: 1 }}
-                              sx={{ maxWidth: { sm: 180 } }}
+                              sx={{ maxWidth: { sm: 180, md: 'none', lg: 180 } }}
                               fullWidth
                             />
                             <Button
@@ -808,13 +931,55 @@ const SettingsPage = () => {
                               color="inherit"
                               startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <SaveRoundedIcon />}
                               onClick={() => handleSaveAccountSettings(account)}
-                              disabled={isSaving || !accountId || !isDirty || Boolean(validationError)}
+                              disabled={isAccountBusy || !accountId || !isDirty || Boolean(validationError)}
                               sx={{ minHeight: 54, minWidth: 116 }}
                             >
                               Salvează
                             </Button>
+                            <Button
+                              variant={isConfirmingDelete ? 'contained' : 'outlined'}
+                              color="error"
+                              startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : <DeleteRoundedIcon />}
+                              onClick={() => handleAskDeleteAccount(accountId)}
+                              disabled={isAccountBusy || !accountId}
+                              sx={{ minHeight: 54, minWidth: 150 }}
+                            >
+                              Deconectează
+                            </Button>
                           </Stack>
                         </Stack>
+
+                        {isConfirmingDelete ? (
+                          <>
+                            <Divider sx={{ borderColor: 'rgba(148, 163, 184, 0.12)' }} />
+                            <Alert
+                              severity="warning"
+                              action={(
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                  <Button
+                                    color="inherit"
+                                    size="small"
+                                    onClick={handleCancelDeleteAccount}
+                                    disabled={isDeleting}
+                                  >
+                                    Anulează
+                                  </Button>
+                                  <Button
+                                    color="error"
+                                    size="small"
+                                    variant="contained"
+                                    onClick={() => handleDeleteAccount(account)}
+                                    disabled={isDeleting}
+                                  >
+                                    Șterge cont
+                                  </Button>
+                                </Stack>
+                              )}
+                            >
+                              Confirmă ștergerea contului Gmail din aplicație. După succes, contul va dispărea din listă.
+                            </Alert>
+                          </>
+                        ) : null}
 
                         {accountMessage ? (
                           <>

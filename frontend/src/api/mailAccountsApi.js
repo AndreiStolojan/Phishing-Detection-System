@@ -16,9 +16,17 @@ export const updateMailAccountSettings = (mailAccountId, { syncMaxResults }) => 
     })
 );
 
+export const deleteMailAccount = (mailAccountId) => (
+    apiClient.del(`/mail-accounts/${encodeURIComponent(mailAccountId)}`)
+);
+
+export const disconnectMailAccount = deleteMailAccount;
+
 export default {
     getMailAccounts,
     startGoogleMailAccountConnection,
     syncMailAccount,
     updateMailAccountSettings,
+    deleteMailAccount,
+    disconnectMailAccount,
 };

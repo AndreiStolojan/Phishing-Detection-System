@@ -94,6 +94,14 @@ Contract pentru `PATCH /api/v1/users/me/ai-settings`:
 | `POST` | `/api/v1/mail-accounts/:id/sync` | Rulează sync manual pentru contul conectat și declanșează scanarea automată | param `id` | raport sync (`fetched`, `inserted`, `updated`, `skipped`) + `scanSummary` | Da |
 | `DELETE` | `/api/v1/mail-accounts/:id` | Deconectează contul | param `id` | mesaj de succes | Da |
 
+Notă UI curentă:
+
+- Dashboard folosește `GET /api/v1/mail-accounts/google/start` doar când utilizatorul nu are un cont Gmail conectat;
+- după conectare, Dashboard folosește `POST /api/v1/mail-accounts/:id/sync` ca acțiune principală `Sincronizează și scanează`;
+- Settings folosește `PATCH /api/v1/mail-accounts/:id/settings` pentru `syncMaxResults`;
+- Settings folosește `DELETE /api/v1/mail-accounts/:id` pentru deconectarea contului Gmail;
+- lista de emailuri poate trimite `mailAccountId` către `GET /api/v1/emails` ca filtru per cont.
+
 ## Emails
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |

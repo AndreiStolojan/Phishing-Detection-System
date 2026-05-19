@@ -147,7 +147,7 @@ Done when:
 - refresh-ul paginii păstrează sesiunea dacă tokenul este valid;
 - logout șterge tokenul.
 
-## Task F3 - Login/Register UI adaptat din `frontent-raw`
+## Task F3 - Login/Register UI fără Firebase
 
 Status: `[x]`
 
@@ -157,7 +157,7 @@ Poate rula în paralel cu: F2, dacă se folosește contractul stabilit.
 
 Responsabilitate:
 
-- extrage partea vizuală utilă din `frontent-raw/components/Auth.jsx`;
+- păstrează direcția vizuală utilă din UI-ul brut folosit inițial ca inspirație;
 - elimină Firebase;
 - elimină Google Firebase sign-in;
 - elimină email verification Firebase;
@@ -176,6 +176,9 @@ Done when:
 - userul poate face login;
 - erorile backend sunt afișate clar;
 - brandul vechi `AthleteAtlas` nu mai apare.
+
+Notă: folderul istoric `frontent-raw/` a fost șters pe `2026-05-19`, după ce
+frontend-ul final a fost stabilizat pe auth-ul backend.
 
 ## Task F4 - Layout aplicație
 

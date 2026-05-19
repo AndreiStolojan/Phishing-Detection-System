@@ -31,11 +31,12 @@ Direcția recomandată este:
 
 Motivul este simplu: backend-ul este stabil, iar frontend-ul trebuie să consume API-ul existent fără să introducă alt sistem de auth sau alt backend.
 
-## Ce refolosim din `frontent-raw`
+## Ce s-a păstrat din UI-ul brut inițial
 
-Folderul `frontent-raw/` este tratat ca material brut, nu ca bază finală de aplicație.
+Folderul istoric `frontent-raw/` a fost folosit doar ca inspirație pentru ecranul
+de login/register, apoi a fost șters din repo pe `2026-05-19`.
 
-Se pot refolosi:
+S-a păstrat doar direcția vizuală utilă:
 
 - layout-ul vizual al formularului de login/register;
 - ideea de card central pentru autentificare;
@@ -44,7 +45,7 @@ Se pot refolosi:
 - mesajele de eroare/succes, adaptate pentru backend-ul nostru;
 - unele componente MUI deja folosite.
 
-Nu se refolosesc:
+Nu s-au păstrat:
 
 - Firebase Auth;
 - Google sign-in prin Firebase;

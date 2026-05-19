@@ -16,11 +16,14 @@ import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded';
 import RuleRoundedIcon from '@mui/icons-material/RuleRounded';
 import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
 
-const verdictLabels = {
-  safe: 'Sigur',
-  suspicious: 'Suspect',
-  likely_phishing: 'Probabil phishing',
-};
+import { formatDateTime } from '../../utils/formatDate.js';
+import {
+  formatAiFallbackReason,
+  formatAiSource,
+  formatAiStatus,
+  formatRuleName,
+  formatVerdict,
+} from '../../utils/formatRisk.js';
 
 const verdictColors = {
   safe: 'success',
@@ -28,22 +31,7 @@ const verdictColors = {
   likely_phishing: 'error',
 };
 
-const dateFormatter = new Intl.DateTimeFormat('ro-RO', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
-
 const asArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
-
-const formatDateTime = (value) => {
-  if (!value) {
-    return 'necunoscut';
-  }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? 'necunoscut' : dateFormatter.format(date);
-};
 
 const formatNumber = (value) => {
   if (!Number.isFinite(value)) {
@@ -67,10 +55,10 @@ const getRuleLabel = (rule) => {
   }
 
   if (typeof rule === 'string') {
-    return rule;
+    return formatRuleName(rule);
   }
 
-  return rule.rule || 'regula necunoscuta';
+  return formatRuleName(rule.rule);
 };
 
 const getRulePoints = (rule) => {
@@ -163,13 +151,13 @@ const ScanSummary = ({ scan }) => {
                 Scanare curenta
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Scanat la {formatDateTime(scan.scannedAt)}
+                Scanat la {formatDateTime(scan.scannedAt, 'data necunoscuta')}
               </Typography>
             </Box>
           </Stack>
 
           <Chip
-            label={verdictLabels[scan.verdict] || scan.verdict || 'Fara verdict'}
+            label={formatVerdict(scan.verdict)}
             color={verdictColors[scan.verdict] || 'default'}
             sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
           />
@@ -305,10 +293,12 @@ const ScanSummary = ({ scan }) => {
             </Typography>
             {scan.aiExplanationMeta?.status ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                Status: {scan.aiExplanationMeta.status}
-                {scan.aiExplanationMeta.source ? `, sursa: ${scan.aiExplanationMeta.source}` : ''}
+                Status: {formatAiStatus(scan.aiExplanationMeta.status)}
+                {scan.aiExplanationMeta.source
+                  ? `, sursa: ${formatAiSource(scan.aiExplanationMeta.source)}`
+                  : ''}
                 {scan.aiExplanationMeta.fallbackReason
-                  ? `, fallback: ${scan.aiExplanationMeta.fallbackReason}`
+                  ? `, fallback: ${formatAiFallbackReason(scan.aiExplanationMeta.fallbackReason)}`
                   : ''}
               </Typography>
             ) : null}

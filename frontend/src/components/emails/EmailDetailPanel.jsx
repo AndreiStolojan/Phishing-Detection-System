@@ -14,12 +14,15 @@ import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 
-const verdictLabels = {
-  safe: 'Sigur',
-  suspicious: 'Suspect',
-  likely_phishing: 'Probabil phishing',
-  phishing: 'Phishing confirmat',
-};
+import { formatDateTime } from '../../utils/formatDate.js';
+import {
+  formatProvider,
+  formatProviderActionStatus,
+  formatReviewStatus,
+  formatRiskBucket,
+  formatVerdict,
+  formatVerdictSource,
+} from '../../utils/formatRisk.js';
 
 const verdictColors = {
   safe: 'success',
@@ -28,38 +31,7 @@ const verdictColors = {
   phishing: 'error',
 };
 
-const riskBucketLabels = {
-  safe: 'Risc redus',
-  needs_review: 'Necesita verificare',
-  quarantine: 'Carantina locala',
-  reviewed_safe: 'Confirmat sigur',
-  confirmed_phishing: 'Confirmat phishing',
-  unscanned: 'Nescanat',
-};
-
-const reviewStatusLabels = {
-  reviewed: 'Revizuit manual',
-  pending_review: 'Asteapta review',
-  no_review_needed: 'Nu necesita review',
-  unscanned: 'Nescanat',
-};
-
-const dateFormatter = new Intl.DateTimeFormat('ro-RO', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
-
 const asArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
-
-const formatDateTime = (value) => {
-  if (!value) {
-    return 'necunoscut';
-  }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? 'necunoscut' : dateFormatter.format(date);
-};
 
 const formatValue = (value, fallback = 'necompletat') => {
   if (value === null || value === undefined || value === '') {
@@ -185,19 +157,19 @@ const EmailDetailPanel = ({ email }) => {
         <Stack spacing={1.25}>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             <Chip
-              label={effectiveVerdict ? verdictLabels[effectiveVerdict] || effectiveVerdict : 'Fara verdict'}
+              label={formatVerdict(effectiveVerdict)}
               color={verdictColors[effectiveVerdict] || 'default'}
               size="small"
               variant={effectiveVerdict ? 'filled' : 'outlined'}
             />
             <Chip
-              label={riskBucketLabels[riskBucket] || riskBucket}
+              label={formatRiskBucket(riskBucket)}
               size="small"
               variant="outlined"
               sx={{ borderColor: 'rgba(148, 163, 184, 0.28)' }}
             />
             <Chip
-              label={reviewStatusLabels[reviewStatus] || reviewStatus}
+              label={formatReviewStatus(reviewStatus)}
               size="small"
               variant="outlined"
               sx={{ borderColor: 'rgba(148, 163, 184, 0.28)' }}
@@ -217,7 +189,7 @@ const EmailDetailPanel = ({ email }) => {
           </Typography>
 
           <Typography variant="body2" color="text.secondary">
-            Primit la {formatDateTime(email.receivedAt)}
+            Primit la {formatDateTime(email.receivedAt, 'data necunoscuta')}
           </Typography>
         </Stack>
 
@@ -244,10 +216,10 @@ const EmailDetailPanel = ({ email }) => {
             <SectionTitle icon={<SecurityRoundedIcon fontSize="small" />}>
               Metadate utile
             </SectionTitle>
-            <DetailRow label="Provider" value={email.provider} />
+            <DetailRow label="Provider" value={formatProvider(email.provider)} />
             <DetailRow label="Domeniu expeditor" value={email.senderDomain} />
             <DetailRow label="Domeniu Reply-To" value={email.replyToDomain} />
-            <DetailRow label="Sursa verdictului" value={email.verdictSource || 'fara verdict'} />
+            <DetailRow label="Sursa verdictului" value={formatVerdictSource(email.verdictSource)} />
           </Stack>
         </Box>
 
@@ -325,7 +297,7 @@ const EmailDetailPanel = ({ email }) => {
           {email.lastProviderAction ? (
             <Tooltip title="Aceasta este ultima actiune raportata de provider, separata de review-ul local.">
               <Chip
-                label={`Ultima actiune provider: ${email.lastProviderActionStatus || 'necunoscut'}`}
+                label={`Ultima actiune provider: ${formatProviderActionStatus(email.lastProviderActionStatus)}`}
                 color={email.lastProviderActionStatus === 'success' ? 'success' : 'warning'}
                 size="small"
                 variant="outlined"

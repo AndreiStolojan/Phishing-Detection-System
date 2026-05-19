@@ -106,11 +106,13 @@ Planul complet pentru frontend este în `docs/FRONTEND_PLAN.md`.
 - `AuthContext` și `ProtectedRoute`;
 - pagină login/register fără Firebase;
 - layout protejat cu navigare între Dashboard, Emailuri, Rapoarte și Setări;
-- dashboard funcțional pentru status Gmail, contoare, conectare Gmail și sync manual;
-- listă emailuri cu filtre `riskBucket`, căutare și paginare simplă;
+- sidebar desktop collapsible/resizable, cu un singur control de meniu, profil clickabil către Settings, logout și footer `XAI - toate drepturile rezervate`;
+- topbar simplificat pentru acțiuni globale, Settings și chat/contact, fără titluri duplicate;
+- dashboard funcțional pentru status Gmail, conectare Gmail doar când lipsește contul, sync manual + scanare când contul este activ și indicatori orientați pe review/risc;
+- listă emailuri cu filtre `riskBucket`, cont Gmail, căutare și paginare simplă;
 - detaliu email cu scanare, reguli declanșate, motive, explicație AI și acțiuni manuale;
-- rapoarte lunare cu trimitere digest manual;
-- settings pentru profil, avatar, AI on/off și `syncMaxResults`;
+- rapoarte lunare full width cu trimitere digest manual și separare între reguli euristice și semnale AI;
+- settings full width pentru profil, avatar, AI on/off, `syncMaxResults` și deconectare cont Gmail;
 - drawer de chat/contact care trimite mesaj către adresa configurată în `EMAIL_FROM`;
 - charturi și statistici pentru dashboard/rapoarte, construite din datele deja expuse de API;
 - animații fine între pagini și stări comune de loading/error/empty.

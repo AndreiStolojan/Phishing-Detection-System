@@ -7,6 +7,7 @@ import {
   Typography,
 } from '@mui/material';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
+import { motion } from 'framer-motion';
 import {
   Bar,
   BarChart,
@@ -147,6 +148,7 @@ const RiskDistributionChart = ({
   footerValue,
   insights = [],
   isLoading = false,
+  isRefreshing = false,
   height = 238,
   emptyTitle = 'Nu exista date pentru chart',
   emptyDescription = 'Chart-ul va aparea dupa ce exista date sincronizate si scanate.',
@@ -159,17 +161,38 @@ const RiskDistributionChart = ({
 
   return (
     <Paper
+      component={motion.section}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
       elevation={0}
       sx={{
         height: '100%',
-        border: '1px solid rgba(148, 163, 184, 0.18)',
+        border: '1px solid',
+        borderColor: isRefreshing ? 'rgba(56, 189, 248, 0.36)' : 'rgba(148, 163, 184, 0.18)',
         borderRadius: 2,
         p: { xs: 2, sm: 2.5 },
         background:
           'linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.84) 100%)',
         boxShadow: '0 22px 70px rgba(2, 6, 23, 0.22)',
+        position: 'relative',
+        overflow: 'hidden',
+        transition: 'border-color 180ms ease',
       }}
     >
+      {isRefreshing ? (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            bgcolor: 'primary.main',
+            opacity: 0.9,
+          }}
+        />
+      ) : null}
       <Stack spacing={2.25} sx={{ height: '100%' }}>
         <Box>
           <Typography component="h2" variant="h6" fontWeight={900}>
@@ -192,7 +215,14 @@ const RiskDistributionChart = ({
             sx={{ py: 3, flexGrow: 1 }}
           />
         ) : (
-          <>
+          <Box
+            component={motion.div}
+            key={`${chartType}-${total}-${chartData.map((item) => `${item.key || item.label}:${item.value}`).join('|')}`}
+            initial={{ opacity: 0.7, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, ease: 'easeOut' }}
+            sx={{ display: 'grid', gap: 2 }}
+          >
             <Box sx={{ position: 'relative', height }}>
               <ResponsiveContainer width="100%" height="100%">
                 {chartType === 'bar' ? (
@@ -224,7 +254,15 @@ const RiskDistributionChart = ({
                       contentStyle={tooltipStyle}
                       labelStyle={tooltipLabelStyle}
                     />
-                    <Bar dataKey="value" radius={[8, 8, 2, 2]} barSize={34}>
+                    <Bar
+                      dataKey="value"
+                      radius={[8, 8, 2, 2]}
+                      barSize={34}
+                      isAnimationActive
+                      animationBegin={80}
+                      animationDuration={820}
+                      animationEasing="ease-out"
+                    >
                       {chartData.map((item) => (
                         <Cell key={item.key || item.label} fill={item.color || '#38bdf8'} />
                       ))}
@@ -246,6 +284,10 @@ const RiskDistributionChart = ({
                       paddingAngle={3}
                       stroke="rgba(15, 23, 42, 0.92)"
                       strokeWidth={3}
+                      isAnimationActive
+                      animationBegin={80}
+                      animationDuration={900}
+                      animationEasing="ease-out"
                     >
                       {renderData.map((item) => (
                         <Cell key={item.key || item.label} fill={item.color || '#38bdf8'} />
@@ -261,7 +303,7 @@ const RiskDistributionChart = ({
             </Box>
 
             <Legend data={chartData} total={total} />
-          </>
+          </Box>
         )}
 
         {(footerLabel || footerValue !== undefined || insights.length > 0) ? (
