@@ -34,14 +34,6 @@ input {
   font: inherit;
 }
 
-body.sidebar-resizing {
-  cursor: col-resize;
-  user-select: none;
-}
-
-body.sidebar-resizing * {
-  cursor: col-resize !important;
-}
 
 ::selection {
   color: #03111c;
