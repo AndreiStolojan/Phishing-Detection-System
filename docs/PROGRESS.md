@@ -13,9 +13,9 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-05-19`
-- Faza curentă: `Faza 14 - frontend minim pentru demonstrație`
-- Status general: auth-ul MVP este stabil, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, endpoint-urile de email expun starea finală derivată pentru UI cu riskBucket și afișează `aiExplanation` când există, mark-phishing salvează verdictul local și apoi încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, checklist-ul de testare manuală pentru backend a fost rulat cu succes, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite acoperă auth, dashboard Gmail orientat pe scanare și review, listă emailuri, detaliu email, acțiuni manuale, rapoarte cu reguli euristice separate de semnale AI, settings full width, avatar utilizator, chat/contact suport, sidebar collapsible/resizable cu un singur control de meniu, deconectare Gmail din Settings, animații și charturi.
+- Data ultimei actualizări: `2026-05-27`
+- Faza curentă: `Faza 13 - curățare backend și contract API pentru noul frontend`
+- Status general: auth-ul MVP este stabil, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, endpoint-urile de email expun starea finală derivată pentru UI cu riskBucket și afișează `aiExplanation` când există, mark-phishing salvează verdictul local și apoi încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, checklist-ul de testare manuală pentru backend a trecut anterior, backend-ul este izolat în `backend/`, frontend-ul existent a fost șters pe `2026-05-27`, iar următorul pas este decizia contractului API și curățarea codului backend neesențial înainte de reconstruirea frontend-ului.
 - Progres estimativ MVP: `99%`
 
 ## Notă sesiune 2026-04-24
@@ -228,6 +228,13 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Curățare repo: folderul istoric `frontent-raw/` a fost șters deoarece UI-ul final nu mai folosește Firebase sau brandul vechi `AthleteAtlas`.
 - Următorul pas imediat: rulează verificarea vizuală cu frontend pornit și flow demo `login -> dashboard -> sync -> reports -> settings`.
 
+## Notă sesiune 2026-05-27 - eliminare frontend și analiză backend
+
+- Data: `2026-05-27`
+- Ce s-a finalizat: folderul `frontend/` a fost șters intenționat, iar backend-ul a fost analizat pe fișiere, responsabilități, complexitate și endpoint-uri în `docs/BACKEND_REVIEW.md`.
+- Ce s-a clarificat: backend-ul acoperă fluxul MVP principal, dar merită simplificate zonele `mail-account.service.js`, `scan.service.js`, `email.service.js`, endpoint-urile de tip `contact`, avatarul de profil și rutele care au fost adăugate mai mult pentru frontend-ul vechi.
+- Următorul pas imediat: utilizatorul trebuie să decidă răspunsurile la întrebările din `docs/BACKEND_REVIEW.md`, apoi se poate trece la curățarea backend-ului în pași mici, fără reconstruirea frontend-ului încă.
+
 ## Ce este gata
 
 - documentul principal de context;
@@ -331,7 +338,7 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - endpoint `DELETE /api/v1/mail-accounts/:id` este folosit acum din Settings pentru deconectarea contului Gmail;
 - emailurile cu `userVerdict` sunt sărite la auto-rescan în flow-ul de sync, indiferent de schimbări de model sau `engineVersion`;
 - rutele `auth`, `users`, `mail-accounts`, `emails`, `meta`, `reports`, `scans`, `actions` și `contact` sunt montate în `app.js` sub prefixul `/api/v1`.
-- frontend-ul are polish modern pentru `XAI Phishing Shield`, animații, charturi, avatar, drawer de chat/contact, sidebar collapsible/resizable, topbar simplificat și mapări user-friendly pentru statusuri tehnice.
+- frontend-ul React + Vite a fost șters pe `2026-05-27` și va fi reconstruit ulterior după clarificarea contractului backend.
 
 ## Ce NU este încă început
 
@@ -344,11 +351,11 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- frontend-ul MVP are ecranele principale plus polish vizual, avatar utilizator, chat/contact suport, sidebar cu un singur control de meniu, topbar fără titluri duplicate, dashboard orientat pe scanare Gmail și review, rapoarte cu euristici separate de semnale AI, Settings full width, deconectare Gmail din Settings, animații și charturi.
+- folderul `frontend/` a fost șters, iar analiza backend pentru simplificare și contract API a fost documentată în `docs/BACKEND_REVIEW.md`.
 
 Următorul pas imediat recomandat:
 
-- rulează testul manual cap-coadă din frontend și notează ajustările vizuale sau de demo rămase.
+- decide ce endpoint-uri și funcționalități backend rămân în MVP, apoi curăță backend-ul înainte de reconstruirea frontend-ului.
 
 ## Blocaje
 
@@ -356,7 +363,8 @@ Nu există blocaje tehnice majore cunoscute pentru backend.
 
 Rămân de finalizat:
 
-- verificarea flow-ului demo cap-coadă din frontend;
+- decizia contractului API final pentru noul frontend;
+- curățarea codului backend neesențial pentru MVP;
 - documentația de rulare;
 - scenariul de demo și capturile pentru prezentare;
 - alegerea modelului Ollama final pentru demo, în funcție de latență și stabilitate locală.
@@ -375,4 +383,4 @@ Rămân de finalizat:
 - verifică setarea per utilizator `settings.aiEnabled` prin `PATCH /api/v1/users/me/ai-settings`;
 - compară local modelele după `latencyMs`, consum de RAM, consistența outputului JSON și stabilitatea pe același set de emailuri;
 - folosește emailuri de test cu `Reply-To` diferit și text de presiune pentru validarea semnalelor AI viitoare;
-- treci la frontend-ul minim, pentru că backend-ul MVP este suficient de stabil pentru integrare.
+- nu reconstrui frontend-ul până când nu este clarificat contractul API backend.

@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, testarea manuală a endpoint-urilor backend a trecut, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite acoperă auth, dashboard Gmail, listă emailuri, detaliu email, acțiuni manuale, rapoarte, settings, avatar utilizator, chat de contact, sidebar collapsible/resizable și polish vizual modern.
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, testarea manuală a endpoint-urilor backend a trecut, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite a fost șters pe `2026-05-27` pentru a reconstrui ulterior o interfață mai potrivită.
 - Progres estimativ MVP: `99%`
-- Faza curentă: `Faza 14 - frontend minim pentru demonstrație`
+- Faza curentă: `Faza 13 - curățare backend și contract API pentru noul frontend`
 
 ## Legendă
 
@@ -269,6 +269,9 @@ Obligatoriu pentru MVP: nu, este etapa imediat după MVP-ul funcțional
 Milestone: proiect coerent și prezentabil
 
 - [ ] Curățare naming și structură
+- [x] Analiză backend pe fișiere și endpoint-uri (`docs/BACKEND_REVIEW.md`)
+- [ ] Decizie contract API final înainte de reconstruirea frontend-ului
+- [ ] Curățare cod backend neesențial pentru MVP după confirmare
 - [x] Mutare cod runtime în `src/`, fără refactor mare pe module
 - [x] Mutare fișiere backend în `backend/`, fără creare de `frontend/`
 - [x] Verificare flux complet cap-coadă
@@ -290,6 +293,8 @@ Obligatoriu pentru MVP: da
 ## Faza 14 - Frontend minim pentru demonstrație
 
 Milestone: interfață web simplă peste API-ul backend existent
+
+Status 2026-05-27: frontend-ul implementat anterior a fost șters intenționat, deoarece arăta prea generat și va fi reconstruit după clarificarea contractului backend.
 
 - [x] Documentare plan frontend pe termen lung (`docs/FRONTEND_PLAN.md`)
 - [x] Documentare taskuri mici pentru agenți (`docs/FRONTEND_AGENT_TASKS.md`)
@@ -320,7 +325,8 @@ Milestone: interfață web simplă peste API-ul backend existent
 - [x] Charturi și statistici relevante pentru dashboard și rapoarte folosind datele existente
 - [x] Curățare `frontent-raw/` după adaptarea UI-ului de auth
 - [x] Polish UX final pentru sidebar, dashboard, rapoarte și settings full width
-- [ ] Verificare flow demo cap-coadă din frontend
+- [x] Ștergere folder `frontend/` pentru refacere ulterioară
+- [ ] Reconstruire frontend după decizia contractului API
 
 Dependențe: Faza 13 și API backend stabil
 
@@ -379,6 +385,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: frontend-ul MVP a primit sidebar cu un singur control de meniu, topbar fără titluri duplicate, dashboard orientat pe acțiunea de scanare Gmail, rapoarte cu reguli euristice separate de semnale AI, Settings full width și curățarea folderului `frontent-raw/`.
+Ultimul punct finalizat: frontend-ul existent a fost șters, iar backend-ul a fost analizat pe fișiere și endpoint-uri în `docs/BACKEND_REVIEW.md`.
 
-Următorul pas recomandat: rularea testului demo cap-coadă din browser cu backend, frontend, MongoDB, Gmail OAuth și configurarea de email pornite.
+Următorul pas recomandat: răspuns la întrebările din `docs/BACKEND_REVIEW.md`, apoi curățare backend neesențială pentru MVP înainte de reconstruirea frontend-ului.

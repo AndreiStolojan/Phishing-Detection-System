@@ -13,6 +13,21 @@ Format recomandat pentru deciziile viitoare:
 
 ## Decizii inițiale
 
+### 2026-05-27 - Frontend-ul React + Vite se șterge și se reconstruiește ulterior
+
+Motiv:
+
+- interfața existentă arăta prea generată și nu mai este direcția dorită pentru prezentare;
+- următorul pas important este clarificarea backend-ului ca un contract direct pentru viitorul frontend;
+- păstrarea UI-ului vechi ar crea confuzie când analizăm ce endpoint-uri și date sunt cu adevărat necesare.
+
+Impact:
+
+- folderul `frontend/` a fost șters;
+- backend-ul rămâne sursa principală de lucru;
+- analiza backend și propunerile de contract API sunt documentate în `docs/BACKEND_REVIEW.md`;
+- frontend-ul va fi reconstruit după decizia asupra endpoint-urilor și după curățarea codului backend neesențial.
+
 ### 2026-05-19 - Frontend-ul final nu mai păstrează folderul `frontent-raw/`
 
 Motiv:

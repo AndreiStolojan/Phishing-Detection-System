@@ -52,80 +52,26 @@ backend/
 docs/
 ```
 
-Aceasta este structura aleasă pentru MVP după pregătirea pentru frontend: tot ce ține de backend stă în `backend/`, iar documentația de proiect rămâne la rădăcină.
+Aceasta este structura aleasă pentru MVP: tot ce ține de backend stă în `backend/`, iar documentația de proiect rămâne la rădăcină.
 
-Motivul este pragmatic: separăm clar backend-ul de viitorul frontend, dar nu facem încă un refactor mare în module interne de tip `backend/src/modules/*`. Pentru etapa curentă este mai important să păstrăm API-ul stabil pentru testare și integrarea frontend.
+Motivul este pragmatic: separăm clar backend-ul de viitorul frontend, dar nu facem încă un refactor mare în module interne de tip `backend/src/modules/*`. Pentru etapa curentă este mai important să păstrăm API-ul stabil, să eliminăm codul neesențial și să clarificăm contractul pe care îl va consuma noul frontend.
 
-O reorganizare viitoare pe module, de tip `backend/src/modules/auth`, `backend/src/modules/emails`, poate fi făcută după stabilizarea MVP-ului și după ce contractele API sunt folosite de frontend.
+O reorganizare viitoare pe module, de tip `backend/src/modules/auth`, `backend/src/modules/emails`, poate fi făcută după stabilizarea MVP-ului și după ce contractele API sunt decise.
 
 ## Structura frontend curentă
 
-Frontend-ul a fost creat separat în:
+Frontend-ul React + Vite creat anterior a fost șters pe `2026-05-27`, deoarece nu mai este direcția vizuală dorită.
 
-```text
-frontend/
-  package.json
-  package-lock.json
-  index.html
-  vite.config.js
-  src/
-    main.jsx
-    App.jsx
-    api/
-      actionsApi.js
-      apiClient.js
-      authApi.js
-      contactApi.js
-      emailsApi.js
-      mailAccountsApi.js
-      metaApi.js
-      reportsApi.js
-      scansApi.js
-      usersApi.js
-    components/
-      auth/
-      chat/
-      common/
-      dashboard/
-      emails/
-      layout/
-      reports/
-    pages/
-    context/
-    hooks/
-    styles/
-    utils/
-```
+Pentru moment proiectul rămâne backend-first. Noul frontend trebuie reconstruit doar după ce contractul API este clarificat în `docs/BACKEND_REVIEW.md`.
 
-Planul complet pentru frontend este în `docs/FRONTEND_PLAN.md`.
+Reguli importante pentru frontend-ul viitor:
 
-În etapa curentă frontend-ul acoperă fluxul MVP principal:
-
-- client API central peste `/api/v1`;
-- token JWT în `localStorage`;
-- `AuthContext` și `ProtectedRoute`;
-- pagină login/register fără Firebase;
-- layout protejat cu navigare între Dashboard, Emailuri, Rapoarte și Setări;
-- sidebar desktop collapsible/resizable, cu un singur control de meniu, profil clickabil către Settings, logout și footer `XAI - toate drepturile rezervate`;
-- topbar simplificat pentru acțiuni globale, Settings și chat/contact, fără titluri duplicate;
-- dashboard funcțional pentru status Gmail, conectare Gmail doar când lipsește contul, sync manual + scanare când contul este activ și indicatori orientați pe review/risc;
-- listă emailuri cu filtre `riskBucket`, cont Gmail, căutare și paginare simplă;
-- detaliu email cu scanare, reguli declanșate, motive, explicație AI și acțiuni manuale;
-- rapoarte lunare full width cu trimitere digest manual și separare între reguli euristice și semnale AI;
-- settings full width pentru profil, avatar, AI on/off, `syncMaxResults` și deconectare cont Gmail;
-- drawer de chat/contact care trimite mesaj către adresa configurată în `EMAIL_FROM`;
-- charturi și statistici pentru dashboard/rapoarte, construite din datele deja expuse de API;
-- animații fine între pagini și stări comune de loading/error/empty.
-
-Reguli importante pentru frontend:
-
-- folosește API-ul backend existent, fără schimbare de endpoint-uri;
 - folosește auth-ul backend cu `Bearer token`;
 - nu folosește Firebase;
-- păstrează tema dark-only pentru MVP;
-- folosește proxy-ul Vite pentru `/api/v1` către backend-ul local pe `http://localhost:5500` în development;
-- folosește `riskBucket`, `effectiveVerdict`, `reviewStatus` și `latestScan` exact cum sunt returnate de backend;
-- nu mută logica de phishing în frontend.
+- consumă datele de phishing deja calculate în backend;
+- nu mută logica de phishing în frontend;
+- afișează `riskBucket`, `effectiveVerdict`, `reviewStatus` și `latestScan` primite de la API;
+- rămâne simplu, util pentru demonstrație și ușor de explicat.
 
 ## Responsabilitatea fiecărui folder
 
@@ -144,13 +90,6 @@ Reguli importante pentru frontend:
 | `backend/manual-tests` | fișiere și resurse pentru testare manuală backend |
 | `backend/scripts` | scripturi utilitare rulate manual pentru backend |
 | `backend/extras` | integrări backend opționale sau auxiliare |
-| `frontend/src/api` | funcții pentru comunicarea cu backend-ul |
-| `frontend/src/components` | componente UI refolosibile, inclusiv layout, charturi și chat/contact |
-| `frontend/src/pages` | ecrane principale ale aplicației |
-| `frontend/src/context` | stare globală simplă, mai ales auth |
-| `frontend/src/hooks` | logică frontend refolosibilă |
-| `frontend/src/styles` | tema dark-only și stiluri globale |
-| `frontend/src/utils` | funcții mici de formatare și storage |
 
 ## Modulele backend
 
