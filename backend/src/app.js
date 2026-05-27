@@ -1,6 +1,4 @@
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import userRouter from './routes/user.routes.js';
 import authRouter from './routes/auth.routes.js';
 import mailAccountRouter from './routes/mail-account.routes.js';

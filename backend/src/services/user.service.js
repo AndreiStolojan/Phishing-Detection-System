@@ -45,10 +45,6 @@ export const updateCurrentUser = async (authenticatedUserId, payload) => {
         user.name = payload.name;
     }
 
-    if (hasOwn(payload, 'avatarDataUrl')) {
-        user.avatarDataUrl = payload.avatarDataUrl || null;
-    }
-
     await user.save();
 
     return toPublicUser(user);
