@@ -5,7 +5,7 @@ const resolvedEnvFilePath = `.env.${nodeEnv}.local`;
 
 config({ path: resolvedEnvFilePath });
 
-const requiredEnvVars = ['PORT', 'DB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
+const requiredEnvVars = ['PORT', 'DB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'MAIL_TOKEN_ENCRYPTION_KEY'];
 const missingEnvVars = requiredEnvVars.filter((envName) => !process.env[envName]);
 
 if (missingEnvVars.length > 0) {
@@ -30,6 +30,7 @@ export const {
     ADMIN_NAME,
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
+    MAIL_TOKEN_ENCRYPTION_KEY,
     AI_SEMANTIC_ENABLED,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import MailAccount from '../models/mail-account.model.js';
 import Email from '../models/email.model.js';
 import jwt from 'jsonwebtoken';
@@ -13,7 +14,7 @@ import {
     GOOGLE_OAUTH_TOKEN_URL,
     refreshTokenPayload,
 } from '../config/google-oauth.js';
-import { JWT_SECRET } from '../config/env.js';
+import { JWT_SECRET, MAIL_TOKEN_ENCRYPTION_KEY } from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
 import { runSyncScanPipeline } from './scan.service.js';
 
@@ -22,6 +23,87 @@ const SYNC_MAX_RESULTS_MIN = 1;
 const SYNC_MAX_RESULTS_MAX = 50;
 const SYNC_ERRORS_MAX_ITEMS = 5;
 const SYNC_ERROR_MESSAGE_MAX_LENGTH = 180;
+const MAIL_TOKEN_ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+
+const getMailTokenEncryptionKey = () => {
+    if (!MAIL_TOKEN_ENCRYPTION_KEY) {
+        throw createError(
+            'Missing mail token encryption key',
+            500,
+        );
+    }
+
+    return crypto.createHash('sha256').update(MAIL_TOKEN_ENCRYPTION_KEY).digest();
+};
+
+const encryptMailToken = (token) => {
+    if (typeof token !== 'string' || token.length === 0) {
+        return token ?? null;
+    }
+
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv(
+        MAIL_TOKEN_ENCRYPTION_ALGORITHM,
+        getMailTokenEncryptionKey(),
+        iv
+    );
+
+    const encryptedValue = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+
+    return JSON.stringify({
+        v: 1,
+        iv: iv.toString('base64'),
+        tag: authTag.toString('base64'),
+        data: encryptedValue.toString('base64'),
+    });
+};
+
+const decryptMailToken = (storedToken) => {
+    if (typeof storedToken !== 'string' || storedToken.length === 0) {
+        return null;
+    }
+
+    try {
+        const parsedToken = JSON.parse(storedToken);
+
+        if (
+            parsedToken?.v !== 1 ||
+            typeof parsedToken.iv !== 'string' ||
+            typeof parsedToken.tag !== 'string' ||
+            typeof parsedToken.data !== 'string'
+        ) {
+            return storedToken;
+        }
+
+        const decipher = crypto.createDecipheriv(
+            MAIL_TOKEN_ENCRYPTION_ALGORITHM,
+            getMailTokenEncryptionKey(),
+            Buffer.from(parsedToken.iv, 'base64')
+        );
+
+        decipher.setAuthTag(Buffer.from(parsedToken.tag, 'base64'));
+
+        const decryptedValue = Buffer.concat([
+            decipher.update(Buffer.from(parsedToken.data, 'base64')),
+            decipher.final(),
+        ]);
+
+        return decryptedValue.toString('utf8');
+    } catch {
+        return storedToken;
+    }
+};
+
+const encryptMailTokenForStorage = (token) => {
+    if (token === null || token === undefined) {
+        return null;
+    }
+
+    return encryptMailToken(token);
+};
+
+const getDecryptedMailToken = (storedToken) => decryptMailToken(storedToken);
 
 const toPublicMailAccount = (mailAccount) => ({
     _id: mailAccount._id,
@@ -209,7 +291,9 @@ const exchangeGoogleCodeForTokens = async (code) => {
 };
 
 const refreshGoogleAccessToken = async (mailAccount) => {
-    if (!mailAccount.refreshToken) {
+    const refreshToken = getDecryptedMailToken(mailAccount.refreshToken);
+
+    if (!refreshToken) {
         throw createError(
             'Google access token expired and refresh token is missing',
             401,
@@ -224,7 +308,7 @@ const refreshGoogleAccessToken = async (mailAccount) => {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: refreshTokenPayload({ refreshToken: mailAccount.refreshToken }).toString(),
+            body: refreshTokenPayload({ refreshToken }).toString(),
         });
 
         const payload = await parseJsonSafely(response);
@@ -246,16 +330,22 @@ const refreshGoogleAccessToken = async (mailAccount) => {
             { _id: mailAccount._id },
             {
                 $set: {
-                    accessToken: payload.access_token,
-                    refreshToken: payload.refresh_token ?? mailAccount.refreshToken,
+                    accessToken: encryptMailTokenForStorage(payload.access_token),
+                    refreshToken:
+                        payload.refresh_token !== undefined
+                            ? encryptMailTokenForStorage(payload.refresh_token)
+                            : mailAccount.refreshToken,
                     tokenExpiryDate,
                     status: 'active',
                 },
             }
         );
 
-        mailAccount.accessToken = payload.access_token;
-        mailAccount.refreshToken = payload.refresh_token ?? mailAccount.refreshToken;
+        mailAccount.accessToken = encryptMailTokenForStorage(payload.access_token);
+        mailAccount.refreshToken =
+            payload.refresh_token !== undefined
+                ? encryptMailTokenForStorage(payload.refresh_token)
+                : mailAccount.refreshToken;
         mailAccount.tokenExpiryDate = tokenExpiryDate;
         mailAccount.status = 'active';
 
@@ -283,7 +373,7 @@ const requestGoogleJson = async ({
     errorCode,
     unreachableCode,
 }) => {
-    let accessToken = mailAccount.accessToken;
+    let accessToken = getDecryptedMailToken(mailAccount.accessToken);
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
         let response;
@@ -562,8 +652,11 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
             provider: 'gmail',
             accountEmail,
             status: 'active',
-            accessToken: tokenPayload.access_token,
-            refreshToken: tokenPayload.refresh_token ?? existingMailAccount?.refreshToken ?? null,
+            accessToken: encryptMailTokenForStorage(tokenPayload.access_token),
+            refreshToken:
+                tokenPayload.refresh_token !== undefined
+                    ? encryptMailTokenForStorage(tokenPayload.refresh_token)
+                    : existingMailAccount?.refreshToken ?? null,
             tokenExpiryDate,
         },
         {
