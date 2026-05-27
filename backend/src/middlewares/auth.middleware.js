@@ -14,7 +14,6 @@ const authorize = async (req, res, next) => {
                 401,
                 'Unauthorized',
                 'AUTH_HEADER_MISSING',
-                ['Authorization header is missing. Use Bearer <token>.']
             );
         }
 
@@ -23,9 +22,7 @@ const authorize = async (req, res, next) => {
                 res,
                 401,
                 'Unauthorized',
-                'AUTH_HEADER_INVALID',
-                ['Authorization header must use the format Bearer <token>.']
-            );
+                'AUTH_HEADER_INVALID',            );
         }
 
         const token = authHeader.split(' ')[1];
@@ -35,9 +32,7 @@ const authorize = async (req, res, next) => {
                 res,
                 401,
                 'Unauthorized',
-                'AUTH_TOKEN_MISSING',
-                ['Bearer token is missing from Authorization header.']
-            );
+                'AUTH_TOKEN_MISSING',            );
         }
 
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -48,9 +43,7 @@ const authorize = async (req, res, next) => {
                 res,
                 401,
                 'Unauthorized',
-                'AUTH_USER_NOT_FOUND',
-                ['The user for this token no longer exists.']
-            );
+                'AUTH_USER_NOT_FOUND',            );
         }
 
         req.user = user;
@@ -61,9 +54,7 @@ const authorize = async (req, res, next) => {
                 res,
                 401,
                 'Unauthorized',
-                'AUTH_TOKEN_EXPIRED',
-                ['The token has expired. Log in again and use the new token.']
-            );
+                'AUTH_TOKEN_EXPIRED',            );
         }
 
         if (error.name === 'JsonWebTokenError') {
@@ -72,7 +63,6 @@ const authorize = async (req, res, next) => {
                 401,
                 'Unauthorized',
                 'AUTH_TOKEN_INVALID',
-                ['The token is invalid. Make sure you copied only data.token from login/register.']
             );
         }
 
