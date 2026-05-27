@@ -1,4 +1,4 @@
-import { loginUser, logoutUser, registerUser } from '../services/auth.service.js';
+import { loginUser, registerUser } from '../services/auth.service.js';
 
 export const register = async (req, res, next) => {
     try {
@@ -28,19 +28,5 @@ export const login = async (req, res, next) => {
     }
 };
 
-export const logout = async (req, res, next) => {
-    try {
-        await logoutUser();
-
-        res.status(200).json({
-            success: true,
-            message: 'Logout handled client-side. Remove the bearer token from client storage.',
-        });
-    } catch (err) {
-        next(err);
-    }
-};
-
 export const signUp = register;
 export const signIn = login;
-export const signOut = logout;

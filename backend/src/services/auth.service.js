@@ -9,7 +9,6 @@ import User from '../models/user.model.js';
 const toPublicUser = (user) => ({
     _id: user._id,
     name: user.name,
-    avatarDataUrl: user.avatarDataUrl ?? null,
     email: user.email,
     role: user.role,
     settings: {
@@ -71,7 +70,7 @@ export const loginUser = async ({ email, password }) => {
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
-        throw createError('Invalid email or password', 401, [], 'INVALID_CREDENTIALS');
+        throw createError('Invalid password', 401, [], 'INVALID_CREDENTIALS');
     }
 
     const token = jwt.sign(
@@ -82,9 +81,5 @@ export const loginUser = async ({ email, password }) => {
 
     return buildAuthResponse(user, token);
 };
-
-export const logoutUser = async () => ({
-    success: true,
-});
 
 export { toPublicUser };

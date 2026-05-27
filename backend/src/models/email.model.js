@@ -126,11 +126,6 @@ const emailSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
-        syncSource: {
-            type: String,
-            enum: ['gmail_initial_sync', 'gmail_manual_sync', 'gmail_scheduled_sync', 'gmail_resync'],
-            default: 'gmail_manual_sync',
-        },
         userVerdict: {
             type: String,
             enum: ['safe', 'phishing'],
@@ -145,10 +140,6 @@ const emailSchema = new mongoose.Schema(
             enum: [
                 'mark_safe',
                 'mark_phishing',
-                'allow_sender',
-                'allow_domain',
-                'block_sender',
-                'block_domain',
             ],
             default: null,
         },
