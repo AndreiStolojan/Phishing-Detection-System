@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, "Username is required"],
       trim: true,
-      minlength: 2,
+      minlength: 3,
       maxlength: 50,
     },
     email: {
@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema(
     settings: {
       aiEnabled: {
         type: Boolean,
-        default: false,
+        default: true,
       },
     },
   },
