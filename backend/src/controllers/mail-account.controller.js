@@ -6,6 +6,19 @@ import {
     syncGmailEmailsForUser,
     updateMailAccountSettingsForUser,
 } from '../services/mail-account.service.js';
+import { FRONTEND_APP_URL } from '../config/env.js';
+
+const buildFrontendRedirectUrl = ({ params }) => {
+    const redirectUrl = new URL('/dashboard', FRONTEND_APP_URL);
+
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null && String(value).length > 0) {
+            redirectUrl.searchParams.set(key, String(value));
+        }
+    }
+
+    return redirectUrl.toString();
+};
 
 export const getMailAccounts = async (req, res, next) => {
     try {
@@ -41,12 +54,28 @@ export const handleGoogleCallback = async (req, res, next) => {
             googleError: req.query.error,
         });
 
-        res.status(200).json({
-            success: true,
-            message: 'Google mail account connected successfully',
-            data: mailAccount,
-        });
+        return res.redirect(
+            302,
+            buildFrontendRedirectUrl({
+                params: {
+                    gmail: 'connected',
+                    account: mailAccount.accountEmail,
+                },
+            })
+        );
     } catch (error) {
+        if (req.query?.state || req.query?.code || req.query?.error) {
+            return res.redirect(
+                302,
+                buildFrontendRedirectUrl({
+                    params: {
+                        gmail: 'error',
+                        code: error.code || 'GMAIL_CONNECT_FAILED',
+                    },
+                })
+            );
+        }
+
         next(error);
     }
 };

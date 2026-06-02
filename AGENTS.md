@@ -20,12 +20,18 @@ Scopul nu este doar să iasă codul, ci ca utilizatorul să înțeleagă bine:
 
 Înainte de orice propunere serioasă sau modificare de cod, trebuie citite mai întâi:
 
-1. `docs/LICENTA.md`
-2. `docs/TODO.md`
-3. `docs/ARCHITECTURE.md`
-4. `docs/PROGRESS.md`
+1. `AGENTS.md`
+2. `docs/PROJECT_STATE.md`
 
 După aceea se verifică starea reală a codului din repo, pentru că documentația poate rămâne ușor în urmă.
+
+Documente specifice se citesc doar când taskul are nevoie de ele:
+
+- API/backend: `docs/API_PLAN.md`, `docs/ARCHITECTURE.md`
+- frontend: `docs/FRONTEND_PLAN.md`
+- reguli phishing: `docs/PHISHING_RULES.md`
+- testare manuală: `docs/MANUAL_TESTS.md`
+- istoric/decizii: `docs/PROGRESS.md`, `docs/TODO.md`, `docs/DECISIONS.md`
 
 ## Stil de lucru
 
@@ -43,21 +49,27 @@ După aceea se verifică starea reală a codului din repo, pentru că documenta�
 - Evită soluțiile prea sofisticate dacă nu aduc valoare clară pentru MVP.
 - Frontend-ul nu este prioritar față de backend, sync și logica de scanare.
 - Gmail este primul provider.
+- Pentru MVP, Gmail rămâne singurul provider.
 - Detecția phishing principală trebuie să rămână bazată pe reguli.
 - Ollama este doar pentru explainability, după ce fluxul principal funcționează.
+- Frontend-ul curent se numește `SecureInbox`, are text în engleză și trebuie să arate matur, simplu și ne-generat.
 
 ## Convenții importante pentru acest proiect
 
 - Backend-ul este izolat în folderul `backend/`.
+- Frontend-ul este izolat în folderul `frontend/`.
 - Comenzile backend se rulează din `backend/` sau cu `npm --prefix backend ...`.
+- Comenzile frontend se rulează din `frontend/` sau cu `npm --prefix frontend ...`.
 - În development se folosește `backend/.env.development.local`.
 - În production se folosește `backend/.env.production.local`.
 - Portul de development curent este `5500`.
 - Strategia de auth pentru MVP este `Bearer token` în header-ul `Authorization`.
 - Endpoint-ul pentru utilizatorul curent este `GET /api/v1/users/me`.
+- Logout-ul MVP este local în frontend: se șterge tokenul, nu se apelează endpoint backend.
 - Pentru Gmail, flow-ul actual este:
   - `GET /api/v1/mail-accounts/google/start`
   - `GET /api/v1/mail-accounts/google/callback`
+- Gmail callback redirecționează în frontend după conectare sau eroare.
 
 ## Reguli de comunicare
 
