@@ -126,6 +126,11 @@ const emailSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        syncSource: {
+            type: String,
+            enum: ['gmail_initial_sync', 'gmail_manual_sync'],
+            default: null,
+        },
         userVerdict: {
             type: String,
             enum: ['safe', 'phishing'],

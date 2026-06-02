@@ -44,10 +44,18 @@ backend/
     services/
     routes/
     validations/
-  manual-tests/
+  tests/
+    unit/
   scripts/
   extras/
   postman/
+
+frontend/
+  package.json
+  vite.config.js
+  src/
+  tests/
+    unit/
 
 docs/
 ```
@@ -60,9 +68,9 @@ O reorganizare viitoare pe module, de tip `backend/src/modules/auth`, `backend/s
 
 ## Structura frontend curentă
 
-Frontend-ul React + Vite creat anterior a fost șters pe `2026-05-27`, deoarece nu mai este direcția vizuală dorită.
+Frontend-ul a fost reconstruit ca `SecureInbox`, în folderul `frontend/`.
 
-Pentru moment proiectul rămâne backend-first. Noul frontend trebuie reconstruit doar după ce contractul API este clarificat în `docs/BACKEND_REVIEW.md`.
+Direcția este un inbox Gmail securizat, matur și simplu, cu UI în engleză. Frontend-ul este o aplicație React + Vite + MUI care consumă contractul backend existent.
 
 Reguli importante pentru frontend-ul viitor:
 
@@ -71,6 +79,7 @@ Reguli importante pentru frontend-ul viitor:
 - consumă datele de phishing deja calculate în backend;
 - nu mută logica de phishing în frontend;
 - afișează `riskBucket`, `effectiveVerdict`, `reviewStatus` și `latestScan` primite de la API;
+- randează `htmlBody` doar după sanitizare și blochează imaginile remote;
 - rămâne simplu, util pentru demonstrație și ușor de explicat.
 
 ## Responsabilitatea fiecărui folder
@@ -86,8 +95,10 @@ Reguli importante pentru frontend-ul viitor:
 | `backend/src/services` | logica principală de business |
 | `backend/src/routes` | definirea rutelor Express |
 | `backend/src/validations` | scheme de validare pentru input |
+| `backend/tests/unit` | teste unitare backend |
+| `frontend/src` | aplicația React SecureInbox |
+| `frontend/tests/unit` | teste unitare frontend |
 | `docs` | documentația proiectului |
-| `backend/manual-tests` | fișiere și resurse pentru testare manuală backend |
 | `backend/scripts` | scripturi utilitare rulate manual pentru backend |
 | `backend/extras` | integrări backend opționale sau auxiliare |
 
@@ -108,7 +119,6 @@ Se ocupă de:
 
 - modelul utilizatorului;
 - profilul curent;
-- avatarul utilizatorului pentru MVP;
 - setări simple ale utilizatorului.
 
 ### `mailAccounts`

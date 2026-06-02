@@ -1,5 +1,7 @@
 # FRONTEND AGENT TASKS
 
+Notă 2026-06-02: acest document este istoric pentru frontend-ul anterior. Pentru frontend-ul curent `SecureInbox`, citește mai întâi `docs/PROJECT_STATE.md` și `docs/FRONTEND_PLAN.md`.
+
 ## Scop
 
 Acest fișier împarte frontend-ul în taskuri mici, potrivite pentru agenți separați.

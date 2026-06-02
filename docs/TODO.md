@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, testarea manuală a endpoint-urilor backend a trecut, backend-ul este izolat în `backend/`, iar frontend-ul React + Vite a fost șters pe `2026-05-27` pentru a reconstrui ulterior o interfață mai potrivită.
+- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, backend-ul este izolat în `backend/`, iar frontend-ul `SecureInbox` a fost reconstruit în `frontend/` cu React + Vite + MUI, inbox centralizat cu filtre sus, search, listă verticală, pagină separată de detaliu, Gmail connect/disconnect în Settings, body HTML sanitizat cu imagini vizibile și teste unitare.
 - Progres estimativ MVP: `99%`
-- Faza curentă: `Faza 13 - curățare backend și contract API pentru noul frontend`
+- Faza curentă: `Faza 14 - SecureInbox frontend și testare`
 
 ## Legendă
 
@@ -270,8 +270,8 @@ Milestone: proiect coerent și prezentabil
 
 - [ ] Curățare naming și structură
 - [x] Analiză backend pe fișiere și endpoint-uri (`docs/BACKEND_REVIEW.md`)
-- [ ] Decizie contract API final înainte de reconstruirea frontend-ului
-- [ ] Curățare cod backend neesențial pentru MVP după confirmare
+- [x] Decizie contract API final înainte de reconstruirea frontend-ului
+- [x] Curățare contract backend strict necesară pentru frontend
 - [x] Mutare cod runtime în `src/`, fără refactor mare pe module
 - [x] Mutare fișiere backend în `backend/`, fără creare de `frontend/`
 - [x] Verificare flux complet cap-coadă
@@ -294,7 +294,7 @@ Obligatoriu pentru MVP: da
 
 Milestone: interfață web simplă peste API-ul backend existent
 
-Status 2026-05-27: frontend-ul implementat anterior a fost șters intenționat, deoarece arăta prea generat și va fi reconstruit după clarificarea contractului backend.
+Status 2026-06-02: frontend-ul a fost reconstruit ca `SecureInbox`, cu UI în engleză, layout de inbox pe 3 panouri, randare HTML sanitizată și teste unitare.
 
 - [x] Documentare plan frontend pe termen lung (`docs/FRONTEND_PLAN.md`)
 - [x] Documentare taskuri mici pentru agenți (`docs/FRONTEND_AGENT_TASKS.md`)
@@ -326,9 +326,29 @@ Status 2026-05-27: frontend-ul implementat anterior a fost șters intenționat, 
 - [x] Curățare `frontent-raw/` după adaptarea UI-ului de auth
 - [x] Polish UX final pentru sidebar, dashboard, rapoarte și settings full width
 - [x] Ștergere folder `frontend/` pentru refacere ulterioară
-- [ ] Reconstruire frontend după decizia contractului API
+- [x] Reconstruire frontend după decizia contractului API
+- [x] UI `SecureInbox` în engleză, Gmail-only pentru MVP
+- [x] Layout desktop cu 3 panouri: filtre, listă emailuri, detaliu
+- [x] Randare `htmlBody` sanitizată cu blocare imagini remote
+- [x] Teste unitare frontend în `frontend/tests/unit`
+- [x] Teste unitare backend în `backend/tests/unit`
 
 Dependențe: Faza 13 și API backend stabil
+
+Obligatoriu pentru MVP: da
+
+## Faza 15 - Verificare finală și pregătire demo
+
+Milestone: aplicația poate fi demonstrată coerent cap-coadă
+
+- [x] Comandă teste backend: `npm --prefix backend test`
+- [x] Comandă teste frontend: `npm --prefix frontend test`
+- [x] Build frontend: `npm --prefix frontend run build`
+- [ ] Test manual cu utilizator real și Gmail conectat
+- [ ] Capturi pentru prezentare
+- [ ] Script demo scurt pentru coordonator
+
+Dependențe: Faza 14
 
 Obligatoriu pentru MVP: da
 
@@ -385,6 +405,6 @@ Obligatoriu pentru MVP: da
 
 ## Unde am rămas
 
-Ultimul punct finalizat: frontend-ul existent a fost șters, iar backend-ul a fost analizat pe fișiere și endpoint-uri în `docs/BACKEND_REVIEW.md`.
+Ultimul punct finalizat: frontend-ul `SecureInbox` a fost reconstruit peste contractul backend, cu teste unitare backend/frontend.
 
-Următorul pas recomandat: răspuns la întrebările din `docs/BACKEND_REVIEW.md`, apoi curățare backend neesențială pentru MVP înainte de reconstruirea frontend-ului.
+Următorul pas recomandat: test manual cap-coadă cu backend, frontend, MongoDB și Gmail conectat.

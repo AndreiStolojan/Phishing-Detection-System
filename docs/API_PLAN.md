@@ -35,14 +35,15 @@ Prefix recomandat pentru API:
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/api/v1/auth/register` | Creează cont nou | `name`, `email`, `password` | user minim + token sau mesaj de succes | Nu |
 | `POST` | `/api/v1/auth/login` | Autentifică utilizatorul | `email`, `password` | token JWT + user minim | Nu |
-| `POST` | `/api/v1/auth/logout` | Închide sesiunea în client | fără body | mesaj de succes | Nu |
+
+Notă: în MVP nu există endpoint backend pentru logout. Frontend-ul face logout prin ștergerea tokenului JWT din storage local.
 
 ## Users
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/v1/users/me` | Profil utilizator | fără body | date profil | Da |
-| `PATCH` | `/api/v1/users/me` | Actualizează setări simple | câmpuri editabile | utilizator actualizat | Da |
+| `PATCH` | `/api/v1/users/me` | Actualizează profilul minim | `name` | utilizator actualizat | Da |
 | `PATCH` | `/api/v1/users/me/ai-settings` | Pornește/oprește AI pentru scanările viitoare ale utilizatorului | `aiEnabled: 0 sau 1` | `aiEnabled` boolean | Da |
 | `GET` | `/api/v1/users` | Listează utilizatori (admin) | fără body | listă utilizatori | Da (admin) |
 | `GET` | `/api/v1/users/:id` | Detalii utilizator (admin) | param `id` | utilizator | Da (admin) |
@@ -50,20 +51,15 @@ Prefix recomandat pentru API:
 Contract pentru `PATCH /api/v1/users/me`:
 
 - endpoint-ul este protejat cu Bearer token;
-- acceptă `name`, `avatarDataUrl` sau ambele;
+- acceptă doar `name`;
 - `name` trebuie să aibă între 2 și 50 de caractere;
-- `avatarDataUrl` poate fi:
-  - `null` sau string gol pentru eliminarea avatarului;
-  - data URL `image/png`, `image/jpeg` sau `image/webp` în base64;
-- limita pentru `avatarDataUrl` este `700000` caractere;
-- răspunsul public al utilizatorului include `avatarDataUrl`, ca frontend-ul să poată afișa poza în topbar și în Settings.
+- avatarul nu face parte din contractul MVP curent.
 
 Exemplu:
 
 ```json
 {
-  "name": "Andrei",
-  "avatarDataUrl": "data:image/jpeg;base64,..."
+  "name": "Andrei"
 }
 ```
 
@@ -88,7 +84,7 @@ Contract pentru `PATCH /api/v1/users/me/ai-settings`:
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/v1/mail-accounts/google/start` | Generează URL-ul pentru conectarea Gmail | fără body | `authUrl` | Da |
-| `GET` | `/api/v1/mail-accounts/google/callback` | Procesează întoarcerea de la Google | query `code`, `state` | cont conectat | Nu |
+| `GET` | `/api/v1/mail-accounts/google/callback` | Procesează întoarcerea de la Google | query `code`, `state` | redirect frontend | Nu |
 | `GET` | `/api/v1/mail-accounts` | Listează conturile conectate | fără body | listă conturi | Da |
 | `PATCH` | `/api/v1/mail-accounts/:id/settings` | Actualizează setările locale ale contului | `syncMaxResults` | cont actualizat | Da |
 | `POST` | `/api/v1/mail-accounts/:id/sync` | Rulează sync manual pentru contul conectat și declanșează scanarea automată | param `id` | raport sync (`fetched`, `inserted`, `updated`, `skipped`) + `scanSummary` | Da |
@@ -101,6 +97,10 @@ Notă UI curentă:
 - Settings folosește `PATCH /api/v1/mail-accounts/:id/settings` pentru `syncMaxResults`;
 - Settings folosește `DELETE /api/v1/mail-accounts/:id` pentru deconectarea contului Gmail;
 - lista de emailuri poate trimite `mailAccountId` către `GET /api/v1/emails` ca filtru per cont.
+- callback-ul Google redirecționează către frontend:
+  - succes: `/dashboard?gmail=connected&account=<email>`;
+  - eroare: `/dashboard?gmail=error&code=<errorCode>`;
+  - baza URL se controlează prin `FRONTEND_APP_URL`, cu fallback local `http://localhost:5173`.
 
 ## Emails
 
@@ -108,7 +108,7 @@ Notă UI curentă:
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/v1/emails` | Listează emailurile salvate | query pentru filtrare și paginare | listă emailuri | Da |
 | `GET` | `/api/v1/emails/:id` | Detalii email | param `id` | email detaliat | Da |
-| `GET` | `/api/v1/emails/:id/raw` | Returnează varianta brută sau aproape brută | param `id` | conținut email | Da |
+| `GET` | `/api/v1/emails/:id/raw` | Returnează corpul emailului și câmpurile brute utile | param `id` | `textBody`, `htmlBody`, linkuri și metadata | Da |
 
 Contract de răspuns pentru `GET /api/v1/emails` și `GET /api/v1/emails/:id`:
 
@@ -119,6 +119,8 @@ Contract de răspuns pentru `GET /api/v1/emails` și `GET /api/v1/emails/:id`:
 - valorile acceptate pentru `riskBucket` sunt `safe`, `needs_review`, `quarantine`, `reviewed_safe`, `confirmed_phishing`, `unscanned`;
 - `pagination.total` respectă filtrele aplicate, inclusiv `verdict` și `riskBucket`;
 - endpoint-urile returnează datele emailului, `latestScan` compact și starea finală derivată pentru UI;
+- `GET /api/v1/emails/:id` nu returnează corpul complet al emailului;
+- frontend-ul cere corpul complet separat prin `GET /api/v1/emails/:id/raw`;
 - câmpurile de review manual sunt `userVerdict`, `reviewedAt`, `lastManualAction`;
 - câmpurile derivate sunt `reviewStatus`, `effectiveVerdict`, `verdictSource`, `isQuarantined`, `riskBucket`;
 - `userVerdict` poate fi `safe`, `phishing` sau `null`;
@@ -424,9 +426,9 @@ Exemplu pentru eroare:
 ## Observații importante
 
 - Pentru MVP, strategia aleasă este `Bearer token` trimis în header-ul `Authorization`.
-- `logout` nu invalidează tokenul pe server, ci doar cere clientului să șteargă tokenul salvat local.
+- `logout` nu are endpoint backend în MVP; clientul șterge tokenul salvat local.
 - Endpoint-ul principal pentru identificarea utilizatorului curent rămâne `GET /api/v1/users/me` (fără `/auth/me`).
-- Profilul public al utilizatorului include `avatarDataUrl`; pentru MVP poza este salvată ca data URL comprimat, nu ca fișier separat.
+- Profilul public al utilizatorului nu include avatar în MVP-ul curent.
 - Flow-ul Gmail actual este bazat pe `google/start -> google/callback`.
 - Scope-ul Google OAuth folosit acum este `https://www.googleapis.com/auth/gmail.modify`, deoarece aplicația trebuie să poată muta manual un mesaj în Spam prin Gmail API.
 - Conturile Gmail conectate înainte de schimbarea de scope trebuie reconectate, altfel Google poate refuza acțiunea provider-side cu eroare de permisiuni insuficiente.

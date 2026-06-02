@@ -118,7 +118,7 @@ const toPublicMailAccount = (mailAccount) => ({
     updatedAt: mailAccount.updatedAt,
 });
 
-const normalizeSyncMaxResults = (value) => {
+export const normalizeSyncMaxResults = (value) => {
     if (value === undefined || value === null) {
         return SYNC_MAX_RESULTS_DEFAULT;
     }
@@ -271,7 +271,6 @@ const exchangeGoogleCodeForTokens = async (code) => {
                 payload.error_description || 'Failed to exchange Google authorization code',
                 400,
                 [],
-                'GOOGLE_TOKEN_EXCHANGE_FAILED'
             );
         }
 
@@ -285,7 +284,6 @@ const exchangeGoogleCodeForTokens = async (code) => {
             'Failed to reach Google token endpoint',
             502,
             ['Check your internet connection and Google OAuth configuration.'],
-            'GOOGLE_TOKEN_ENDPOINT_UNREACHABLE'
         );
     }
 };
@@ -298,7 +296,6 @@ const refreshGoogleAccessToken = async (mailAccount) => {
             'Google access token expired and refresh token is missing',
             401,
             ['Reconnect your Gmail account to continue sync.'],
-            'GOOGLE_REFRESH_TOKEN_MISSING'
         );
     }
 
@@ -318,7 +315,6 @@ const refreshGoogleAccessToken = async (mailAccount) => {
                 payload.error_description || payload.error || 'Failed to refresh Google access token',
                 401,
                 ['Reconnect your Gmail account and retry the sync.'],
-                'GOOGLE_TOKEN_REFRESH_FAILED'
             );
         }
 

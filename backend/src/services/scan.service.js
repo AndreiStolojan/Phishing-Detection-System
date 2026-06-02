@@ -81,7 +81,7 @@ const toPublicScan = (scan) => ({
     updatedAt: scan.updatedAt,
 });
 
-const mapScoreToVerdict = (score) => {
+export const mapScoreToVerdict = (score) => {
     if (score >= 60) {
         return 'likely_phishing';
     }

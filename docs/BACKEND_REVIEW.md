@@ -1,5 +1,7 @@
 # BACKEND REVIEW
 
+Notă 2026-06-02: acest document este istoric și descrie analiza din `2026-05-27`. Pentru starea curentă folosește mai întâi `docs/PROJECT_STATE.md`.
+
 ## Scop
 
 Acest document este analiza backend-ului la data de `2026-05-27`.
@@ -304,4 +306,3 @@ Nu recomand să trimitem `htmlBody` către frontend normal. Dacă e nevoie, îl 
 3. Pentru MVP, păstrăm admin endpoints și rolul `admin`, sau le mutăm la "după MVP"?
 4. Păstrăm `GET /api/v1/emails/:id/raw` doar pentru debugging, sau îl scoatem din API-ul public?
 5. Păstrăm trimiterea emailului de raport lunar (`POST /reports/monthly-summary/send`), sau pentru MVP este suficient doar raportul JSON?
-

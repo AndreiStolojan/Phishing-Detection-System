@@ -13,6 +13,65 @@ Format recomandat pentru deciziile viitoare:
 
 ## Decizii inițiale
 
+### 2026-06-02 - Frontend-ul MVP devine `SecureInbox`, un Security Inbox Gmail-only
+
+Motiv:
+
+- coordonatorul a cerut o abordare mai apropiată de o aplicație de email;
+- pentru MVP este realist să construim un inbox securizat peste Gmail, nu un înlocuitor complet pentru Gmail;
+- valoarea proiectului rămâne stratul de securitate: scor, verdict, motive, explicații și acțiuni de review.
+
+Impact:
+
+- frontend-ul este reconstruit în `frontend/` cu React + Vite + MUI;
+- UI-ul este în engleză;
+- primul ecran protejat este inbox-ul, nu un dashboard de marketing;
+- MVP-ul nu include compose, reply, forward, archive, delete, labels, read/unread sau threading complet.
+
+### 2026-06-02 - Emailurile HTML se afișează doar după sanitizare
+
+Motiv:
+
+- utilizatorul vrea o experiență mai apropiată de un email app, deci trebuie afișat `htmlBody`;
+- HTML-ul din email poate conține scripturi, event handlers, imagini remote sau conținut riscant;
+- pentru MVP este mai sigur să afișăm HTML curățat decât HTML brut.
+
+Impact:
+
+- frontend-ul folosește DOMPurify;
+- scripturile, formularele, iframe-urile și atributele riscante sunt eliminate;
+- linkurile se deschid în tab nou cu `noopener noreferrer`;
+- imaginile remote sunt blocate și înlocuite cu un indicator vizibil;
+- `textBody` rămâne fallback.
+
+### 2026-06-02 - Testele unitare sunt separate pe backend și frontend
+
+Motiv:
+
+- proiectul trebuie să poată fi verificat rapid prin comenzi clare;
+- backend-ul și frontend-ul au responsabilități diferite;
+- separarea reduce confuzia și păstrează structura proiectului explicită.
+
+Impact:
+
+- backend: `backend/tests/unit/`, comandă `npm --prefix backend test`;
+- frontend: `frontend/tests/unit/`, comandă `npm --prefix frontend test`;
+- testele backend acoperă stări email, praguri de scor, schema scan/email și `syncMaxResults`;
+- testele frontend acoperă formatări, API client, AuthContext, badge/list item, sanitizare HTML și acțiuni review.
+
+### 2026-06-02 - Contextul obligatoriu pentru agenți se reduce la două fișiere
+
+Motiv:
+
+- documentația istorică a crescut mult și poate încetini inutil un agent nou;
+- `docs/PROJECT_STATE.md` poate ține starea curentă compactă;
+- documentele vechi rămân utile, dar doar pentru taskuri specifice.
+
+Impact:
+
+- un agent nou citește mai întâi `AGENTS.md` și `docs/PROJECT_STATE.md`;
+- `API_PLAN.md`, `FRONTEND_PLAN.md`, `PHISHING_RULES.md`, `MANUAL_TESTS.md`, `DECISIONS.md` și `PROGRESS.md` devin lecturi specifice taskului.
+
 ### 2026-05-27 - Frontend-ul React + Vite se șterge și se reconstruiește ulterior
 
 Motiv:

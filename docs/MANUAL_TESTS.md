@@ -27,6 +27,7 @@ Variabile importante:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
+- `FRONTEND_APP_URL`, pentru redirect după Gmail callback
 - `EMAIL_FROM` și `EMAIL_PASSWORD`, doar pentru testul de digest email
 - `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_MS`, doar pentru testele AI
 
@@ -78,7 +79,7 @@ Body:
 {
   "name": "Test User",
   "email": "test-user@example.com",
-  "password": "parola123"
+  "password": "Password1!"
 }
 ```
 
@@ -97,7 +98,7 @@ Body:
 ```json
 {
   "email": "test-user@example.com",
-  "password": "parola123"
+  "password": "Password1!"
 }
 ```
 
@@ -107,12 +108,9 @@ Ce verifici:
 - salvezi tokenul pentru endpoint-urile protejate;
 - login cu parolă greșită întoarce `401`.
 
-### `POST /api/v1/auth/logout`
+### Logout
 
-Ce verifici:
-
-- răspunsul este de succes;
-- pentru MVP logout-ul nu invalidează tokenul pe server, ci frontend-ul va șterge tokenul local.
+Nu există endpoint backend pentru logout în MVP. Frontend-ul face logout prin ștergerea tokenului local.
 
 ## 3. Users
 
@@ -197,7 +195,9 @@ Pași:
 
 Ce verifici:
 
-- răspunsul spune că Gmail a fost conectat;
+- backend-ul conectează Gmail și redirecționează către frontend;
+- succesul ajunge la `/dashboard?gmail=connected`;
+- eroarea ajunge la `/dashboard?gmail=error&code=...`;
 - se salvează un `MailAccount` în MongoDB;
 - dacă ai conectat contul înainte de schimbarea la `gmail.modify`, reconectează-l.
 

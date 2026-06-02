@@ -71,6 +71,11 @@ const scanSchema = new mongoose.Schema(
             enum: ['manual', 'sync'],
             default: 'manual',
         },
+        engineVersion: {
+            type: String,
+            default: null,
+            trim: true,
+        },
         aiSignals: {
             type: mongoose.Schema.Types.Mixed,
             default: null,

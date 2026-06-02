@@ -13,10 +13,37 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-05-27`
-- Faza curentă: `Faza 13 - curățare backend și contract API pentru noul frontend`
-- Status general: auth-ul MVP este stabil, iar regula de parolă pentru register este acum mai strictă și verifică minuscule, majuscule, cifre și simboluri speciale, cu mesaje separate pentru fiecare cerință lipsă; tokenii Gmail sunt acum criptati la nivel de aplicație înainte de salvarea în MongoDB și decriptati doar când trebuie folosiți, cu o cheie obligatorie în env; Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, endpoint-urile de email expun starea finală derivată pentru UI cu riskBucket și afișează `aiExplanation` când există, mark-phishing salvează verdictul local și apoi încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, checklist-ul de testare manuală pentru backend a trecut anterior, backend-ul este izolat în `backend/`, frontend-ul existent a fost șters pe `2026-05-27`, iar următorul pas este decizia contractului API și curățarea codului backend neesențial înainte de reconstruirea frontend-ului.
+- Data ultimei actualizări: `2026-06-02`
+- Faza curentă: `Faza 14 - SecureInbox frontend și testare`
+- Status general: auth-ul MVP este stabil, tokenii Gmail sunt criptați la nivel de aplicație, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, endpoint-urile de email expun starea finală derivată pentru UI, mark-phishing salvează verdictul local și încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual, backend-ul este izolat în `backend/`, iar frontend-ul `SecureInbox` a fost reconstruit în `frontend/` cu React + Vite + MUI, UI în engleză, inbox cu filtre sus, search central, listă verticală, pagină separată de detaliu email, Gmail connect/disconnect în Settings, randare HTML sanitizată cu imagini vizibile și teste unitare.
 - Progres estimativ MVP: `99%`
+
+## Notă sesiune 2026-06-02 - Gmail în Settings
+
+- Data: `2026-06-02`
+- Ce s-a finalizat: conectarea Gmail a fost mutată în Settings, împreună cu deconectarea și setarea `syncMaxResults`.
+- Ce s-a ajustat: Inbox nu mai are card de conectare Gmail; conectarea/deconectarea se face din Settings.
+- Ce s-a ajustat în Status/Dashboard: pagina nu mai pornește OAuth direct; trimite utilizatorul către Settings dacă Gmail nu este conectat și afișează numele, nu emailul.
+- Ce s-a verificat: `npm --prefix frontend test` trece și `npm --prefix frontend run build` trece.
+- Următorul pas imediat: verificare manuală în browser pentru `Settings -> Connect Gmail`, apoi revenire în Inbox.
+
+## Notă sesiune 2026-06-02 - acțiune discretă de actualizare Inbox
+
+- Data: `2026-06-02`
+- Ce s-a finalizat: butonul plutitor din Inbox a fost eliminat; acțiunea de aducere a mesajelor noi este acum un icon discret integrat în bara de search.
+- Ce s-a ajustat în layout: titlul și subtitlul din Inbox au fost eliminate, controalele încep sus, iar lista se întinde pe lățimea și spațiul disponibil.
+- Ce s-a ajustat în copy: Inbox nu mai afișează text vizibil de tip `sync`; acțiunea este prezentată ca `Check for new mail`.
+- Ce s-a verificat: `npm --prefix frontend test` trece și `npm --prefix frontend run build` trece.
+- Următorul pas imediat: verificare vizuală în browser pentru Inbox cu Gmail conectat și neconectat.
+
+## Notă sesiune 2026-06-02 - redesign inbox frontend
+
+- Data: `2026-06-02`
+- Ce s-a finalizat: inbox-ul vechi cu 3 panouri a fost înlocuit cu un layout centralizat: filtre sus, search sub filtre, listă verticală de emailuri și navigare către pagina separată `/emails/:id`.
+- Ce s-a ajustat: pagina de detaliu email are săgeată de back în stânga sus, afișează metadata, scanarea, acțiunile de review și body-ul complet; imaginile din email nu mai sunt înlocuite cu text de tip `Remote image blocked`.
+- Ce s-a adăugat în UX atunci: ecranul de inbox afișa temporar conectarea/sync-ul Gmail; ulterior conectarea/deconectarea Gmail a fost mutată în Settings.
+- Ce s-a verificat: `npm --prefix frontend test` trece și `npm --prefix frontend run build` trece.
+- Următorul pas imediat: test manual în browser cu backend pornit: login, connect Gmail dacă este necesar, sync, deschidere email din listă și verificare body HTML.
 
 ## Notă sesiune 2026-04-24
 
@@ -235,6 +262,14 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Ce s-a clarificat: backend-ul acoperă fluxul MVP principal, dar merită simplificate zonele `mail-account.service.js`, `scan.service.js`, `email.service.js`, endpoint-urile de tip `contact`, avatarul de profil și rutele care au fost adăugate mai mult pentru frontend-ul vechi.
 - Următorul pas imediat: utilizatorul trebuie să decidă răspunsurile la întrebările din `docs/BACKEND_REVIEW.md`, apoi se poate trece la curățarea backend-ului în pași mici, fără reconstruirea frontend-ului încă.
 
+## Notă sesiune 2026-06-02 - SecureInbox frontend și contract stabilizat
+
+- Data: `2026-06-02`
+- Ce s-a finalizat: contractul backend a fost aliniat pentru frontend (`syncMaxResults` 1..50 cu default 10, `Scan.engineVersion`, `Email.syncSource`, profil `name` only, Gmail callback redirect către frontend), iar frontend-ul `SecureInbox` a fost reconstruit cu React + Vite + MUI.
+- Ce s-a adăugat: inbox pe 3 panouri, filtre de securitate, detaliu email, randare `htmlBody` sanitizată cu DOMPurify și blocare imagini remote, rapoarte, settings, teste unitare backend în `backend/tests/unit` și teste unitare frontend în `frontend/tests/unit`.
+- Ce s-a verificat: `npm --prefix backend run lint`, `npm --prefix backend test`, `npm --prefix frontend test` și `npm --prefix frontend run build` trec.
+- Următorul pas imediat: pornește backend-ul și frontend-ul local, apoi rulează testul manual cap-coadă cu Gmail conectat: `login -> connect Gmail -> sync -> inbox -> open email -> mark phishing -> reports`.
+
 ## Ce este gata
 
 - documentul principal de context;
@@ -252,7 +287,7 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - încărcare config din `dotenv`;
 - conexiune MongoDB de bază;
 - model `User` cu `passwordHash` și `role`;
-- endpoint-uri funcționale pentru `register`, `login`, `logout`;
+- endpoint-uri funcționale pentru `register` și `login`; logout-ul este local în frontend prin ștergerea tokenului;
 - middleware de auth și de erori;
 - middleware minim pentru roluri;
 - middleware de validare Joi pentru `register/login`;
@@ -333,12 +368,12 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - filtre pentru `GET /api/v1/emails` bazate pe starea finală expusă UI-ului: `verdict` filtrează după `effectiveVerdict`, iar `riskBucket` filtrează după gruparea finală;
 - `mark-phishing` salvează verdictul local înainte de acțiunea Gmail, deci eșecurile externe nu pierd `userVerdict: phishing`;
 - setare locală `syncMaxResults` pe `MailAccount`, cu interval valid `1..50` și default `10`;
-- avatar utilizator salvat în `User.avatarDataUrl` și returnat în profilul public;
+- profil utilizator minim cu `name`, `email`, `role` și `settings.aiEnabled`;
 - endpoint protejat `POST /api/v1/contact/message`, care trimite mesajul de contact către `EMAIL_FROM`;
 - endpoint `DELETE /api/v1/mail-accounts/:id` este folosit acum din Settings pentru deconectarea contului Gmail;
 - emailurile cu `userVerdict` sunt sărite la auto-rescan în flow-ul de sync, indiferent de schimbări de model sau `engineVersion`;
 - rutele `auth`, `users`, `mail-accounts`, `emails`, `meta`, `reports`, `scans`, `actions` și `contact` sunt montate în `app.js` sub prefixul `/api/v1`.
-- frontend-ul React + Vite a fost șters pe `2026-05-27` și va fi reconstruit ulterior după clarificarea contractului backend.
+- frontend-ul `SecureInbox` este reconstruit în `frontend/` peste API-ul backend stabilizat.
 
 ## Ce NU este încă început
 
@@ -351,11 +386,11 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 Ultimul lucru finalizat:
 
-- folderul `frontend/` a fost șters, iar analiza backend pentru simplificare și contract API a fost documentată în `docs/BACKEND_REVIEW.md`.
+- frontend-ul `SecureInbox` a fost reconstruit și contractul backend necesar pentru el a fost stabilizat.
 
 Următorul pas imediat recomandat:
 
-- decide ce endpoint-uri și funcționalități backend rămân în MVP, apoi curăță backend-ul înainte de reconstruirea frontend-ului.
+- test manual complet cu backend, frontend, MongoDB și Gmail conectat.
 
 ## Blocaje
 
@@ -363,9 +398,7 @@ Nu există blocaje tehnice majore cunoscute pentru backend.
 
 Rămân de finalizat:
 
-- decizia contractului API final pentru noul frontend;
-- curățarea codului backend neesențial pentru MVP;
-- documentația de rulare;
+- test manual cap-coadă cu Gmail real;
 - scenariul de demo și capturile pentru prezentare;
 - alegerea modelului Ollama final pentru demo, în funcție de latență și stabilitate locală.
 
