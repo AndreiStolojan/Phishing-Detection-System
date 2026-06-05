@@ -33,7 +33,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 3 (shell & navigare) — DONE**: Sidebar + BottomNav cu indicator activ traveling (`layoutId` bg + accent bar, spring), material frosted (backdrop-blur-xl), wordmark unic `SecureInbox`, status Gmail cu ping live, chevron pe user dropdown; PageTransition pe spring + scroll-reset la schimbare rută; MobileSync FAB cu AnimatePresence + whileTap + safe-area iPhone. Build curat.
 
-Următorul pas: Faza 4 — inbox & EmailRow (stagger entrance, ierarhie tipografică, monogram, emphasis risc quiet/loud, filter chips colorate + sliding indicator, search polish, sticky headers fix).
+- **Faza 4 (inbox & EmailRow) — DONE**: EmailRow rescris — `motion.create(Link)` cu stagger (delay pe index) + whileTap + focus-visible ring inset; leading = risk-icon tinted pentru loud, monogram colorat determinist pentru calm; ierarhie sender 15px / subject sm / snippet caption; bara stânga + badge doar pentru buckets loud (`tone.emphasis`), restul recede; chevron reveal la hover. InboxPage: filter chips segmented cu `layoutId` pill colorat pe tonă, counts ascunse la search; search cu clear + spinner + shortcut `/`; group headers calm (hairline, non-sticky → fix conflict overflow/sticky). InboxSkeleton mirror layout nou + shimmer; Pagination targets 36px. `lib/risk.js` are `tone.emphasis`. Build curat.
+
+Următorul pas: Faza 5 — verdict UI (VerdictBanner hero + reveal, ReviewActions cu Check animat + toast + optimistic, ScanDetails narativ, RiskBadge tooltip). Aici se repară și cele 3 teste ReviewActions.
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 

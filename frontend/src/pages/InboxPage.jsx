@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Inbox as InboxIcon, ShieldCheck } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, Inbox as InboxIcon, ShieldCheck, X, Loader2 } from 'lucide-react';
 
 import { InboxSkeleton, ErrorState, EmptyState } from '@/components/common/states';
 import { Pagination } from '@/components/common/Pagination';
@@ -14,8 +15,9 @@ import { getEmails } from '@/api/emailsApi';
 import { getMonthlySummary } from '@/api/reportsApi';
 import { normalizeEmailList } from '@/lib/email-list';
 import { emailId } from '@/lib/email';
-import { RISK_FILTERS } from '@/lib/risk';
+import { RISK_FILTERS, getRiskMeta } from '@/lib/risk';
 import { getDateGroupLabel } from '@/utils/formatDate';
+import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
@@ -42,9 +44,14 @@ const FILTER_COUNT_MAP = {
   safe: 'safe',
 };
 
+// Tone used to colour an active filter chip; null filter ("All") uses the brand.
+const filterHex = (key) => (key ? getRiskMeta(key).tone.hex : 'var(--color-primary)');
+const filterTextClass = (key) => (key ? getRiskMeta(key).tone.text : 'text-primary');
+
 export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isConnected, syncVersion } = useMailAccount();
+  const searchRef = useRef(null);
 
   const riskBucket = searchParams.get('riskBucket') || '';
   const rawSearch = searchParams.get('q') || '';
@@ -73,12 +80,31 @@ export function InboxPage() {
     `inbox-counts-${syncVersion}`
   );
   const counts = countsQuery.data?.counts || {};
+  // Counts come from the monthly summary, which can disagree with a search-scoped
+  // list — so only surface them when no search is active.
+  const showCounts = !debouncedSearch;
 
   const emails = normalizeEmailList(data);
   const totalPages = data?.pagination?.totalPages ?? (emails.length > 0 ? 1 : 0);
 
   const emailIds = emails.map(emailId);
+  const indexById = new Map(emailIds.map((id, i) => [id, i]));
   const groups = groupByDate(emails);
+
+  const searching = loading || searchInput !== debouncedSearch;
+
+  // "/" focuses the search box (unless already typing in a field)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '/') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const setParam = (updates) => {
     const next = new URLSearchParams(searchParams);
@@ -94,45 +120,79 @@ export function InboxPage() {
 
   const handleSearchChange = (e) => {
     setSearchInput(e.target.value);
-    // Reset page immediately when user types
     setParam({ q: e.target.value, page: '' });
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    setParam({ q: '', page: '' });
+    searchRef.current?.focus();
   };
 
   return (
     <>
       {/* Filter chips + search */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1">
           {RISK_FILTERS.map((filter) => {
+            const isActive = riskBucket === filter.key;
             const countKey = FILTER_COUNT_MAP[filter.key];
-            const count = countKey != null ? (counts[countKey] ?? null) : null;
+            const count = showCounts && countKey != null ? (counts[countKey] ?? null) : null;
+            const hex = filterHex(filter.key);
             return (
               <button
                 key={filter.key || 'all'}
                 onClick={() => setFilter(filter.key)}
                 className={cn(
-                  'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                  riskBucket === filter.key
-                    ? 'border-primary bg-primary/15 text-primary'
-                    : 'border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  'relative rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                  isActive ? filterTextClass(filter.key) : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {filter.label}
-                {count != null && count > 0 && (
-                  <span className="ml-1.5 opacity-70">({count})</span>
+                {isActive && (
+                  <motion.span
+                    layoutId="filter-pill"
+                    transition={springSoft}
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      backgroundColor: `color-mix(in oklab, ${hex} 16%, transparent)`,
+                      boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${hex} 38%, transparent)`,
+                    }}
+                  />
                 )}
+                <span className="relative">
+                  {filter.label}
+                  {count != null && count > 0 && (
+                    <span className="ml-1.5 opacity-70">({count})</span>
+                  )}
+                </span>
               </button>
             );
           })}
         </div>
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={searchRef}
             value={searchInput}
             onChange={handleSearchChange}
-            placeholder="Search by sender or subject…"
-            className="pl-9"
+            placeholder="Search sender or subject…  (press /)"
+            className="pl-9 pr-9"
           />
+          {searchInput && (
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+              {searching ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : (
+                <button
+                  onClick={clearSearch}
+                  aria-label="Clear search"
+                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -161,16 +221,15 @@ export function InboxPage() {
         <Card className="overflow-hidden">
           {groups.map(({ label, emails: groupEmails }) => (
             <div key={label}>
-              <div className="sticky top-0 z-10 border-b border-border/60 bg-card/95 px-4 py-1.5 backdrop-blur">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {label}
-                </p>
+              <div className="border-b border-border/60 bg-card/40 px-4 py-2">
+                <p className="label-overline">{label}</p>
               </div>
               <div className="divide-y divide-border/60">
                 {groupEmails.map((email) => (
                   <EmailRow
                     key={email.id || email._id}
                     email={email}
+                    index={indexById.get(emailId(email)) ?? 0}
                     linkState={{ ids: emailIds }}
                   />
                 ))}

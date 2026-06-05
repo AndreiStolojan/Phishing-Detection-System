@@ -14,7 +14,7 @@ export function Pagination({ page, totalPages, onPage }) {
           onClick={() => onPage(page - 1)}
           disabled={page <= 1}
           className={cn(
-            'flex h-7 w-7 items-center justify-center rounded border border-border text-muted-foreground transition-colors',
+            'flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors',
             page <= 1
               ? 'cursor-not-allowed opacity-40'
               : 'hover:bg-accent hover:text-accent-foreground'
@@ -43,7 +43,7 @@ export function Pagination({ page, totalPages, onPage }) {
                 key={p}
                 onClick={() => onPage(p)}
                 className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded border text-xs font-medium transition-colors',
+                  'flex h-9 w-9 items-center justify-center rounded-md border text-xs font-medium transition-colors',
                   p === page
                     ? 'border-primary bg-primary/15 text-primary'
                     : 'border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -58,7 +58,7 @@ export function Pagination({ page, totalPages, onPage }) {
           onClick={() => onPage(page + 1)}
           disabled={page >= totalPages}
           className={cn(
-            'flex h-7 w-7 items-center justify-center rounded border border-border text-muted-foreground transition-colors',
+            'flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors',
             page >= totalPages
               ? 'cursor-not-allowed opacity-40'
               : 'hover:bg-accent hover:text-accent-foreground'
