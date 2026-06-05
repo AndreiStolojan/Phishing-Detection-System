@@ -1,28 +1,38 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 
 import { MailAccountProvider, useMailAccount } from '@/context/MailAccountContext';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { PageTransition } from './PageTransition';
+import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 function MobileSync() {
   const { isConnected, syncing, sync } = useMailAccount();
-  if (!isConnected) return null;
   return (
-    <button
-      onClick={sync}
-      disabled={syncing}
-      aria-label="Sync inbox"
-      className={cn(
-        'fixed bottom-[72px] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-border/60 bg-card shadow-md transition-opacity md:hidden',
-        syncing ? 'opacity-60' : 'opacity-100'
+    <AnimatePresence>
+      {isConnected && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={springSoft}
+          whileTap={{ scale: 0.9 }}
+          onClick={sync}
+          disabled={syncing}
+          aria-label="Sync inbox"
+          className={cn(
+            'fixed right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border/60 bg-card surface-overlay md:hidden',
+            'bottom-[calc(5rem+env(safe-area-inset-bottom))]',
+            syncing && 'opacity-70'
+          )}
+        >
+          <RefreshCw className={cn('h-5 w-5 text-primary', syncing && 'animate-spin')} />
+        </motion.button>
       )}
-    >
-      <RefreshCw className={cn('h-4 w-4 text-foreground', syncing && 'animate-spin')} />
-    </button>
+    </AnimatePresence>
   );
 }
 
@@ -33,7 +43,7 @@ export function AppShell() {
     <MailAccountProvider>
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <main className="flex min-w-0 flex-1 flex-col px-5 py-6 pb-24 md:pb-6">
+        <main className="flex min-w-0 flex-1 flex-col px-5 py-6 pb-28 md:pb-8">
           <div className="mx-auto w-full max-w-6xl space-y-6">
             <AnimatePresence mode="wait" initial={false}>
               <PageTransition key={location.pathname}>
