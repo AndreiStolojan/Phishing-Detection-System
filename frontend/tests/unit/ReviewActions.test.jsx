@@ -1,37 +1,41 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import ReviewActions from '../../src/components/security/ReviewActions.jsx';
+import { ReviewActions } from '../../src/components/security/ReviewActions.jsx';
+import * as actionsApi from '../../src/api/actionsApi.js';
+
+vi.mock('../../src/api/actionsApi.js', () => ({
+  markEmailSafe: vi.fn().mockResolvedValue({ userVerdict: 'safe' }),
+  markEmailPhishing: vi.fn().mockResolvedValue({ userVerdict: 'phishing' }),
+}));
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('ReviewActions', () => {
-  it('calls security action handlers', async () => {
-    const onRescan = vi.fn();
-    const onMarkSafe = vi.fn();
-    const onMarkPhishing = vi.fn();
+  it('marks an email as safe and reports the result', async () => {
+    const onReviewed = vi.fn();
+    render(<ReviewActions email={{ id: 'e1' }} onReviewed={onReviewed} />);
 
-    render(
-      <ReviewActions
-        onRescan={onRescan}
-        onMarkSafe={onMarkSafe}
-        onMarkPhishing={onMarkPhishing}
-      />
-    );
+    await userEvent.click(screen.getByRole('button', { name: /mark safe/i }));
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rescan' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Mark safe' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Mark phishing' }));
-
-    expect(onRescan).toHaveBeenCalledTimes(1);
-    expect(onMarkSafe).toHaveBeenCalledTimes(1);
-    expect(onMarkPhishing).toHaveBeenCalledTimes(1);
+    expect(actionsApi.markEmailSafe).toHaveBeenCalledWith('e1');
+    await waitFor(() => expect(onReviewed).toHaveBeenCalledTimes(1));
   });
 
-  it('disables actions while loading', () => {
-    render(<ReviewActions loading onRescan={vi.fn()} onMarkSafe={vi.fn()} onMarkPhishing={vi.fn()} />);
+  it('marks an email as phishing', async () => {
+    render(<ReviewActions email={{ id: 'e2' }} onReviewed={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Rescan' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Mark safe' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Mark phishing' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /mark phishing/i }));
+
+    expect(actionsApi.markEmailPhishing).toHaveBeenCalledWith('e2');
+  });
+
+  it('disables a button once the email has that verdict', () => {
+    render(<ReviewActions email={{ id: 'e3', userVerdict: 'safe' }} onReviewed={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /marked safe/i })).toBeDisabled();
   });
 });
