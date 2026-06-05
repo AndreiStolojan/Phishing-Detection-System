@@ -41,7 +41,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 7 (dashboard posture-first) — DONE**: PostureHero band ca focal point ("You're protected"/"N need attention" + CTA), RiskDonut mărit cu center = safe % + legend hover-linked cu procente, StatCard rescris (count-up de la valoarea precedentă nu de la 0, reduced-motion guard, linkate la filtre cu hover lift + ArrowUpRight), attention list cu EmailRow compact, DashboardSkeleton mirror nou. Build + 20 teste curat.
 
-Următorul pas: Faza 8 — reports (month stepper, TopRulesChart pe severitate, AI Failed neutral, hero stat, send-report success, ReportsSkeleton).
+- **Faza 8 (reports) — DONE**: PageHeader + month stepper themed (prev/label/next, next blocat la luna curentă); TopRulesChart colorat pe severitate + LabelList valori + tooltip custom (occurrences + pts) + cursor soft; AI "Failed" devine neutral (nu mai e amber de risc); send-report cu success state pe buton + linie "Last emailed"; ReportsSkeleton nou; eliminat double error surface; fix `staggerIndex`→`index` la StatCard (rămas din Faza 7). Build + 20 teste curat.
+
+Următorul pas: Faza 9 — Settings + Login (AlertDialog pe disconnect, grouped-list, toggle rows; Login cu entrance spring, ambient background, morph sign-in↔register, password strength, naming SecureInbox).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 
