@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, ScanLine, UserCheck } from 'lucide-react';
 
 import { getRiskMeta } from '@/lib/risk';
-import { springSnappy, springSoft } from '@/lib/motion';
+import { ease, springSnappy, springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 export function VerdictBanner({ riskBucket, verdictSource }) {
@@ -33,7 +33,7 @@ export function VerdictBanner({ riskBucket, verdictSource }) {
           <motion.span
             initial={{ opacity: 0.45, scale: 0.85 }}
             animate={{ opacity: 0, scale: 1.7 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
+            transition={{ duration: 0.7, ease }}
             className="pointer-events-none absolute left-6 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full blur-lg"
             style={{ backgroundColor: tone.hex }}
           />
