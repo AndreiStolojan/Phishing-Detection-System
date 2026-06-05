@@ -1,5 +1,16 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Inbox, BarChart3, Settings, ShieldCheck, LogOut, RefreshCw, MailX } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  LayoutDashboard,
+  Inbox,
+  BarChart3,
+  Settings,
+  ShieldCheck,
+  LogOut,
+  RefreshCw,
+  MailX,
+  ChevronsUpDown,
+} from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -12,6 +23,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useMailAccount } from '@/context/MailAccountContext';
+import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 const NAV = [
@@ -28,41 +40,65 @@ const initials = (name, email) => {
   return source.slice(0, 2).toUpperCase();
 };
 
+function NavItem({ to, label, icon: Icon }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        cn(
+          'block rounded-lg outline-none transition-colors',
+          isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+        )
+      }
+    >
+      {({ isActive }) => (
+        <motion.span
+          whileTap={{ scale: 0.97 }}
+          className={cn(
+            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+            !isActive && 'hover:bg-accent'
+          )}
+        >
+          {isActive && (
+            <>
+              <motion.span
+                layoutId="sidebar-active"
+                transition={springSoft}
+                className="absolute inset-0 rounded-lg bg-primary/12 ring-1 ring-inset ring-primary/15"
+              />
+              <motion.span
+                layoutId="sidebar-accent"
+                transition={springSoft}
+                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+              />
+            </>
+          )}
+          <Icon className="relative h-4.5 w-4.5 shrink-0" />
+          <span className="relative">{label}</span>
+        </motion.span>
+      )}
+    </NavLink>
+  );
+}
+
 export function Sidebar() {
   const { user, logout } = useAuth();
   const { account, isConnected, syncing, sync } = useMailAccount();
 
   return (
-    <aside className="hidden w-52 shrink-0 flex-col border-r border-border bg-card/40 md:flex sticky top-0 h-screen overflow-y-auto">
+    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:flex">
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-inset ring-primary/20">
           <ShieldCheck className="h-5 w-5" />
         </div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">XAI Phishing Shield</p>
-          <p className="text-[11px] text-muted-foreground">SecureInbox</p>
-        </div>
+        <p className="text-[15px] font-semibold tracking-tight">SecureInbox</p>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 px-3 py-2">
-        {NAV.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              )
-            }
-          >
-            <Icon className="h-4.5 w-4.5" />
-            {label}
-          </NavLink>
+        {NAV.map((item) => (
+          <NavItem key={item.to} {...item} />
         ))}
       </nav>
 
@@ -73,7 +109,10 @@ export function Sidebar() {
         </p>
         {isConnected ? (
           <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-risk-safe" />
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-risk-safe/60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-risk-safe" />
+            </span>
             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {account.email}
             </span>
@@ -89,7 +128,7 @@ export function Sidebar() {
         ) : (
           <NavLink
             to="/settings"
-            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <MailX className="h-3.5 w-3.5 shrink-0" />
             Connect Gmail
@@ -108,6 +147,7 @@ export function Sidebar() {
               <p className="truncate text-sm font-medium">{user?.name || 'User'}</p>
               <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
             </div>
+            <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>

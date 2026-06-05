@@ -1,5 +1,8 @@
 import { NavLink } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { LayoutDashboard, Inbox, BarChart3, Settings } from 'lucide-react';
+
+import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 const NAV = [
@@ -11,29 +14,36 @@ const NAV = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center border-t border-border bg-card/95 backdrop-blur md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-border bg-card/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
       {NAV.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
           to={to}
-          className={({ isActive }) =>
-            cn(
-              'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors',
-              isActive ? 'text-primary' : 'text-muted-foreground'
-            )
-          }
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 pb-2 pt-2.5 text-[10px] font-medium"
         >
           {({ isActive }) => (
             <>
-              <span
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-xl transition-colors',
-                  isActive && 'bg-primary/15'
-                )}
+              <motion.span
+                whileTap={{ scale: 0.88 }}
+                className="relative flex h-8 w-12 items-center justify-center rounded-xl"
               >
-                <Icon className="h-5 w-5" />
+                {isActive && (
+                  <motion.span
+                    layoutId="bottomnav-active"
+                    transition={springSoft}
+                    className="absolute inset-0 rounded-xl bg-primary/15"
+                  />
+                )}
+                <Icon
+                  className={cn(
+                    'relative h-5 w-5 transition-colors',
+                    isActive ? 'text-primary' : 'text-muted-foreground'
+                  )}
+                />
+              </motion.span>
+              <span className={cn('transition-colors', isActive ? 'text-primary' : 'text-muted-foreground')}>
+                {label}
               </span>
-              {label}
             </>
           )}
         </NavLink>

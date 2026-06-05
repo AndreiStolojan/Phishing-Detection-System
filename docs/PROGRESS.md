@@ -31,7 +31,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 2 (primitive shared) — DONE**: Button cu `active:scale-[0.97]` + token primary-hover/active + size `icon-sm`; Card cu `surface-raised` (shadow + inner highlight) + prop `interactive`; Input + Textarea nou cu focus ring soft (primary/25) + caret-primary; Switch iOS-grade (h-7 w-12, thumb 24px); Skeleton cu shimmer sweep (`@keyframes shimmer`); AlertDialog nou (`@radix-ui/react-alert-dialog`); PageHeader pe `text-h2` + `eyebrow`. Build curat, doar cele 3 teste ReviewActions pre-existente pică.
 
-Următorul pas: Faza 3 — shell & navigare (Sidebar/BottomNav traveling indicator, PageTransition spring + scroll-reset, adoptare PageHeader pe pagini).
+- **Faza 3 (shell & navigare) — DONE**: Sidebar + BottomNav cu indicator activ traveling (`layoutId` bg + accent bar, spring), material frosted (backdrop-blur-xl), wordmark unic `SecureInbox`, status Gmail cu ping live, chevron pe user dropdown; PageTransition pe spring + scroll-reset la schimbare rută; MobileSync FAB cu AnimatePresence + whileTap + safe-area iPhone. Build curat.
+
+Următorul pas: Faza 4 — inbox & EmailRow (stagger entrance, ierarhie tipografică, monogram, emphasis risc quiet/loud, filter chips colorate + sliding indicator, search polish, sticky headers fix).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 
