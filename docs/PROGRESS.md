@@ -14,9 +14,9 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 ## Snapshot curent
 
 - Data ultimei actualizări: `2026-06-06`
-- Faza curentă: `Faza 22 - UI Premium Upgrade (Apple-grade)` — în lucru
-- Status general: backend 100% stabil, MVP ~99% complet. În desfășurare: transformare UI premium (plan în `docs/UI_PREMIUM_PLAN.md`, audit brut în `docs/archive/`). Checkpoint de siguranță pushed înainte de start.
-- Progres estimativ MVP: `100%` backend · `95%` produs final
+- Faza curentă: `Faza 22 - UI Premium Upgrade` — COMPLETĂ (toate 11 faze)
+- Status general: backend 100% stabil, MVP ~99%. UI premium Apple-grade livrat integral (Fazele 1-11). Build frontend curat, 20/20 teste frontend, 12/12 teste backend. Rămas: verificare vizuală cap-coadă de Andrei (Gmail real) + capturi demo.
+- Progres estimativ MVP: `100%` backend · `97%` produs final
 - Deadline: ~2026-06-17 (draft lucrare)
 
 ## Notă sesiune 2026-06-06 - UI Premium Upgrade (Faza 22)
@@ -47,7 +47,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 10 (motion sweep & cleanup) — DONE**: easing string `'easeOut'` din VerdictBanner glow → `ease` shared; `animate-pulse` din loading-ul "Needs attention" → `Skeleton` shimmer; reduced-motion acoperit (MotionConfig + guard CSS); nicio referință `staggerIndex` rămasă. Frontend nu are script `lint` → gate = build + 20 teste (curat).
 
-Următorul pas: Faza 11 — template-uri email premium (shell comun welcome/digest/alert, CTA cu link, hexes risc canonice, dark-mode variant, English).
+- **Faza 11 (template-uri email) — DONE**: shell email comun dark on-brand (welcome/digest/alert) cu bulletproof tables + culori inline; CTA cu deep-link (digest→/dashboard, alert→/inbox?riskBucket=quarantine) via `FRONTEND_APP_URL`; hexes risc canonice; eliminat gradient purple/red + emoji siren; digest cu hero safe-rate % + grid 2×2 + top rules; engleză peste tot; preheader + footer brand + an dinamic. send-email welcome → en-GB. Backend 12/12 teste, render check OK.
+
+**FAZA 22 COMPLETĂ — toate 11 faze livrate.** Următorul pas: Andrei verifică vizual cap-coadă cu Gmail real (`npm --prefix frontend run dev` + backend), apoi capturi demo pentru coordonator.
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 

@@ -609,19 +609,21 @@ Regulă de ordine: fundație întâi (tokens/type/motion) → primitive shared �
 - [x] **Faza 8 — Reports**: PageHeader + month stepper (prev/label/next, next dezactivat la luna curentă); TopRulesChart colorat pe severitate (frac din top), LabelList cu valori, tooltip custom (occurrences + pts), cursor soft; AI "Failed" neutral (text-foreground, nu risk-review amber); send-report cu success state pe buton (Check + "Emailed") + linie "Last emailed to …"; ReportsSkeleton; eliminat double error (doar toast); fix `staggerIndex`→`index` pe StatCard. Build + 20 teste curat 2026-06-06.
 - [x] **Faza 9 — Settings + Login**: Settings = coloană unică max-w-2xl, secțiuni cu icon chip + descriere, **Disconnect Gmail în AlertDialog (blocker rezolvat)**, toggle rows clickabile (label htmlFor) cu hover, Textarea nou la support, dirty-state pe sync save, status Gmail cu ping, stagger entry, PageHeader. Login = entrance spring + stagger (brand/form), ambient background dublu-glow + logo cu gradient/glow, morph sign-in↔register (AnimatePresence height pe name/confirm), password strength meter + ticks spring, autofocus email, error animat role=alert, naming `SecureInbox`. Build + 20 teste curat 2026-06-06. (AlertDialog + Textarea acum folosite, nu mai sunt dead code.)
 - [x] **Faza 10 — Motion sweep & cleanup**: easing-uri inline înlocuite cu `ease` din `lib/motion.js` (VerdictBanner glow); `animate-pulse` din dashboard attention-loading → `Skeleton` shimmer; reduced-motion acoperit global (`MotionConfig reducedMotion="user"` + guard CSS `prefers-reduced-motion` peste shimmer/ping); fără `staggerIndex` rămas; build + 20 teste curat. (Frontend nu are script lint — gate = build + teste.) 2026-06-06.
-- [ ] **Faza 11 — Template-uri email premium**: shell email comun (welcome/digest/alert), **CTA cu link (blocker)**, hexes risc canonice, kill gradient/emoji, dark-mode variant, digest hero cu safe-rate %. Fișiere: `backend/extras/notifications/email.template.js`, `send-email.js`, `config/env.js`.
+- [x] **Faza 11 — Template-uri email premium**: shell email comun dark on-brand (welcome/digest/alert), bulletproof tables + culori inline; **CTA cu deep-link** (digest→/dashboard, alert→/inbox?riskBucket=quarantine) folosind `FRONTEND_APP_URL` (deja în env); hexes risc canonice; eliminat gradient purple/red + emoji siren; digest cu hero safe-rate % + grid 2×2 risk + top rules; toate în engleză; preheader + footer brand + an dinamic. `send-email.js` welcome createdAt → en-GB. Backend 12/12 teste + render check OK 2026-06-06.
 
-### Întrebări deschise (de decis cu Andrei înainte de fazele relevante)
-- [ ] Dark-only pentru demo dar tokens theme-aware (recomandat) vs light mode acum?
-- [ ] Font: InterVariable self-hosted (recomandat) vs display face SF-like plătit?
-- [ ] Naming canonic: "SecureInbox" vs "XAI Phishing Shield"?
-- [ ] Cât de îndrăzneț pe motion/atmosferă (flourish-uri signature vs minimal pentru timeline)?
-- [ ] Dashboard: OK restructurare în posture hero + donut interactiv (center = safe%)?
-- [ ] Inbox: paginare numerică vs infinite scroll; features de triage mari sau doar polish?
-- [ ] Filter counts: ascunde la search (quick) vs counts scoped din backend?
-- [ ] Privacy gate: blochează imagini remote default pe buckets riscante?
-- [ ] Locale email: RO, EN, sau per-user?
-- [ ] Culoare phishing-CTA: rose quarantine + brick pentru confirmed (de notat în DECISIONS.md)?
+### Întrebări deschise — REZOLVATE (decizii Andrei 2026-06-05, în DECISIONS.md)
+- [x] Dark-only pentru demo, tokens theme-aware → dark-only (default aplicat)
+- [x] Font → InterVariable self-hosted
+- [x] Naming canonic → **SecureInbox** (aplicat peste tot)
+- [x] Cât de îndrăzneț pe motion → **full premium** (toate signature moves)
+- [x] Dashboard → **posture-first** (hero + donut center=safe%)
+- [x] Inbox → paginare numerică (păstrată) + polish (fără infinite scroll)
+- [x] Filter counts → ascunse la search (quick fix aplicat)
+- [x] Privacy gate → blochează imagini remote default pe buckets riscante (aplicat)
+- [x] Locale email → **English** (aplicat)
+- [x] Culoare phishing-CTA → rose quarantine / brick confirmed (aplicat + DECISIONS.md)
+
+**Faza 22 COMPLETĂ (toate 11 faze) 2026-06-06.** Build frontend curat, 20/20 teste frontend, 12/12 teste backend. Rămas: verificare vizuală cap-coadă de către Andrei cu Gmail real (paginile bogate au nevoie de backend + cont), capturi demo.
 
 Dependențe: Faza 21
 Obligatoriu pentru MVP: nu (MVP e ~99%) — îmbunătățire de calitate/prezentare pentru coordonator

@@ -1,71 +1,32 @@
-const welcomeTemplate = (userName, createdAt) => ({
-  subject: `Bine ai venit, ${userName}! 🎉`,
-  html: `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-    </head>
-    <body style="margin: 0; padding: 0; background-color: #f4f4f5;">
-      <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-        
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px 16px 0 0; padding: 40px; text-align: center;">
-          <div style="width: 80px; height: 80px; background-color: white; border-radius: 50%; margin: 0 auto 20px; line-height: 80px; font-size: 36px; font-weight: bold; color: #667eea;">
-            ${userName.charAt(0).toUpperCase()}
-          </div>
-          <h1 style="color: white; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px;">
-            Bine ai venit, ${userName}!
-          </h1>
-        </div>
+import { FRONTEND_APP_URL } from '../../src/config/env.js';
 
-        <div style="background-color: white; border-radius: 0 0 16px 16px; padding: 40px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          
-          <h2 style="font-family: 'Segoe UI', Arial, sans-serif; color: #333; margin-top: 0; font-size: 20px;">
-            🎊 Contul tău a fost creat cu succes!
-          </h2>
+/*
+  SecureInbox transactional emails — one shared, on-brand, bulletproof shell used
+  by the welcome, monthly digest, and phishing alert messages. Dark by default to
+  mirror the app, with every colour set inline so it renders consistently across
+  Gmail, Apple Mail, and Outlook. Risk hexes mirror src/lib/risk.js.
+*/
 
-          <p style="font-family: 'Segoe UI', Arial, sans-serif; color: #555; line-height: 1.6;">
-            Suntem încântați să te avem alături de noi. Contul tău este acum activ și gata de utilizare.
-          </p>
+const C = {
+  bg: '#0a0d14',
+  card: '#11151f',
+  inner: '#161d2b',
+  border: '#1f2838',
+  fg: '#e7ecf3',
+  muted: '#9aa6ba',
+  subtle: '#6b7689',
+  primary: '#3b9eff',
+  onPrimary: '#04111f',
+  safe: '#34c77b',
+  review: '#f0b429',
+  quarantine: '#f5506a',
+  phishing: '#c4313a',
+};
 
-          <div style="background-color: #f8f9fa; border-radius: 12px; padding: 20px; margin: 20px 0;">
-            <table style="width: 100%; font-family: 'Segoe UI', Arial, sans-serif;">
-              <tr>
-                <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; color: #666;">
-                  👤 Nume
-                </td>
-                <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; color: #333; font-weight: 600; text-align: right;">
-                  ${userName}
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 12px 0; color: #666;">
-                  📅 Data înregistrării
-                </td>
-                <td style="padding: 12px 0; color: #333; font-weight: 600; text-align: right;">
-                  ${createdAt}
-                </td>
-              </tr>
-            </table>
-          </div>
+const FONT =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
-          <div style="text-align: center; margin-top: 30px;">
-            <p style="font-family: 'Segoe UI', Arial, sans-serif; color: #666; font-size: 14px;">
-              Dacă ai întrebări, nu ezita să ne contactezi! 💬
-            </p>
-          </div>
-
-        </div>
-
-        <p style="text-align: center; font-family: 'Segoe UI', Arial, sans-serif; color: #999; font-size: 12px; margin-top: 30px;">
-          © 2026 Toate drepturile rezervate
-        </p>
-
-      </div>
-    </body>
-    </html>
-  `
-});
+const APP_URL = (FRONTEND_APP_URL || 'http://localhost:5173').replace(/\/$/, '');
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -77,11 +38,11 @@ const escapeHtml = (value) =>
 
 const formatNumber = (value) =>
   Number.isFinite(Number(value))
-    ? new Intl.NumberFormat('ro-RO').format(Number(value || 0))
+    ? new Intl.NumberFormat('en').format(Number(value || 0))
     : escapeHtml(value);
 
 const formatDate = (value) =>
-  new Intl.DateTimeFormat('ro-RO', {
+  new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -93,172 +54,235 @@ const formatDate = (value) =>
 const formatMonth = (month) => {
   const [year, monthValue] = String(month).split('-');
   const date = new Date(Date.UTC(Number(year), Number(monthValue) - 1, 1));
-
-  return new Intl.DateTimeFormat('ro-RO', {
+  return new Intl.DateTimeFormat('en', {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
   }).format(date);
 };
 
-const renderMetric = (label, value) => `
-  <tr>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #4b5563;">
-      ${escapeHtml(label)}
-    </td>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 700; text-align: right;">
-      ${formatNumber(value)}
-    </td>
-  </tr>
-`;
+/** Bulletproof CTA button. */
+const ctaButton = (label, href, bg = C.primary, color = C.onPrimary) => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0;">
+    <tr>
+      <td align="center" bgcolor="${bg}" style="border-radius:10px;">
+        <a href="${href}" target="_blank"
+           style="display:inline-block;padding:12px 24px;font-family:${FONT};font-size:14px;font-weight:600;line-height:1;color:${color};text-decoration:none;border-radius:10px;">
+          ${label}
+        </a>
+      </td>
+    </tr>
+  </table>`;
+
+/** Shared shell: branded header, accent strip, dark card, footer. */
+const shell = ({ preheader, accent = C.primary, title, eyebrow, body }) => `
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="supported-color-schemes" content="dark light">
+</head>
+<body style="margin:0;padding:0;background:${C.bg};">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">
+    ${escapeHtml(preheader || '')}
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.bg};">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">
+          <!-- Brand -->
+          <tr>
+            <td style="padding:0 4px 18px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:10px;">
+                    <div style="width:36px;height:36px;background:${C.primary};border-radius:10px;text-align:center;line-height:36px;font-family:${FONT};font-size:18px;font-weight:700;color:${C.onPrimary};">S</div>
+                  </td>
+                  <td style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.fg};">SecureInbox</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Card -->
+          <tr>
+            <td style="background:${C.card};border:1px solid ${C.border};border-radius:16px;overflow:hidden;">
+              <div style="height:3px;background:${accent};font-size:0;line-height:0;">&nbsp;</div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:28px;">
+                    ${eyebrow ? `<p style="margin:0 0 6px;font-family:${FONT};font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:${C.muted};">${escapeHtml(eyebrow)}</p>` : ''}
+                    ${title ? `<h1 style="margin:0 0 16px;font-family:${FONT};font-size:22px;line-height:1.25;font-weight:700;color:${C.fg};">${escapeHtml(title)}</h1>` : ''}
+                    ${body}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 8px;text-align:center;font-family:${FONT};font-size:12px;line-height:1.6;color:${C.subtle};">
+              SecureInbox — a security layer for your inbox.<br>
+              <a href="${APP_URL}/dashboard" target="_blank" style="color:${C.muted};text-decoration:underline;">Open SecureInbox</a>
+              &nbsp;·&nbsp; Manage emails in Settings → Notifications<br>
+              © ${new Date().getFullYear()} SecureInbox
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+const paragraph = (html) =>
+  `<p style="margin:0 0 14px;font-family:${FONT};font-size:15px;line-height:1.6;color:${C.fg};">${html}</p>`;
+
+const mutedLine = (html) =>
+  `<p style="margin:14px 0 0;font-family:${FONT};font-size:13px;line-height:1.6;color:${C.subtle};">${html}</p>`;
+
+const welcomeTemplate = (userName, createdAt) => ({
+  subject: `Welcome to SecureInbox, ${userName}`,
+  html: shell({
+    preheader: 'Your SecureInbox account is ready — connect Gmail to start scanning.',
+    accent: C.primary,
+    eyebrow: 'Welcome',
+    title: `You're all set, ${escapeHtml(userName)}`,
+    body: `
+      ${paragraph('Your account is ready. SecureInbox sits on top of your Gmail, scans every message for phishing signals, and gives each one a clear risk verdict — so you can read your inbox with confidence.')}
+      ${paragraph('Connect your Gmail to start syncing and scanning.')}
+      ${ctaButton('Open SecureInbox', `${APP_URL}/dashboard`)}
+      ${mutedLine(`Account created ${escapeHtml(createdAt)}.`)}
+    `,
+  }),
+});
+
+const renderMetric = (label, value, hex) => `
+  <td width="50%" style="padding:6px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;">
+      <tr>
+        <td style="padding:14px 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="padding-right:7px;"><div style="width:8px;height:8px;border-radius:50%;background:${hex};"></div></td>
+              <td style="font-family:${FONT};font-size:12px;color:${C.muted};">${escapeHtml(label)}</td>
+            </tr>
+          </table>
+          <p style="margin:6px 0 0;font-family:${FONT};font-size:24px;font-weight:700;color:${C.fg};">${formatNumber(value)}</p>
+        </td>
+      </tr>
+    </table>
+  </td>`;
 
 const renderRules = (rules = []) => {
   if (rules.length === 0) {
-    return '<p style="margin: 0; color: #6b7280;">Nu au fost declanșate reguli în această perioadă.</p>';
+    return `<p style="margin:0;font-family:${FONT};font-size:14px;color:${C.muted};">No rules were triggered this period.</p>`;
   }
-
   return `
-    <table style="width: 100%; border-collapse: collapse;">
-      ${rules.map((item) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      ${rules
+        .slice(0, 6)
+        .map(
+          (item) => `
         <tr>
-          <td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb; color: #374151;">
-            ${escapeHtml(item.rule)}
-          </td>
-          <td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 700; text-align: right;">
-            ${formatNumber(item.count)} apariții
-          </td>
-        </tr>
-      `).join('')}
-    </table>
-  `;
+          <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;color:${C.fg};">${escapeHtml(item.rule)}</td>
+          <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;font-weight:700;color:${C.fg};text-align:right;">${formatNumber(item.count)}×</td>
+        </tr>`
+        )
+        .join('')}
+    </table>`;
 };
 
 export const monthlyDigestTemplate = ({ summary, userName }) => {
   const monthLabel = formatMonth(summary.period.month);
   const counts = summary.counts;
   const ai = summary.ai;
-  const safeRate = counts.scannedEmails > 0
-    ? Math.round((counts.safe / counts.scannedEmails) * 100)
-    : 0;
+  const safeRate =
+    counts.scannedEmails > 0 ? Math.round((counts.safe / counts.scannedEmails) * 100) : 0;
+  const heroAccent = safeRate >= 80 ? C.safe : safeRate >= 50 ? C.review : C.quarantine;
 
   return {
-    subject: `Sumar lunar phishing - ${monthLabel}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-      </head>
-      <body style="margin: 0; padding: 0; background-color: #f3f4f6;">
-        <div style="max-width: 680px; margin: 0 auto; padding: 32px 18px; font-family: 'Segoe UI', Arial, sans-serif;">
-          <div style="background-color: #0f172a; color: #ffffff; padding: 28px 32px; border-radius: 8px 8px 0 0;">
-            <p style="margin: 0 0 8px; color: #cbd5e1; font-size: 14px;">Raport lunar de securitate</p>
-            <h1 style="margin: 0; font-size: 26px; line-height: 1.25;">Sumar phishing pentru ${escapeHtml(monthLabel)}</h1>
-          </div>
+    subject: `Your SecureInbox report — ${monthLabel}`,
+    html: shell({
+      preheader: `${safeRate}% of scanned messages were safe in ${monthLabel}.`,
+      accent: heroAccent,
+      eyebrow: 'Monthly report',
+      title: `Security summary for ${monthLabel}`,
+      body: `
+        ${paragraph(`Hi ${escapeHtml(userName)}, here's how SecureInbox protected your inbox this month.`)}
 
-          <div style="background-color: #ffffff; padding: 28px 32px; border-radius: 0 0 8px 8px;">
-            <p style="margin: 0 0 20px; color: #374151; line-height: 1.6;">
-              Salut, ${escapeHtml(userName)}. Acesta este sumarul manual generat pentru emailurile sincronizate și scanate în aplicație.
-            </p>
+        <!-- Hero: safe rate -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin:4px 0 12px;">
+          <tr><td style="padding:20px;text-align:center;">
+            <p style="margin:0;font-family:${FONT};font-size:40px;font-weight:700;line-height:1;color:${heroAccent};">${safeRate}%</p>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of ${formatNumber(counts.scannedEmails)} scanned messages were safe</p>
+          </td></tr>
+        </table>
 
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 26px;">
-              ${renderMetric('Emailuri sincronizate', counts.syncedEmails)}
-              ${renderMetric('Emailuri scanate', counts.scannedEmails)}
-              ${renderMetric('Emailuri sigure', counts.safe)}
-              ${renderMetric('Emailuri suspecte', counts.suspicious)}
-              ${renderMetric('Emailuri probabil phishing', counts.likelyPhishing)}
-              ${renderMetric('Emailuri în carantină', counts.quarantined)}
-              ${renderMetric('Emailuri revizuite manual', counts.reviewed)}
-              ${renderMetric('Rată emailuri sigure din scanări', `${safeRate}%`)}
-            </table>
+        <!-- 2x2 metric grid -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 -6px;">
+          <tr>
+            ${renderMetric('Safe', counts.safe, C.safe)}
+            ${renderMetric('Suspicious', counts.suspicious, C.review)}
+          </tr>
+          <tr>
+            ${renderMetric('Likely phishing', counts.likelyPhishing, C.quarantine)}
+            ${renderMetric('Confirmed phishing', counts.markedPhishing, C.phishing)}
+          </tr>
+        </table>
 
-            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; margin-bottom: 22px;">
-              <h2 style="margin: 0 0 14px; color: #111827; font-size: 18px;">Reguli declanșate frecvent</h2>
-              ${renderRules(summary.topTriggeredRules)}
-            </div>
+        <h2 style="margin:24px 0 12px;font-family:${FONT};font-size:16px;font-weight:600;color:${C.fg};">Top triggered rules</h2>
+        ${renderRules(summary.topTriggeredRules)}
 
-            <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 22px;">
-              <h2 style="margin: 0 0 12px; color: #1e3a8a; font-size: 18px;">Status analiză semantică locală</h2>
-              <p style="margin: 0; color: #1f2937; line-height: 1.6;">
-                Evaluări reușite: <strong>${formatNumber(ai.evaluated)}</strong>,
-                eșuate: <strong>${formatNumber(ai.failed)}</strong>,
-                dezactivate: <strong>${formatNumber(ai.disabled)}</strong>.
-              </p>
-            </div>
+        ${mutedLine(`Local AI analysis — evaluated: <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong>, failed: <strong style="color:${C.fg};">${formatNumber(ai.failed)}</strong>, skipped: <strong style="color:${C.fg};">${formatNumber(ai.disabled)}</strong>.`)}
 
-            <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
-              Perioadă: ${escapeHtml(summary.period.from)} - ${escapeHtml(summary.period.to)}.
-              Generat la: ${escapeHtml(formatDate(summary.generatedAt))}.
-            </p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+        <div style="margin-top:20px;">${ctaButton('Open dashboard', `${APP_URL}/dashboard`)}</div>
+
+        ${mutedLine(`Period: ${escapeHtml(summary.period.from)} – ${escapeHtml(summary.period.to)}. Generated ${escapeHtml(formatDate(summary.generatedAt))}.`)}
+      `,
+    }),
   };
 };
 
 export const phishingAlertTemplate = ({ userName, emails, detectedAt }) => {
   const emailCount = emails.length;
-  const subjectLine = emailCount === 1
-    ? `[SecureInbox] Phishing email detected in your inbox`
-    : `[SecureInbox] ${emailCount} phishing emails detected in your inbox`;
+  const subject =
+    emailCount === 1
+      ? '[SecureInbox] Phishing email detected in your inbox'
+      : `[SecureInbox] ${emailCount} phishing emails detected in your inbox`;
 
-  const emailRows = emails.map((email) => `
-    <tr>
-      <td style="padding: 10px 12px; border-bottom: 1px solid #fca5a5; color: #7f1d1d; font-size: 14px; word-break: break-word;">
-        <strong>${escapeHtml(email.subject || '(no subject)')}</strong><br>
-        <span style="font-size: 12px; color: #991b1b;">From: ${escapeHtml(email.from || 'unknown')}</span>
-      </td>
-    </tr>
-  `).join('');
+  const rows = emails
+    .map(
+      (email) => `
+      <tr>
+        <td style="padding:12px 14px;border-bottom:1px solid ${C.border};">
+          <p style="margin:0;font-family:${FONT};font-size:14px;font-weight:600;color:${C.fg};">${escapeHtml(email.subject || '(no subject)')}</p>
+          <p style="margin:3px 0 0;font-family:${FONT};font-size:12px;color:${C.muted};">From: ${escapeHtml(email.from || 'unknown sender')}</p>
+        </td>
+      </tr>`
+    )
+    .join('');
 
   return {
-    subject: subjectLine,
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="UTF-8"></head>
-      <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: 'Segoe UI', Arial, sans-serif;">
-        <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-          <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); border-radius: 16px 16px 0 0; padding: 36px 40px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 12px;">🚨</div>
-            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">
-              Phishing Alert
-            </h1>
-            <p style="color: #fca5a5; margin: 8px 0 0; font-size: 15px;">
-              SecureInbox detected a high-risk email in your inbox
-            </p>
-          </div>
-          <div style="background: white; border-radius: 0 0 16px 16px; padding: 36px 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
-            <p style="color: #374151; font-size: 15px; line-height: 1.6; margin-top: 0;">
-              Hi <strong>${escapeHtml(userName)}</strong>,
-            </p>
-            <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-              SecureInbox flagged <strong>${emailCount} email${emailCount > 1 ? 's' : ''}</strong> as <strong style="color: #dc2626;">likely phishing</strong> during the latest sync on ${escapeHtml(detectedAt)}.
-            </p>
-            <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; margin: 24px 0; overflow: hidden;">
-              <div style="background: #fee2e2; padding: 10px 16px;">
-                <strong style="color: #991b1b; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">
-                  Flagged Email${emailCount > 1 ? 's' : ''}
-                </strong>
-              </div>
-              <table style="width: 100%; border-collapse: collapse;">
-                ${emailRows}
-              </table>
-            </div>
-            <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-              Please open SecureInbox and review these emails. Do <strong>not</strong> click any links or download attachments until you have verified they are safe.
-            </p>
-            <p style="color: #9ca3af; font-size: 12px; margin-bottom: 0;">
-              You are receiving this alert because you have phishing alerts enabled in SecureInbox settings.
-              To disable alerts, go to <strong>Settings → Notifications</strong>.
-            </p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    subject,
+    html: shell({
+      preheader: `SecureInbox flagged ${emailCount} likely-phishing message${emailCount > 1 ? 's' : ''} — review before acting.`,
+      accent: C.quarantine,
+      eyebrow: 'Phishing alert',
+      title: emailCount === 1 ? 'A likely-phishing email was detected' : `${emailCount} likely-phishing emails were detected`,
+      body: `
+        ${paragraph(`Hi ${escapeHtml(userName)}, SecureInbox flagged <strong style="color:${C.quarantine};">${emailCount} message${emailCount > 1 ? 's' : ''}</strong> as likely phishing during the latest sync on ${escapeHtml(detectedAt)}.`)}
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;overflow:hidden;margin:4px 0 12px;">
+          ${rows}
+        </table>
+
+        ${paragraph(`Do <strong>not</strong> click links or download attachments until you've verified these messages are safe.`)}
+        ${ctaButton('Review in SecureInbox', `${APP_URL}/inbox?riskBucket=quarantine`, C.quarantine, '#ffffff')}
+        ${mutedLine('You receive this because phishing alerts are enabled. Turn them off in Settings → Notifications.')}
+      `,
+    }),
   };
 };
 

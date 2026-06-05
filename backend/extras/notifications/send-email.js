@@ -74,7 +74,7 @@ export const sendWelcomeEmail = async ({ email, userName }) => {
         throw new Error('User name is required');
     }
 
-    const createdAt = new Date().toLocaleDateString('ro-RO', {
+    const createdAt = new Date().toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
