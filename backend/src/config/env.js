@@ -36,6 +36,7 @@ export const {
     OLLAMA_MODEL,
     OLLAMA_TIMEOUT_MS,
     OLLAMA_PROMPT_VERSION,
+    SYNC_INTERVAL_MINUTES,
 } = process.env;
 
 export const FRONTEND_APP_URL = process.env.FRONTEND_APP_URL || 'http://localhost:5173';

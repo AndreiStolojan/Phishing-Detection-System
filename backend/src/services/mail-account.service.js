@@ -940,6 +940,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         syncErrors,
         scanSummary,
         syncedAt,
+        insertedEmailIds,
     };
 };
 

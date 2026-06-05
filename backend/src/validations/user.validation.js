@@ -33,3 +33,18 @@ export const updateAiSettingsSchema = Joi.object({
     .messages({
         'object.unknown': 'Unsupported field {{#label}}. Only "aiEnabled" can be updated.',
     });
+
+export const updateNotificationSettingsSchema = Joi.object({
+    alertsEnabled: Joi.number()
+        .valid(0, 1)
+        .required()
+        .messages({
+            'any.only': 'alertsEnabled must be 0 or 1',
+            'any.required': 'alertsEnabled is required',
+            'number.base': 'alertsEnabled must be 0 or 1',
+        }),
+})
+    .prefs({ allowUnknown: false, stripUnknown: false })
+    .messages({
+        'object.unknown': 'Unsupported field {{#label}}. Only "alertsEnabled" can be updated.',
+    });

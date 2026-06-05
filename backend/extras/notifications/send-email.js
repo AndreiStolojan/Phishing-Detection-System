@@ -1,6 +1,7 @@
 import { EMAIL_FROM } from '../../src/config/env.js';
 import {
     monthlyDigestTemplate,
+    phishingAlertTemplate,
 } from './email.template.js';
 import welcomeTemplate from './email.template.js';
 import {
@@ -201,4 +202,40 @@ export const sendContactMessageEmail = async ({ userName, userEmail, subject, me
             },
         };
     }
+};
+
+export const sendPhishingAlertEmail = async ({ recipient, userName, emails }) => {
+    if (!recipient) {
+        throw new Error('Recipient email is required');
+    }
+
+    const missing = getMissingEmailConfig();
+
+    if (missing.length > 0) {
+        return {
+            sent: false,
+            recipient,
+            error: {
+                code: 'EMAIL_CONFIG_MISSING',
+                message: `Email configuration is missing: ${missing.join(', ')}.`,
+                missing,
+            },
+        };
+    }
+
+    const detectedAt = new Date().toLocaleString('en-GB', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' });
+    const { subject, html } = phishingAlertTemplate({ userName, emails, detectedAt });
+    const transporter = createEmailTransporter();
+    const info = await transporter.sendMail({
+        from: EMAIL_FROM,
+        to: recipient,
+        subject,
+        html,
+    });
+
+    return {
+        sent: true,
+        messageId: info.messageId,
+        recipient,
+    };
 };

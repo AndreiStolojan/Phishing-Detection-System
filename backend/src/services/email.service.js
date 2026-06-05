@@ -37,13 +37,8 @@ const toCompactLatestScan = (scan) => {
     };
 };
 
-const toEmailListItem = async ({ userId, email }) => {
+const toEmailListItem = ({ email }) => {
     const latestScan = email.latestScan || null;
-    const emailState = await buildEmailStateForUser({
-        userId,
-        email,
-        latestScan,
-    });
 
     return {
         _id: email._id,
@@ -66,7 +61,14 @@ const toEmailListItem = async ({ userId, email }) => {
         createdAt: email.createdAt,
         updatedAt: email.updatedAt,
         latestScan: toCompactLatestScan(latestScan),
-        ...emailState,
+        userVerdict: email.userVerdict || null,
+        reviewedAt: email.reviewedAt || null,
+        lastManualAction: email.lastManualAction || null,
+        effectiveVerdict: email.effectiveVerdict || null,
+        verdictSource: email.verdictSource || null,
+        reviewStatus: email.reviewStatus || 'unscanned',
+        isQuarantined: email.isQuarantined || false,
+        riskBucket: email.riskBucket || 'unscanned',
     };
 };
 
@@ -486,6 +488,11 @@ export const getEmailsForUser = async ({ userId, query }) => {
                 createdAt: 1,
                 updatedAt: 1,
                 latestScan: 1,
+                effectiveVerdict: 1,
+                verdictSource: 1,
+                reviewStatus: 1,
+                isQuarantined: 1,
+                riskBucket: 1,
             },
         },
     ];
@@ -505,14 +512,7 @@ export const getEmailsForUser = async ({ userId, query }) => {
 
     const total = countResult[0]?.total || 0;
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
-    const emailItems = await Promise.all(
-        items.map((email) =>
-            toEmailListItem({
-                userId,
-                email,
-            })
-        )
-    );
+    const emailItems = items.map((email) => toEmailListItem({ email }));
 
     return {
         items: emailItems,
