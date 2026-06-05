@@ -35,7 +35,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 4 (inbox & EmailRow) — DONE**: EmailRow rescris — `motion.create(Link)` cu stagger (delay pe index) + whileTap + focus-visible ring inset; leading = risk-icon tinted pentru loud, monogram colorat determinist pentru calm; ierarhie sender 15px / subject sm / snippet caption; bara stânga + badge doar pentru buckets loud (`tone.emphasis`), restul recede; chevron reveal la hover. InboxPage: filter chips segmented cu `layoutId` pill colorat pe tonă, counts ascunse la search; search cu clear + spinner + shortcut `/`; group headers calm (hairline, non-sticky → fix conflict overflow/sticky). InboxSkeleton mirror layout nou + shimmer; Pagination targets 36px. `lib/risk.js` are `tone.emphasis`. Build curat.
 
-Următorul pas: Faza 5 — verdict UI (VerdictBanner hero + reveal, ReviewActions cu Check animat + toast + optimistic, ScanDetails narativ, RiskBadge tooltip). Aici se repară și cele 3 teste ReviewActions.
+- **Faza 5 (verdict UI) — DONE**: VerdictBanner = hero cu icon ring, accent stânga, glow one-shot doar pe loud, cross-fade `AnimatePresence` keyed pe riskBucket. ReviewActions rescris: butoane "Mark safe"/"Mark phishing" → "Marked …" cu Check animat (spring), toast Sonner (inclusiv "Moved to Gmail Spam"), flip optimistic cu rollback pe eroare; culoare action = rose quarantine, confirmed = brick. ScanDetails = narativ: AI explanation panel primar, notă fallback Ollama calmă (risk-review nu amber hardcoded), Evidence colapsabil (score bars animate din 0, total colorat pe tonă verdict). EmailDetailPage.handleReviewed nu mai face full-reload. **Cele 3 teste ReviewActions reparate — acum 18/18 trec.** Build curat.
+
+Următorul pas: Faza 6 — reading view (reguli `.email-body`, privacy gate imagini pe buckets riscante, keyboard nav, reading width, entrance spring; scoate dublu-collapse scan details).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 

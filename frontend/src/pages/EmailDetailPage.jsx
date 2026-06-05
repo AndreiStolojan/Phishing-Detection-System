@@ -60,8 +60,9 @@ export function EmailDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleReviewed = (result) => {
+    // Merge the server's updated email in place — no full reload, so the verdict
+    // banner and badge update instantly without a loading flash.
     setEmail((prev) => ({ ...prev, ...result }));
-    load();
   };
 
   const handleRescan = async () => {
