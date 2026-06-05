@@ -37,7 +37,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 5 (verdict UI) — DONE**: VerdictBanner = hero cu icon ring, accent stânga, glow one-shot doar pe loud, cross-fade `AnimatePresence` keyed pe riskBucket. ReviewActions rescris: butoane "Mark safe"/"Mark phishing" → "Marked …" cu Check animat (spring), toast Sonner (inclusiv "Moved to Gmail Spam"), flip optimistic cu rollback pe eroare; culoare action = rose quarantine, confirmed = brick. ScanDetails = narativ: AI explanation panel primar, notă fallback Ollama calmă (risk-review nu amber hardcoded), Evidence colapsabil (score bars animate din 0, total colorat pe tonă verdict). EmailDetailPage.handleReviewed nu mai face full-reload. **Cele 3 teste ReviewActions reparate — acum 18/18 trec.** Build curat.
 
-Următorul pas: Faza 6 — reading view (reguli `.email-body`, privacy gate imagini pe buckets riscante, keyboard nav, reading width, entrance spring; scoate dublu-collapse scan details).
+- **Faza 6 (reading view + privacy gate) — DONE**: `.email-body` cu reguli reale (headings/lists/blockquote/links/img/table/pre, `:where()` ca să nu bată stilurile inline din email); `sanitizeEmailHtml` întoarce acum `{html, blockedImages}` și are privacy gate (img remote + background-image + tracking pixels blocate pe buckets riscante); EmailBody afișează banner "Load images" (auto-load pe safe). EmailDetailPage: keyboard nav (←/k, →/j, Esc, guard input), header cu monogram + "n of total", surface de citire fără cutia dublă-border, ScanDetails inline (eliminat dublu-collapse — AI explanation mereu vizibil), re-scan cu toast. 20/20 teste (2 sanitize noi). Build curat.
+
+Următorul pas: Faza 7 — dashboard posture-first (hero band protejat/atenție, donut interactiv center=safe%, StatCard linkate, attention list slim).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Link2, Loader2, Paperclip, ScanLine } from 'lucide-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, ChevronLeft, ChevronRight, Link2, Loader2, Paperclip, ScanLine } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { LoadingState, ErrorState } from '@/components/common/states';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,8 @@ import { ReviewActions } from '@/components/security/ReviewActions';
 import { EmailBody } from '@/components/inbox/EmailBody';
 import { getEmail, getEmailRaw } from '@/api/emailsApi';
 import { getLatestScan, scanEmail } from '@/api/scansApi';
-import { getSenderName, getSenderAddress } from '@/lib/email';
+import { emailId, getSenderName, getSenderAddress, getSenderMonogram } from '@/lib/email';
 import { formatDateTime } from '@/utils/formatDate';
-import { cn } from '@/lib/utils';
 
 export function EmailDetailPage() {
   const { emailId: paramId } = useParams();
@@ -33,7 +32,6 @@ export function EmailDetailPage() {
   const [scan, setScan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [scanExpanded, setScanExpanded] = useState(true);
   const [showAllLinks, setShowAllLinks] = useState(false);
   const [rescanning, setRescanning] = useState(false);
 
@@ -57,7 +55,33 @@ export function EmailDetailPage() {
     }
   }, [paramId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const navTo = useCallback(
+    (id) => navigate(`/inbox/${id}`, { state: { ids } }),
+    [navigate, ids]
+  );
+
+  // Keyboard navigation: ←/k prev, →/j next, Esc back (ignored while typing)
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if ((e.key === 'ArrowLeft' || e.key === 'k') && prevId) {
+        e.preventDefault();
+        navTo(prevId);
+      } else if ((e.key === 'ArrowRight' || e.key === 'j') && nextId) {
+        e.preventDefault();
+        navTo(nextId);
+      } else if (e.key === 'Escape') {
+        navigate(-1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [prevId, nextId, navTo, navigate]);
 
   const handleReviewed = (result) => {
     // Merge the server's updated email in place — no full reload, so the verdict
@@ -68,14 +92,15 @@ export function EmailDetailPage() {
   const handleRescan = async () => {
     setRescanning(true);
     try {
-      await scanEmail(email.id || email._id);
+      await scanEmail(emailId(email));
       await load();
+      toast.success('Re-scan complete');
+    } catch (err) {
+      toast.error(err.message || 'Re-scan failed.');
     } finally {
       setRescanning(false);
     }
   };
-
-  const navTo = (id) => navigate(`/inbox/${id}`, { state: { ids } });
 
   if (loading && !email) return <LoadingState label="Loading message…" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
@@ -87,6 +112,14 @@ export function EmailDetailPage() {
   const visibleLinks = showAllLinks ? links : links.slice(0, LINKS_PREVIEW);
   const hiddenLinksCount = links.length - LINKS_PREVIEW;
 
+  const senderName = getSenderName(email);
+  const senderAddress = getSenderAddress(email);
+  const showAddress =
+    senderAddress && senderAddress !== senderName && !senderName.includes(senderAddress);
+  const { letter, hue } = getSenderMonogram(email);
+  const total = ids.length;
+  const position = currentIdx >= 0 ? currentIdx + 1 : null;
+
   return (
     <>
       {/* Nav bar: back + prev/next */}
@@ -97,23 +130,26 @@ export function EmailDetailPage() {
         </Button>
         {(prevId || nextId) && (
           <div className="flex items-center gap-1">
+            {position && total > 1 && (
+              <span className="mr-1 text-xs tabular-nums text-muted-foreground">
+                {position} of {total}
+              </span>
+            )}
             <Button
               variant="ghost"
-              size="icon"
-              className="h-8 w-8"
+              size="icon-sm"
               disabled={!prevId}
-              onClick={() => navTo(prevId)}
-              title="Previous message"
+              onClick={() => prevId && navTo(prevId)}
+              title="Previous message (←)"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-8 w-8"
+              size="icon-sm"
               disabled={!nextId}
-              onClick={() => navTo(nextId)}
-              title="Next message"
+              onClick={() => nextId && navTo(nextId)}
+              title="Next message (→)"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -124,28 +160,25 @@ export function EmailDetailPage() {
       {/* 1. Verdict — first thing you read */}
       <VerdictBanner riskBucket={email.riskBucket} verdictSource={email.verdictSource} />
 
-      {/* 2. Subject + sender + date — clean single block */}
-      <div className="space-y-1 border-b border-border/60 pb-4">
-        <h1 className="text-xl font-semibold leading-snug">
-          {email.subject || '(no subject)'}
-        </h1>
-        {(() => {
-          const senderName = getSenderName(email);
-          const senderAddress = getSenderAddress(email);
-          const showAddress = senderAddress && senderAddress !== senderName && !senderName.includes(senderAddress);
-          return (
-            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
-              <span className="font-medium text-foreground/90">{senderName}</span>
-              {showAddress && (
-                <span className="min-w-0 truncate text-muted-foreground">
-                  &lt;{senderAddress}&gt;
-                </span>
-              )}
-              <span className="text-border">·</span>
-              <span className="text-muted-foreground">{formatDateTime(email.receivedAt)}</span>
-            </div>
-          );
-        })()}
+      {/* 2. Subject + sender + date */}
+      <div className="flex items-start gap-3 border-b border-border/60 pb-4">
+        <span
+          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+          style={{ backgroundColor: `hsl(${hue} 36% 20%)`, color: `hsl(${hue} 72% 74%)` }}
+        >
+          {letter}
+        </span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <h1 className="text-h3 font-semibold leading-snug">{email.subject || '(no subject)'}</h1>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
+            <span className="font-medium text-foreground/90">{senderName}</span>
+            {showAddress && (
+              <span className="min-w-0 truncate text-muted-foreground">&lt;{senderAddress}&gt;</span>
+            )}
+            <span className="text-border">·</span>
+            <span className="text-muted-foreground">{formatDateTime(email.receivedAt)}</span>
+          </div>
+        </div>
       </div>
 
       {/* 3. Email body (left) + security panel (right, sticky) */}
@@ -153,10 +186,12 @@ export function EmailDetailPage() {
         {/* Message */}
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <Card className="min-w-0">
-            <CardContent className="pt-5">
-              <div className="overflow-x-auto rounded-lg border border-border/60 bg-background/40 p-4">
-                <EmailBody htmlBody={raw?.htmlBody} textBody={raw?.textBody} />
-              </div>
+            <CardContent className="overflow-x-auto pt-5">
+              <EmailBody
+                htmlBody={raw?.htmlBody}
+                textBody={raw?.textBody}
+                riskBucket={email.riskBucket}
+              />
             </CardContent>
           </Card>
 
@@ -207,7 +242,7 @@ export function EmailDetailPage() {
           )}
         </div>
 
-        {/* Security panel: Review first, then collapsible scan details */}
+        {/* Security panel: review, re-scan, then scan details */}
         <div className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           <Card>
             <CardHeader>
@@ -218,7 +253,6 @@ export function EmailDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Re-scan */}
           <Button
             variant="ghost"
             size="sm"
@@ -234,37 +268,7 @@ export function EmailDetailPage() {
             {rescanning ? 'Scanning…' : 'Re-scan this message'}
           </Button>
 
-          {/* Collapsible scan details */}
-          {scan && (
-            <div>
-              <button
-                onClick={() => setScanExpanded(!scanExpanded)}
-                className="flex w-full items-center justify-between rounded-md px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <span>Scan details</span>
-                <ChevronDown
-                  className={cn(
-                    'h-3.5 w-3.5 transition-transform duration-200',
-                    !scanExpanded && '-rotate-90'
-                  )}
-                />
-              </button>
-              <AnimatePresence initial={false}>
-                {scanExpanded && (
-                  <motion.div
-                    key="scan-details"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeInOut' }}
-                    className="overflow-hidden"
-                  >
-                    <ScanDetails scan={scan} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+          {scan && <ScanDetails scan={scan} />}
         </div>
       </div>
     </>
