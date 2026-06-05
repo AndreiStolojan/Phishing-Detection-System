@@ -1,10 +1,12 @@
 import { cn } from '@/lib/utils';
 
-function Card({ className, ...props }) {
+function Card({ className, interactive = false, ...props }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-border bg-card text-card-foreground shadow-sm',
+        'rounded-xl border border-border bg-card text-card-foreground surface-raised',
+        interactive &&
+          'transition-[transform,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/10',
         className
       )}
       {...props}
