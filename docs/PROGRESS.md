@@ -43,7 +43,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 8 (reports) — DONE**: PageHeader + month stepper themed (prev/label/next, next blocat la luna curentă); TopRulesChart colorat pe severitate + LabelList valori + tooltip custom (occurrences + pts) + cursor soft; AI "Failed" devine neutral (nu mai e amber de risc); send-report cu success state pe buton + linie "Last emailed"; ReportsSkeleton nou; eliminat double error surface; fix `staggerIndex`→`index` la StatCard (rămas din Faza 7). Build + 20 teste curat.
 
-Următorul pas: Faza 9 — Settings + Login (AlertDialog pe disconnect, grouped-list, toggle rows; Login cu entrance spring, ambient background, morph sign-in↔register, password strength, naming SecureInbox).
+- **Faza 9 (Settings + Login) — DONE**: SettingsPage = coloană unică max-w-2xl, secțiuni cu icon chip + descriere + PageHeader, **Disconnect Gmail acum în AlertDialog (blocker rezolvat)**, toggle rows clickabile cu hover, Textarea nou la support, dirty-state pe sync save, status Gmail cu ping live, stagger entry. LoginPage = entrance spring + stagger, ambient dublu-glow + logo gradient/glow, morph sign-in↔register (AnimatePresence pe name/confirm/rules), password strength meter + ticks spring, autofocus, error animat role=alert, naming `SecureInbox`. AlertDialog + Textarea acum folosite. Build + 20 teste curat.
+
+Următorul pas: Faza 10 — motion sweep & cleanup (tot motion din lib/motion.js, verificare reduced-motion, lint + teste + build, update docs), apoi Faza 11 — template-uri email premium.
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 
