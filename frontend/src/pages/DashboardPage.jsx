@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   ScanLine,
   ShieldAlert,
@@ -12,10 +11,11 @@ import {
 } from 'lucide-react';
 
 import { DashboardSkeleton, ErrorState, EmptyState } from '@/components/common/states';
+import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RiskDonut } from '@/components/dashboard/RiskDonut';
 import { EmailRow } from '@/components/inbox/EmailRow';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/useApi';
@@ -24,59 +24,8 @@ import { getMonthlySummary } from '@/api/reportsApi';
 import { getEmails } from '@/api/emailsApi';
 import { normalizeEmailList } from '@/lib/email-list';
 import { formatDateTime } from '@/utils/formatDate';
-import { springSoft } from '@/lib/motion';
-import { cn } from '@/lib/utils';
 
-function PostureHero({ attention, lastSync }) {
-  const safe = attention === 0;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={springSoft}
-      className={cn(
-        'relative overflow-hidden rounded-2xl border px-6 py-7',
-        safe ? 'border-risk-safe/25 bg-risk-safe-soft' : 'border-risk-quarantine/30 bg-risk-quarantine-soft'
-      )}
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <span
-          className={cn(
-            'flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl',
-            safe ? 'bg-risk-safe/15 text-risk-safe' : 'bg-risk-quarantine/15 text-risk-quarantine'
-          )}
-        >
-          {safe ? <ShieldCheck className="h-7 w-7" /> : <ShieldAlert className="h-7 w-7" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1
-            className={cn(
-              'text-h2 font-semibold sm:text-h1',
-              safe ? 'text-risk-safe' : 'text-risk-quarantine'
-            )}
-          >
-            {safe
-              ? "You're protected"
-              : `${attention} message${attention > 1 ? 's' : ''} need${attention > 1 ? '' : 's'} your attention`}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {safe
-              ? 'No high-risk messages right now.'
-              : 'Likely phishing detected in your inbox — review and act.'}
-            {lastSync && ` · Last sync ${formatDateTime(lastSync)}`}
-          </p>
-        </div>
-        {!safe && (
-          <Button asChild className="shrink-0">
-            <Link to="/inbox?riskBucket=quarantine">
-              Review now <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        )}
-      </div>
-    </motion.div>
-  );
-}
+const thisMonth = () => new Date().toLocaleString('en', { month: 'long', year: 'numeric' });
 
 export function DashboardPage() {
   const { account, isConnected, syncVersion } = useMailAccount();
@@ -144,12 +93,75 @@ export function DashboardPage() {
 
   return (
     <>
-      <PostureHero attention={attention} lastSync={lastSynced} />
+      <PageHeader
+        eyebrow={thisMonth()}
+        title="Overview"
+        description={
+          lastSynced ? `Last synced ${formatDateTime(lastSynced)}` : 'Your inbox security at a glance'
+        }
+        actions={
+          attention > 0 ? (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="border-risk-quarantine/40 text-risk-quarantine hover:bg-risk-quarantine-soft hover:text-risk-quarantine"
+            >
+              <Link to="/inbox?riskBucket=quarantine">
+                <ShieldAlert className="h-4 w-4" />
+                {attention} need{attention > 1 ? '' : 's'} attention
+              </Link>
+            </Button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-risk-safe/30 bg-risk-safe-soft px-3 py-1.5 text-xs font-medium text-risk-safe">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              All clear
+            </span>
+          )
+        }
+      />
 
+      {/* Key numbers this month */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          icon={ScanLine}
+          label="Scanned"
+          value={counts.scannedEmails ?? 0}
+          hint={`${counts.syncedEmails ?? 0} synced`}
+          tone="text-primary"
+        />
+        <StatCard
+          icon={ShieldAlert}
+          label="Likely phishing"
+          value={counts.quarantined ?? 0}
+          hint="In quarantine"
+          tone="text-risk-quarantine"
+          to="/inbox?riskBucket=quarantine"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Suspicious"
+          value={counts.suspicious ?? 0}
+          hint="Needs review"
+          tone="text-risk-review"
+          to="/inbox?riskBucket=needs_review"
+        />
+        <StatCard
+          icon={ShieldX}
+          label="Confirmed"
+          value={counts.markedPhishing ?? 0}
+          hint="Marked by you"
+          tone="text-risk-phishing"
+          to="/inbox?riskBucket=confirmed_phishing"
+        />
+      </div>
+
+      {/* Breakdown + attention */}
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Risk breakdown</CardTitle>
+            <CardDescription>{thisMonth()}</CardDescription>
           </CardHeader>
           <CardContent>
             <RiskDonut data={donutData} centerValue={`${safeRate}%`} centerLabel="safe" />
@@ -187,52 +199,13 @@ export function DashboardPage() {
               />
             ) : (
               <div className="divide-y divide-border/60">
-                {risky.slice(0, 5).map((email, i) => (
-                  <EmailRow key={email.id || email._id} email={email} index={i} compact />
+                {risky.slice(0, 5).map((email) => (
+                  <EmailRow key={email.id || email._id} email={email} compact />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
-      </div>
-
-      {/* Secondary breakdown — quick links into the inbox filters */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          icon={ScanLine}
-          label="Scanned"
-          value={counts.scannedEmails ?? 0}
-          hint={`${counts.syncedEmails ?? 0} synced`}
-          tone="text-primary"
-          index={0}
-        />
-        <StatCard
-          icon={ShieldAlert}
-          label="Likely phishing"
-          value={counts.quarantined ?? 0}
-          hint="In quarantine"
-          tone="text-risk-quarantine"
-          to="/inbox?riskBucket=quarantine"
-          index={1}
-        />
-        <StatCard
-          icon={AlertTriangle}
-          label="Suspicious"
-          value={counts.suspicious ?? 0}
-          hint="Needs review"
-          tone="text-risk-review"
-          to="/inbox?riskBucket=needs_review"
-          index={2}
-        />
-        <StatCard
-          icon={ShieldX}
-          label="Confirmed"
-          value={counts.markedPhishing ?? 0}
-          hint="Marked by you"
-          tone="text-risk-phishing"
-          to="/inbox?riskBucket=confirmed_phishing"
-          index={3}
-        />
       </div>
     </>
   );

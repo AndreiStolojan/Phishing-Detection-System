@@ -88,7 +88,6 @@ export function InboxPage() {
   const totalPages = data?.pagination?.totalPages ?? (emails.length > 0 ? 1 : 0);
 
   const emailIds = emails.map(emailId);
-  const indexById = new Map(emailIds.map((id, i) => [id, i]));
   const groups = groupByDate(emails);
 
   const searching = loading || searchInput !== debouncedSearch;
@@ -229,7 +228,6 @@ export function InboxPage() {
                   <EmailRow
                     key={email.id || email._id}
                     email={email}
-                    index={indexById.get(emailId(email)) ?? 0}
                     linkState={{ ids: emailIds }}
                   />
                 ))}
