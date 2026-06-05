@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -13,6 +12,7 @@ const toPublicUser = (user) => ({
     role: user.role,
     settings: {
         aiEnabled: Boolean(user.settings?.aiEnabled),
+        alertsEnabled: Boolean(user.settings?.alertsEnabled),
     },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
@@ -24,40 +24,24 @@ const buildAuthResponse = (user, token) => ({
 });
 
 export const registerUser = async ({ name, email, password }) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const existingUser = await User.findOne({ email });
 
-    try {
-        const existingUser = await User.findOne({ email });
-
-        if (existingUser) {
-            throw createError('User already exists', 409, [], 'USER_ALREADY_EXISTS');
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        const createdUsers = await User.create(
-            [{ name, email, passwordHash: hashedPassword, role: 'user' }],
-            { session }
-        );
-
-        const createdUser = createdUsers[0];
-        const token = jwt.sign(
-            { userId: createdUser._id },
-            JWT_SECRET,
-            { expiresIn: JWT_EXPIRES_IN }
-        );
-
-        await session.commitTransaction();
-
-        return buildAuthResponse(createdUser, token);
-    } catch (error) {
-        await session.abortTransaction();
-        throw error;
-    } finally {
-        session.endSession();
+    if (existingUser) {
+        throw createError('User already exists', 409, [], 'USER_ALREADY_EXISTS');
     }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const createdUser = await User.create({ name, email, passwordHash: hashedPassword, role: 'user' });
+
+    const token = jwt.sign(
+        { userId: createdUser._id },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    return buildAuthResponse(createdUser, token);
 };
 
 export const loginUser = async ({ email, password }) => {

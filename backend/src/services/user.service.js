@@ -61,12 +61,33 @@ export const updateCurrentUserAiSettings = async (authenticatedUserId, payload) 
 
     user.settings = {
         ...user.settings?.toObject?.(),
-        aiEnabled: payload.aiEnabled === 1,
+        aiEnabled: Boolean(payload.aiEnabled),
     };
 
     await user.save();
 
     return {
         aiEnabled: user.settings.aiEnabled,
+    };
+};
+
+export const updateCurrentUserNotificationSettings = async (authenticatedUserId, payload) => {
+    const user = await User.findById(authenticatedUserId);
+
+    if (!user) {
+        const error = new Error('User not found');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    user.settings = {
+        ...user.settings?.toObject?.(),
+        alertsEnabled: Boolean(payload.alertsEnabled),
+    };
+
+    await user.save();
+
+    return {
+        alertsEnabled: user.settings.alertsEnabled,
     };
 };

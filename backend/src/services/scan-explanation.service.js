@@ -114,10 +114,8 @@ export const buildControlledRomanianExplanation = ({
 
 export const buildControlledRomanianExplanationObject = ({
     verdict,
-}) => {
-    const summary = verdictToSentence[verdict] || verdictToSentence.safe;
-
-    return {
-        summary,
-    };
-};
+    triggeredRules,
+    aiSignals,
+}) => ({
+    summary: buildControlledRomanianExplanation({ verdict, triggeredRules, aiSignals }),
+});

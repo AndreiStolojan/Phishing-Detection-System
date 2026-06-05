@@ -5,7 +5,7 @@ import {
 } from '../config/env.js';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
-const DEFAULT_OLLAMA_MODEL = OLLAMA_MODEL
+const DEFAULT_OLLAMA_MODEL = OLLAMA_MODEL || 'gemma3:4b'
 const DEFAULT_OLLAMA_TIMEOUT_MS = 10000;
 const MAX_EXPLANATION_TIMEOUT_MS = 10000;
 const PROMPT_VERSION = 'explanation-v2';

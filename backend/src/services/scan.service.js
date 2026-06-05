@@ -277,10 +277,6 @@ const calculateAiScoreFromSignals = (aiSignals) => {
         });
     }
 
-    if (aiScore > 30) {
-        aiScore = 30;
-    }
-
     return {
         aiScore,
         aiReasons,
@@ -624,58 +620,50 @@ export const runSyncScanPipeline = async ({
         failedCount: 0,
     };
 
-    for (const emailId of uniqueInsertedIds) {
-        if (reviewedEmailIds.has(emailId)) {
-            summary.skippedCount += 1;
-            summary.skippedReviewedCount += 1;
-            continue;
-        }
-
-        try {
-            const result = await scanEmailWithRules({
-                userId,
-                emailId,
-                scanSource: 'sync',
-                skipIfCurrentEngineExists: false,
-            });
-
-            if (result.status === 'scanned') {
-                summary.scannedCount += 1;
-                summary.scannedInsertedCount += 1;
-            } else {
-                summary.skippedCount += 1;
-                summary.skippedAlreadyCurrentCount += 1;
+    const insertedResults = await Promise.all(
+        uniqueInsertedIds.map(async (emailId) => {
+            if (reviewedEmailIds.has(emailId)) return { outcome: 'skipped_reviewed' };
+            try {
+                const result = await scanEmailWithRules({
+                    userId,
+                    emailId,
+                    scanSource: 'sync',
+                    skipIfCurrentEngineExists: false,
+                });
+                return { outcome: result.status === 'scanned' ? 'scanned' : 'skipped_current' };
+            } catch {
+                return { outcome: 'failed' };
             }
-        } catch {
-            summary.failedCount += 1;
-        }
+        }),
+    );
+
+    const updatedResults = await Promise.all(
+        uniqueUpdatedIds.map(async (emailId) => {
+            if (reviewedEmailIds.has(emailId)) return { outcome: 'skipped_reviewed' };
+            try {
+                const result = await scanEmailWithRules({
+                    userId,
+                    emailId,
+                    scanSource: 'sync',
+                    skipIfCurrentEngineExists: true,
+                });
+                return { outcome: result.status === 'scanned' ? 'scanned' : 'skipped_current' };
+            } catch {
+                return { outcome: 'failed' };
+            }
+        }),
+    );
+
+    for (const { outcome } of insertedResults) {
+        if (outcome === 'scanned') { summary.scannedCount += 1; summary.scannedInsertedCount += 1; }
+        else if (outcome === 'failed') { summary.failedCount += 1; }
+        else { summary.skippedCount += 1; if (outcome === 'skipped_reviewed') summary.skippedReviewedCount += 1; else summary.skippedAlreadyCurrentCount += 1; }
     }
 
-    for (const emailId of uniqueUpdatedIds) {
-        if (reviewedEmailIds.has(emailId)) {
-            summary.skippedCount += 1;
-            summary.skippedReviewedCount += 1;
-            continue;
-        }
-
-        try {
-            const result = await scanEmailWithRules({
-                userId,
-                emailId,
-                scanSource: 'sync',
-                skipIfCurrentEngineExists: true,
-            });
-
-            if (result.status === 'scanned') {
-                summary.scannedCount += 1;
-                summary.scannedUpdatedCount += 1;
-            } else {
-                summary.skippedCount += 1;
-                summary.skippedAlreadyCurrentCount += 1;
-            }
-        } catch {
-            summary.failedCount += 1;
-        }
+    for (const { outcome } of updatedResults) {
+        if (outcome === 'scanned') { summary.scannedCount += 1; summary.scannedUpdatedCount += 1; }
+        else if (outcome === 'failed') { summary.failedCount += 1; }
+        else { summary.skippedCount += 1; if (outcome === 'skipped_reviewed') summary.skippedReviewedCount += 1; else summary.skippedAlreadyCurrentCount += 1; }
     }
 
     return summary;

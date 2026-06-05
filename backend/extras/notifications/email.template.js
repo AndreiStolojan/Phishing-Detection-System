@@ -198,4 +198,68 @@ export const monthlyDigestTemplate = ({ summary, userName }) => {
   };
 };
 
+export const phishingAlertTemplate = ({ userName, emails, detectedAt }) => {
+  const emailCount = emails.length;
+  const subjectLine = emailCount === 1
+    ? `[SecureInbox] Phishing email detected in your inbox`
+    : `[SecureInbox] ${emailCount} phishing emails detected in your inbox`;
+
+  const emailRows = emails.map((email) => `
+    <tr>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #fca5a5; color: #7f1d1d; font-size: 14px; word-break: break-word;">
+        <strong>${escapeHtml(email.subject || '(no subject)')}</strong><br>
+        <span style="font-size: 12px; color: #991b1b;">From: ${escapeHtml(email.from || 'unknown')}</span>
+      </td>
+    </tr>
+  `).join('');
+
+  return {
+    subject: subjectLine,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="UTF-8"></head>
+      <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: 'Segoe UI', Arial, sans-serif;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); border-radius: 16px 16px 0 0; padding: 36px 40px; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 12px;">🚨</div>
+            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">
+              Phishing Alert
+            </h1>
+            <p style="color: #fca5a5; margin: 8px 0 0; font-size: 15px;">
+              SecureInbox detected a high-risk email in your inbox
+            </p>
+          </div>
+          <div style="background: white; border-radius: 0 0 16px 16px; padding: 36px 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
+            <p style="color: #374151; font-size: 15px; line-height: 1.6; margin-top: 0;">
+              Hi <strong>${escapeHtml(userName)}</strong>,
+            </p>
+            <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+              SecureInbox flagged <strong>${emailCount} email${emailCount > 1 ? 's' : ''}</strong> as <strong style="color: #dc2626;">likely phishing</strong> during the latest sync on ${escapeHtml(detectedAt)}.
+            </p>
+            <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; margin: 24px 0; overflow: hidden;">
+              <div style="background: #fee2e2; padding: 10px 16px;">
+                <strong style="color: #991b1b; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">
+                  Flagged Email${emailCount > 1 ? 's' : ''}
+                </strong>
+              </div>
+              <table style="width: 100%; border-collapse: collapse;">
+                ${emailRows}
+              </table>
+            </div>
+            <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+              Please open SecureInbox and review these emails. Do <strong>not</strong> click any links or download attachments until you have verified they are safe.
+            </p>
+            <p style="color: #9ca3af; font-size: 12px; margin-bottom: 0;">
+              You are receiving this alert because you have phishing alerts enabled in SecureInbox settings.
+              To disable alerts, go to <strong>Settings → Notifications</strong>.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  };
+};
+
 export default welcomeTemplate;
