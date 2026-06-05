@@ -17,3 +17,14 @@ export const getSenderAddress = (email) => {
 
 export const getSnippet = (email) =>
   email?.snippet || email?.preview || email?.textPreview || '';
+
+/** Deterministic monogram (letter + hue) for a sender, so avatars are stable. */
+export const getSenderMonogram = (email) => {
+  const name = getSenderName(email);
+  const letter = (name.trim()[0] || '?').toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return { letter, hue: hash % 360 };
+};

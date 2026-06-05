@@ -64,21 +64,26 @@ export function EmptyState({ icon: Icon, title, description, action, className }
 
 /* ── Skeleton screens ─────────────────────────────────────── */
 
-export function InboxSkeleton({ rows = 10 }) {
+export function InboxSkeleton({ rows = 8 }) {
+  // Vary the line widths slightly so the skeleton reads like real content.
+  const widths = ['w-28', 'w-40', 'w-32', 'w-44', 'w-36', 'w-40', 'w-28', 'w-48'];
   return (
     <Card className="overflow-hidden">
+      <div className="border-b border-border/60 px-4 py-2">
+        <Skeleton className="h-3 w-16" />
+      </div>
       <div className="divide-y divide-border/60">
         {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="flex items-start gap-3 px-4 py-3" style={{ borderLeft: '3px solid transparent' }}>
+          <div key={i} className="flex items-center gap-3 px-4 py-3">
+            <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Skeleton className="h-3.5 w-32" />
-                <Skeleton className="h-3 w-20" />
+                <Skeleton className={`h-3.5 ${widths[i % widths.length]}`} />
+                <Skeleton className="h-3 w-12" />
               </div>
               <Skeleton className="h-3.5 w-56" />
               <Skeleton className="h-3 w-40" />
             </div>
-            <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
           </div>
         ))}
       </div>

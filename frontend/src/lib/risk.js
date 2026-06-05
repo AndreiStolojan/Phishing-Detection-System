@@ -19,6 +19,7 @@ import {
 const TONES = {
   safe: {
     icon: ShieldCheck,
+    emphasis: 'quiet',
     text: 'text-risk-safe',
     soft: 'bg-risk-safe-soft text-risk-safe border border-risk-safe/30',
     dot: 'bg-risk-safe',
@@ -27,6 +28,7 @@ const TONES = {
   },
   review: {
     icon: AlertTriangle,
+    emphasis: 'loud',
     text: 'text-risk-review',
     soft: 'bg-risk-review-soft text-risk-review border border-risk-review/30',
     dot: 'bg-risk-review',
@@ -35,6 +37,7 @@ const TONES = {
   },
   quarantine: {
     icon: ShieldAlert,
+    emphasis: 'loud',
     text: 'text-risk-quarantine',
     soft: 'bg-risk-quarantine-soft text-risk-quarantine border border-risk-quarantine/30',
     dot: 'bg-risk-quarantine',
@@ -43,6 +46,7 @@ const TONES = {
   },
   phishing: {
     icon: ShieldX,
+    emphasis: 'loud',
     text: 'text-risk-phishing',
     soft: 'bg-risk-phishing-soft text-risk-phishing border border-risk-phishing/30',
     dot: 'bg-risk-phishing',
@@ -51,6 +55,7 @@ const TONES = {
   },
   unscanned: {
     icon: HelpCircle,
+    emphasis: 'quiet',
     text: 'text-risk-unscanned',
     soft: 'bg-risk-unscanned-soft text-risk-unscanned border border-risk-unscanned/30',
     dot: 'bg-risk-unscanned',
