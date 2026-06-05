@@ -1,26 +1,41 @@
 import { useState } from 'react';
-import { Send, Loader2, Mail } from 'lucide-react';
-import { toast } from 'sonner';
-
-import { LoadingState, ErrorState } from '@/components/common/states';
-import { StatCard } from '@/components/dashboard/StatCard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { TopRulesChart } from '@/components/reports/TopRulesChart';
-import { useApi } from '@/hooks/useApi';
-import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { getMonthlySummary, sendMonthlySummary } from '@/api/reportsApi';
 import {
+  Send,
+  Loader2,
+  Mail,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   ScanLine,
   ShieldCheck,
   AlertTriangle,
   ShieldAlert,
   ShieldX,
 } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { ReportsSkeleton, ErrorState } from '@/components/common/states';
+import { PageHeader } from '@/components/common/PageHeader';
+import { StatCard } from '@/components/dashboard/StatCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { TopRulesChart } from '@/components/reports/TopRulesChart';
+import { useApi } from '@/hooks/useApi';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { getMonthlySummary, sendMonthlySummary } from '@/api/reportsApi';
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
+
+const shiftMonth = (m, delta) => {
+  const [y, mo] = m.split('-').map(Number);
+  const d = new Date(y, mo - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const monthLabel = (m) => {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(y, mo - 1, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+};
 
 const SYNC_STATS = [
   { key: 'syncedEmails', label: 'Synced', icon: Mail, tone: 'text-primary' },
@@ -36,17 +51,20 @@ const RISK_STATS = [
 
 export function ReportsPage() {
   const [month, setMonth] = useState(currentMonth());
+  const [sentTo, setSentTo] = useState(null);
   const { data, loading, error, reload } = useApi(
     () => getMonthlySummary(month),
     [month],
     `report-${month}`
   );
   const send = useAsyncAction(sendMonthlySummary);
+  const atCurrentMonth = month >= currentMonth();
 
   const handleSend = async () => {
     try {
       const result = await send.run(month);
       if (result?.sent) {
+        setSentTo(result.recipient);
         toast.success(`Report sent to ${result.recipient}`);
       }
     } catch (err) {
@@ -59,40 +77,55 @@ export function ReportsPage() {
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-end gap-2">
-        <div className="space-y-1">
-          <Label htmlFor="month" className="text-xs text-muted-foreground">
-            Month
-          </Label>
-          <Input
-            id="month"
-            type="month"
-            value={month}
-            max={currentMonth()}
-            onChange={(e) => setMonth(e.target.value || currentMonth())}
-            className="h-9 w-40"
-          />
-        </div>
-        <Button onClick={handleSend} disabled={send.loading} variant="outline">
-          {send.loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-          Email me this report
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Monthly report"
+        title={monthLabel(month)}
+        description="Security summary for the messages synced and scanned this month."
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 rounded-lg border border-border p-0.5">
+              <Button variant="ghost" size="icon-sm" onClick={() => setMonth(shiftMonth(month, -1))} title="Previous month">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[7.5rem] text-center text-sm font-medium">{monthLabel(month)}</span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={atCurrentMonth}
+                onClick={() => setMonth(shiftMonth(month, 1))}
+                title="Next month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button onClick={handleSend} disabled={send.loading} variant="outline">
+              {send.loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : sentTo ? (
+                <Check className="h-4 w-4 text-risk-safe" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {sentTo ? 'Emailed' : 'Email me this report'}
+            </Button>
+          </div>
+        }
+      />
 
-      {send.error && <ErrorState message={send.error} className="py-6" />}
+      {sentTo && (
+        <p className="text-xs text-muted-foreground">
+          Last emailed to <span className="text-foreground/80">{sentTo}</span>.
+        </p>
+      )}
 
       {loading ? (
-        <LoadingState label="Building your report…" />
+        <ReportsSkeleton />
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : (
         <div className="grid gap-4 lg:grid-cols-5">
           {/* Summary as stat cards */}
-          <div className="lg:col-span-2 space-y-3 content-start">
+          <div className="content-start space-y-3 lg:col-span-2">
             <div className="grid grid-cols-2 gap-3">
               {SYNC_STATS.map((row, i) => (
                 <StatCard
@@ -101,7 +134,7 @@ export function ReportsPage() {
                   label={row.label}
                   value={counts[row.key] ?? 0}
                   tone={row.tone}
-                  staggerIndex={i}
+                  index={i}
                 />
               ))}
             </div>
@@ -113,7 +146,7 @@ export function ReportsPage() {
                   label={row.label}
                   value={counts[row.key] ?? 0}
                   tone={row.tone}
-                  staggerIndex={i + 2}
+                  index={i + 2}
                 />
               ))}
             </div>
@@ -142,16 +175,13 @@ export function ReportsPage() {
                     <p className="mt-0.5 text-[11px] text-muted-foreground/60">by Ollama</p>
                   </div>
                   <div>
-                    <p className="text-xl font-semibold tabular-nums text-risk-review">
-                      {ai.failed ?? 0}
-                    </p>
+                    {/* Infra status — kept neutral, not a risk colour */}
+                    <p className="text-xl font-semibold tabular-nums text-foreground/80">{ai.failed ?? 0}</p>
                     <p className="text-xs font-medium text-muted-foreground">Failed</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground/60">Ollama unavailable</p>
                   </div>
                   <div>
-                    <p className="text-xl font-semibold tabular-nums text-muted-foreground">
-                      {ai.disabled ?? 0}
-                    </p>
+                    <p className="text-xl font-semibold tabular-nums text-muted-foreground">{ai.disabled ?? 0}</p>
                     <p className="text-xs font-medium text-muted-foreground">Skipped</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground/60">AI turned off</p>
                   </div>
