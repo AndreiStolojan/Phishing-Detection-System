@@ -16,6 +16,8 @@ const toQueryString = (params = {}) => {
 
 export const getEmails = (params) => apiClient.get(`/emails${toQueryString(params)}`);
 
+export const getEmailStats = () => apiClient.get('/emails/stats');
+
 export const getEmail = (emailId) => apiClient.get(`/emails/${emailId}`);
 
 export const getEmailRaw = (emailId) => apiClient.get(`/emails/${emailId}/raw`);

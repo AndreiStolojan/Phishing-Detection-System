@@ -13,6 +13,7 @@ import { ReviewActions } from '@/components/security/ReviewActions';
 import { EmailBody } from '@/components/inbox/EmailBody';
 import { getEmail, getEmailRaw } from '@/api/emailsApi';
 import { getLatestScan, scanEmail } from '@/api/scansApi';
+import { bustCacheByPrefix } from '@/hooks/useApi';
 import { emailId, getSenderName, getSenderAddress, getSenderMonogram } from '@/lib/email';
 import { formatDateTime } from '@/utils/formatDate';
 
@@ -87,6 +88,8 @@ export function EmailDetailPage() {
     // Merge the server's updated email in place — no full reload, so the verdict
     // banner and badge update instantly without a loading flash.
     setEmail((prev) => ({ ...prev, ...result }));
+    // The bucket changed — drop cached inbox/dashboard data so they reload fresh.
+    bustCacheByPrefix('inbox-', 'dash-', 'risky-');
   };
 
   const handleRescan = async () => {
@@ -94,6 +97,7 @@ export function EmailDetailPage() {
     try {
       await scanEmail(emailId(email));
       await load();
+      bustCacheByPrefix('inbox-', 'dash-', 'risky-');
       toast.success('Re-scan complete');
     } catch (err) {
       toast.error(err.message || 'Re-scan failed.');

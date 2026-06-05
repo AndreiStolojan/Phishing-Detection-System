@@ -54,3 +54,10 @@ export function useApi(fetcher, deps = [], cacheKey = null) {
 export function bustCache(...keys) {
   keys.forEach((k) => cache.delete(k));
 }
+
+/** Bust every cached key that starts with one of the given prefixes. */
+export function bustCacheByPrefix(...prefixes) {
+  for (const key of cache.keys()) {
+    if (prefixes.some((p) => key.startsWith(p))) cache.delete(key);
+  }
+}
