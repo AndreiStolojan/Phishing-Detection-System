@@ -262,6 +262,37 @@ Middleware-ul:
 - Se verifică fiecare idee nouă în raport cu MVP-ul.
 - Se preferă claritatea în locul unei arhitecturi prea sofisticate.
 
+## Env vars required (backend)
+
+```
+PORT
+DB_URI
+JWT_SECRET
+JWT_EXPIRES_IN
+MAIL_TOKEN_ENCRYPTION_KEY
+GOOGLE_CLIENT_ID          # optional if not connecting Gmail
+GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URI
+FRONTEND_APP_URL          # default: http://localhost:5173
+OLLAMA_BASE_URL           # default: http://127.0.0.1:11434
+OLLAMA_MODEL              # default: gemma3:4b
+OLLAMA_TIMEOUT_MS         # default: 45000
+AI_SEMANTIC_ENABLED       # default: false
+EMAIL_FROM                # for digest + contact emails
+EMAIL_PASSWORD
+SYNC_INTERVAL_MINUTES     # default: 15 (Faza 17)
+```
+
+## Key services reference
+
+- `backend/src/config/env.js` — loads env vars, fails fast on missing required ones
+- `backend/src/middlewares/auth.middleware.js` — JWT Bearer token verification
+- `backend/src/services/scan.service.js` — main scan engine (rules + AI score + verdict)
+- `backend/src/services/mail-account.service.js` — Gmail OAuth, sync, token encryption
+- `backend/src/services/ollama-semantic.service.js` — Ollama AI signals
+- `backend/src/services/ollama-explanation.service.js` — Ollama natural language explanation
+- `backend/src/services/scan-explanation.service.js` — controlled Romanian explanation builder
+
 ## Recomandări practice pentru acest proiect
 
 - Începe cu o structură minimă, dar deja modulară.

@@ -13,10 +13,60 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-06-02`
-- Faza curentă: `Faza 14 - SecureInbox frontend și testare`
-- Status general: auth-ul MVP este stabil, tokenii Gmail sunt criptați la nivel de aplicație, Gmail sync rulează scanarea automat, scorarea hibridă este activă fără allowlist/blocklist, endpoint-urile de email expun starea finală derivată pentru UI, mark-phishing salvează verdictul local și încearcă mutarea mesajului în Gmail Spam, digestul lunar poate fi trimis manual, backend-ul este izolat în `backend/`, iar frontend-ul `SecureInbox` a fost reconstruit în `frontend/` cu React + Vite + MUI, UI în engleză, inbox cu filtre sus, search central, listă verticală, pagină separată de detaliu email, Gmail connect/disconnect în Settings, randare HTML sanitizată cu imagini vizibile și teste unitare.
-- Progres estimativ MVP: `99%`
+- Data ultimei actualizări: `2026-06-05`
+- Faza curentă: `Faza 19 - Visual polish per pagină`
+- Status general: backend 100% stabil. Faza 17 (auto-sync + notificări) și Faza 18 (redesign frontend) terminate. Urmează polish vizual per pagină înainte de demo final.
+- Progres estimativ MVP: `100%` backend · `92%` produs final
+- Deadline: ~2 zile pentru app, ~10 zile pentru draft lucrare (~2026-06-17)
+
+## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
+
+- Data: `2026-06-05`
+- Ce s-a făcut: audit vizual pagină cu pagină față de referința `athlete_atlas`. Probleme identificate și documentate în `TODO.md` Faza 19.
+  - Login/Register: lipsesc `confirmPassword`, card prea lat, icon și titlu prea mici
+  - Dashboard: centrul donut-ului gol, hint text prea subtil pe stat cards
+  - Inbox: filtrele nu au badge cu număr, search și filtre nu sunt pe același rând
+  - Email Detail: lipsește `<PageHeader>`, panelul de securitate nu e sticky
+  - Reports: AI analysis prea sparse, lipsesc descrieri sub numere
+  - Settings: label `syncMaxResults` prea tehnic
+- Faza curentă: `Faza 19 - Visual polish`
+- Următorul pas imediat: implementare `confirmPassword` în `LoginPage.jsx`, apoi celelalte polish-uri
+
+## Notă sesiune 2026-06-05 (3) - Faza 17 finalizată
+
+- Data: `2026-06-05`
+- Ce s-a făcut: Faza 17 completă — auto-sync scheduler + notificări.
+  - `node-cron` instalat și configurat
+  - Job auto-sync la interval configurabil (`SYNC_INTERVAL_MINUTES`, default 15 min) — `scheduler.service.js` + `auto-sync.service.js`
+  - Câmp `alertsEnabled` adăugat în modelul `User` (default `false`)
+  - Endpoint `PATCH /api/v1/users/me/notification-settings` pentru toggle `alertsEnabled`
+  - Instant phishing alert email: când un email nou este detectat ca `likely_phishing` și userul are `alertsEnabled: true`, se trimite email de alertă
+  - Daily digest auto-schedulat la 08:00 UTC — nu se trimite dacă nu există emailuri noi sau riscante în ultimele 24h
+  - Logging clar în consolă pentru fiecare run al job-urilor
+  - `syncGmailEmailsForUser` acum expune `insertedEmailIds` în return pentru detectarea phishing-ului la sync
+- Teste backend: 12/12 pass. Lint: fără erori.
+- Faza curentă: `Faza 17 - TERMINATĂ` → urmează `Faza 18 - Redesign frontend profesional`
+- Următorul pas imediat: Faza 18 — redesign frontend profesional.
+
+## Notă sesiune 2026-06-05 (2) - Faza 16 finalizată
+
+- Data: `2026-06-05`
+- Ce s-a făcut: toate cele 4 bug-uri critice rezolvate. Teste backend: 12/12 pass.
+  - Bug 1: `user.service.js` — `payload.aiEnabled === 1` → `Boolean(payload.aiEnabled)`
+  - Bug 2: `ollama-explanation.service.js` — `DEFAULT_OLLAMA_MODEL` are acum fallback `|| 'gemma3:4b'`
+  - Bug 3: `scan-explanation.service.js` — `buildControlledRomanianExplanationObject` folosește acum `buildControlledRomanianExplanation` complet, inclusiv `triggeredRules` și `aiSignals`
+  - Bug 4: `auth.service.js` — eliminat session/transaction Mongoose din `registerUser`; `User.create()` este atomic prin sine
+- Faza curentă: `Faza 16 - TERMINATĂ` → urmează `Faza 17 - Auto-sync scheduler și notificări`
+- Următorul pas imediat: Faza 17 — instalare `node-cron`, job auto-sync la 15 minute, instant phishing alert email, daily digest auto-schedulat.
+
+## Notă sesiune 2026-06-05 - Plan coordonator + restructurare repo
+
+- Data: `2026-06-05`
+- Ce s-a făcut: code review complet backend (4 bug-uri critice + probleme de calitate documentate în `CLAUDE.md`). Worktree-urile vechi și `.claude/` eliminate. `AGENTS.md` absorbit în `CLAUDE.md`. `PROJECT_STATE.md` și `TODO.md` actualizate cu planul complet.
+- Feedback coordonator: aplicația trebuie să funcționeze fără ca utilizatorul să deschidă Gmail. Se adaugă auto-sync scheduler, instant phishing alert (opt-in), daily digest auto-schedulat, redesign frontend profesional.
+- Plan convenit în ordine: (1) fix 4 bug-uri, (2) auto-sync + notificări, (3) redesign frontend.
+- Implementare scheduler: `node-cron` polling la 15 minute. La deploy pe server poate fi înlocuit cu Gmail Push Notifications (Pub/Sub) fără să se schimbe logica de sync/scan.
+- Următorul pas imediat: fix Bug 4 (MongoDB transaction) → Bug 1 (AI toggle) → Bug 2 (Ollama default) → Bug 3 (explanation fallback).
 
 ## Notă sesiune 2026-06-02 - Gmail în Settings
 
@@ -391,6 +441,27 @@ Ultimul lucru finalizat:
 Următorul pas imediat recomandat:
 
 - test manual complet cu backend, frontend, MongoDB și Gmail conectat.
+
+## 2026-06-05 - Faza 18: redesign frontend profesional (implementat)
+
+Ce s-a terminat:
+
+- rebuild de la zero al frontend-ului cu **Tailwind CSS v4 + shadcn/ui**, temă dark-only, layout sidebar + dashboard-first;
+- stratul `src/api/*`, `AuthContext`, `tokenStorage` și `sanitizeEmailHtml` au fost păstrate (logică dovedită);
+- sursă unică pentru limbajul de risc în `src/lib/risk.js` (6 risk buckets, culori + iconițe);
+- pagini noi: Login/Register (adaptat după `athlete_atlas`, fără Firebase), Dashboard (statistici + donut risc + mesaje de atenție), Inbox (filtre pe risk bucket + search), Email detail (verdict banner + scor + reguli + explicație AI + acțiuni review), Reports (sumar lunar + top reguli + statistici AI + trimitere digest), Settings (profil, Gmail connect/disconnect, AI on/off, alerts on/off, syncMaxResults, contact);
+- shell aplicație: `AppShell` + `Sidebar` (brand, navigație, user + logout) + `Topbar` (titlu pagină, chip status Gmail, buton Sync & scan);
+- context nou `MailAccountContext` pentru starea Gmail + sync partajat, cu `syncVersion` ca trigger de refetch;
+- state-uri loading/empty/error unificate (`components/common/states.jsx`);
+- teste unitare rescrise pentru componentele noi.
+
+Verificat:
+
+- `npm --prefix frontend run build` trece;
+- `npm --prefix frontend test` — 18 teste, toate trec;
+- dev server pornește și servește corect.
+
+Următorul pas recomandat: test manual cap-coadă cu backend + MongoDB + Gmail real (login → connect Gmail → sync → vezi verdicte → mark-phishing → verificare în Gmail Spam), apoi capturi pentru prezentare.
 
 ## Blocaje
 

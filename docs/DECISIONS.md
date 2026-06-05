@@ -744,3 +744,29 @@ Impact:
 - `cleanupDuplicateScans` rămâne util pentru date vechi, dar nu este mecanismul principal de corectitudine;
 - dacă există duplicate vechi în colecția `scans`, ele trebuie curățate înainte ca MongoDB să poată construi indexul unic;
 - pentru development există scriptul `npm run cleanup:duplicate-scans`, rulat din `backend/`, care păstrează cea mai recentă scanare pentru fiecare pereche `userId + emailId`.
+
+### 2026-06-05 - Frontend redesign (Faza 18): rebuild cu Tailwind + shadcn/ui
+
+Context:
+
+- coordonatorul a cerut un produs care să arate profesional, nu ca un proiect de facultate;
+- frontend-ul Faza 14 era funcțional (React + Vite + MUI) dar avea aspect de student project.
+
+Decizie:
+
+- rebuild de la zero al UI-ului, păstrând stratul `src/api/*`, `AuthContext` și utilitarele dovedite;
+- stack nou: **Tailwind CSS v4 + shadcn/ui** (primitive Radix copiate în `src/components/ui/`), `lucide-react` pentru iconițe, `recharts` pentru grafice;
+- temă **dark-only**;
+- layout **sidebar + dashboard-first** (security overlay), nu inbox clasic pe 3 panouri;
+- pagina de auth adaptată după UI-ul din `athlete_atlas` (card centrat, iconițe în câmpuri, toggle login/register), dar fără Firebase și fără buton "Sign in with Google" (Google se folosește doar pentru conectarea Gmail după login).
+
+Motiv pentru stack:
+
+- shadcn/ui dă componente profesionale cu control total pe design, potrivit pentru cerința de aspect;
+- Tailwind v4 (config CSS-first cu `@theme`) permite definirea celor 6 culori de risk bucket ca tokeni semantici reutilizați de toate componentele.
+
+Impact:
+
+- întreaga limbă vizuală e organizată în jurul celor 6 risk buckets din backend (`src/lib/risk.js` e sursa unică);
+- testele unitare au fost rescrise pentru noile componente; build + teste trec;
+- starea server-side se ține cu hook-uri custom (`useApi`, `useAsyncAction`) + context, fără TanStack Query, ca să rămână ușor de explicat la prezentare.

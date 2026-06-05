@@ -14,9 +14,10 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: auth-ul MVP este stabil, Gmail sync extrage datele utile, scorarea hibridă este activă, explicațiile AI sunt structurate pentru frontend cu fallback controlat, persistența scanării curente este protejată prin upsert atomic + index unic, acțiunile manuale MVP sunt simplificate la `mark-safe` și `mark-phishing`, endpoint-urile de email expun starea derivată finală pentru UI fără lists și afișează `aiExplanation` când există, digestul lunar poate fi trimis manual pe emailul utilizatorului autentificat, backend-ul este izolat în `backend/`, iar frontend-ul `SecureInbox` a fost reconstruit în `frontend/` cu React + Vite + MUI, inbox centralizat cu filtre sus, search, listă verticală, pagină separată de detaliu, Gmail connect/disconnect în Settings, body HTML sanitizat cu imagini vizibile și teste unitare.
-- Progres estimativ MVP: `99%`
-- Faza curentă: `Faza 14 - SecureInbox frontend și testare`
+- Stadiu actual: backend stabil, Faza 17 completă, Faza 18 (redesign frontend) implementată. Urmează: test manual cap-coadă cu Gmail real + capturi demo.
+- Progres estimativ MVP: `99%` backend · `90%` produs final (rămâne validare manuală end-to-end + demo)
+- Faza curentă: `Faza 18 - Redesign frontend profesional (implementat, de validat manual)`
+- Deadline: ~2 zile pentru app, ~10 zile pentru draft lucrare (termen: ~2026-06-17)
 
 ## Legendă
 
@@ -348,6 +349,64 @@ Milestone: aplicația poate fi demonstrată coerent cap-coadă
 - [ ] Capturi pentru prezentare
 - [ ] Script demo scurt pentru coordonator
 
+## Faza 16 - Bug fixes critice (înainte de orice feature nou)
+
+Milestone: toate bug-urile cunoscute rezolvate, aplicația funcționează corect end-to-end
+
+Context: bug-uri găsite în code review pe 2026-06-05. Trebuie rezolvate înainte de orice altceva.
+
+- [x] Bug 1 — AI toggle: `user.service.js:63` — `payload.aiEnabled === 1` → `Boolean(payload.aiEnabled)`
+- [x] Bug 2 — Ollama model undefined: `ollama-explanation.service.js:8` — adăugare fallback `|| 'gemma3:4b'`
+- [x] Bug 3 — Fallback explanation ignoră `triggeredRules`/`aiSignals`: `scan-explanation.service.js:115-123` — folosire funcție completă sau curățare parametri neutilizați
+- [x] Bug 4 — MongoDB transaction rupe înregistrarea pe MongoDB standalone: `auth.service.js:27-60` — eliminare session/transaction din `User.create()`
+
+Dependențe: Faza 14
+
+Obligatoriu pentru MVP: da, critic
+
+## Faza 17 - Auto-sync scheduler și notificări
+
+Milestone: aplicația rulează în fundal fără intervenție manuală; utilizatorul primește alerte și digest
+
+Context: feedback coordonator 2026-06-05 — aplicația trebuie să funcționeze fără ca utilizatorul să deschidă Gmail sau să apese manual sync. Implementare cu `node-cron` (polling). La deploy pe server, trigger-ul poate fi înlocuit cu Gmail Push Notifications (Pub/Sub) fără să se schimbe logica de sync/scan.
+
+- [x] Instalare și configurare `node-cron` în backend
+- [x] Job de auto-sync: rulează la fiecare 15 minute, iterează toți utilizatorii cu Gmail conectat, apelează logica existentă de sync+scan
+- [x] Configurare interval prin env var (`SYNC_INTERVAL_MINUTES`, default `15`)
+- [x] Logging clar pentru fiecare run al job-ului (câți utilizatori, câte emailuri noi, erori)
+- [x] Instant alert email: trimite email când un email nou este detectat ca `likely_phishing` (opt-in, toggle în setările utilizatorului)
+- [x] Adăugare câmp `alertsEnabled` în modelul `User` (default `false`)
+- [x] Endpoint `PATCH /api/v1/users/me/notification-settings` pentru toggle alerts
+- [x] Daily digest auto-schedulat: job separat `node-cron` la ora 08:00 care trimite digestul zilnic utilizatorilor cu emailuri noi sau riscante în ultimele 24h
+- [x] Daily digest folosește logica existentă de raport, adaptată pentru intervalul de 24h
+
+Dependențe: Faza 16
+
+Obligatoriu pentru MVP: da (cerință coordonator)
+
+Note pentru deploy: la trecerea pe server, job-ul `node-cron` poate fi înlocuit sau completat cu Gmail Push Notifications (Google Cloud Pub/Sub). Logica de sync/scan nu se schimbă, doar trigger-ul.
+
+## Faza 18 - Redesign frontend profesional
+
+Milestone: interfață curată, modernă, care arată ca un produs real, nu ca un proiect de facultate
+
+Context: feedback coordonator 2026-06-05 — aplicația trebuie să arate ca ceva pe care oamenii ar vrea să-l folosească. Focus pe security overlay peste fluxul de email, nu pe inbox clasic. Frontend rebuild de la zero.
+
+- [x] Definire design system: culori, tipografie, spațiere, ton vizual (Tailwind v4 + shadcn, dark-only, 6 risk buckets în `src/lib/risk.js`)
+- [x] Layout principal: sidebar + content area, responsive pentru desktop (`AppShell` + `Sidebar` + `Topbar`)
+- [x] Pagina de Login / Register — curată, profesională (adaptată după `athlete_atlas`, fără Firebase/Google)
+- [x] Inbox: listă emailuri cu risk badge clar, filtre funcționale, search
+- [x] Email detail: metadata, verdict proeminent, reguli declanșate, explicație AI, acțiuni review
+- [x] Dashboard: statistici relevante (scanate, risc, breakdown donut), stare sync, mesaje care necesită atenție
+- [x] Reports: raport lunar, top reguli, statistici AI, trimitere digest pe email
+- [x] Settings: profil, Gmail connect/disconnect, AI on/off, syncMaxResults, alerts on/off (Faza 17), contact suport
+- [x] State-uri goale și loading tratate vizual în toate paginile (`states.jsx`)
+- [x] Teste unitare pentru componentele noi (build + 18 teste trec)
+
+Dependențe: Faza 16, API backend stabil
+
+Obligatoriu pentru MVP: da
+
 Dependențe: Faza 14
 
 Obligatoriu pentru MVP: da
@@ -403,8 +462,133 @@ Obligatoriu pentru MVP: da
 | acțiuni pe email | emailuri listate + identificatori clari |
 | explainability cu Ollama | scanare funcțională |
 
+## Faza 19 - Visual polish per pagină
+
+Milestone: fiecare pagină arată profesional și consistent, identic ca ton vizual cu stilul `athlete_atlas`
+
+Context: audit vizual 2026-06-05 — fiecare pagină a fost inspectat, probleme identificate per pagină.
+
+### Login / Register
+
+- [x] Adăugare câmp `confirmPassword` în modul register (câmpul lipsește complet — userul nu poate verifica parola la înregistrare)
+- [x] Reducere lățime card de la `max-w-md` (448px) la `w-[400px]` fix (exact ca athlete_atlas)
+- [x] Mărire icon header: de la `h-6 w-6` la `h-8 w-8`, iar container-ul de la `h-12 w-12` la `h-16 w-16` (aceeași greutate vizuală ca `<Lock fontSize={40}>` din athlete_atlas)
+- [x] Mărire titlu: de la `text-xl` la `text-2xl font-bold` (h4 echivalent)
+- [x] Validare `confirmPassword` în `handleSubmit`: dacă `password !== confirmPassword` → eroare
+
+### Dashboard
+
+- [x] Donut center label cu total deja existent — nicio modificare necesară
+- [x] Stat cards: hint text mai vizibil — schimbat de la `text-muted-foreground` la `text-foreground/60`
+
+### Inbox
+
+- [x] Adăugare badge cu număr per filtru chip (ex: "Quarantine (3)") — necesită query separat pentru counts
+- [x] Bara de search și filtrele pe același rând pe desktop (flex-row cu search aliniat dreapta)
+
+### Email Detail
+
+- [x] Adăugare `<PageHeader>` consistent cu restul paginilor (titlu = subiectul emailului + sender + dată)
+- [x] Panel-ul de securitate (coloana dreaptă) — `lg:sticky lg:top-4 lg:self-start`
+
+### Reports
+
+- [x] Secțiunea AI analysis: adăugare descriere text explicativ sub fiecare număr ("by Ollama", "Ollama unavailable", "AI turned off")
+
+### Settings
+
+- [x] Label pentru `syncMaxResults` reformulat: "How many recent emails to scan per sync (1–50)"
+
+Dependențe: Faza 18
+
+Obligatoriu pentru MVP: da — aspectul este parte din prezentarea la coordonator
+
+## Faza 20 - Animații, navigare mobilă și polish avansat
+
+Milestone: aplicația se simte fluidă, navigabilă pe orice dispozitiv, cu animații coerente
+
+Context: audit UX 2026-06-05 — gaps identificate per pagină și per componentă. Se implementează câte un item, în ordinea de mai jos.
+
+### Shell & Layout
+
+- [x] Mobile bottom nav — sidebar este ascuns pe mobile (`hidden md:flex`), aplicația este inutilizabilă pe telefon; se adaugă o bară fixă jos cu 4 iconițe (Dashboard, Inbox, Reports, Settings)
+- [x] Page fade-in transition — `motion.div` cu `opacity 0→1` și `translateY +6px→0` la schimbarea rutei (150ms); înlocuiește swap-ul brusc
+- [x] Skeleton screens — înlocuire `LoadingState` generic cu schelet de conținut specific per pagină (inbox = 10 rânduri skeleton, dashboard = 4 stat cards + donut)
+
+### Dashboard
+
+- [x] Count-up animation pe stat cards — numerele animează de la 0 la valoarea reală la mount (500ms ease-out)
+- [x] Stagger entrance pe cele 4 stat cards — fade+slide cu 60ms întârziere între carduri
+- [x] Last sync timestamp în headerul cardului "Needs your attention"
+- [x] Accent vizual pe cardul "Needs your attention" — border stânga roșu pentru urgență
+
+### Inbox
+
+- [x] Debounce search la 300ms — oprire spam API la fiecare tastă
+- [x] Counts pe filter chips — ex: "Quarantine (4)"; date din monthly summary
+- [x] Left border colorat per risk bucket pe fiecare EmailRow (3px, culoarea riscului)
+- [x] Grupare emailuri după dată — "Today", "Yesterday", "This week", apoi dată completă
+
+### Email Detail
+
+- [x] VerdictBanner mai impactant vizual — pentru `likely_phishing`: border pulsant roșu sau fill mai dramatic; pentru `safe`: bară verde cu checkmark
+- [x] Navigare Prev/Next — butoane ← → pentru a naviga între emailuri fără să te întorci în inbox
+- [x] Ordine vizuală clară în panelul de securitate — Verdict (mare) → Review actions → Scan details (colapsibil)
+
+### Reports
+
+- [x] Înlocuire `<dl>` summary cu StatCard-uri — același limbaj vizual ca dashboard-ul
+- [x] Toast pentru confirmarea trimiterii raportului — înlocuire banner static cu `sonner` toast
+
+Dependențe: Faza 19
+
+Obligatoriu pentru MVP: da — navigarea mobilă este broken; restul cresc calitatea demonstrației
+
+## Faza 21 - UX gap fixes (audit 2026-06-05)
+
+Milestone: inbox-ul se citește clar, informațiile nu se suprapun, UI-ul este coerent pe toate ecranele
+
+Context: audit UX complet cu screenshot-uri și code review 2026-06-05. Probleme identificate per componentă.
+
+### EmailRow — probleme de spațiu și lizibilitate
+
+- [x] **Data prea verbosă în rând** — `formatEmailDate()` adăugat în `utils/formatDate.js`; `EmailRow.jsx` folosește formatul smart.
+- [x] **Eticheta badge-ului prea lungă** — `SM_LABELS` adăugat în `RiskBadge.jsx`: "Confirmed phishing" → "Phishing", "Reviewed safe" → "Reviewed" la size sm.
+- [x] **Filtre redundante în inbox** — "Reviewed safe" și "Unscanned" eliminate din `RISK_FILTERS` în `risk.js`.
+
+### EmailDetailPage — informații duplicate și suprapuneri
+
+- [x] **Subiectul apare de două ori** — `CardTitle` cu subiectul eliminat; cardul arată acum expeditorul + data ca header.
+- [x] **RiskBadge apare de două ori** — `RiskBadge` eliminat din bara de navigare sus; rămâne doar în `VerdictBanner`.
+- [x] **Bara superioară aglomerată** — rezolvat prin eliminarea RiskBadge din bara de sus.
+
+### Dashboard — conflicte vizuale
+
+- [x] **Dublu border stânga pe cardul "Needs attention"** — `border-l-2 border-l-risk-quarantine` eliminat de pe card.
+- [x] **Terminologie inconsistentă Quarantine vs Likely phishing** — `StatCard` redenumit "Likely phishing" cu hint "In quarantine".
+
+### Reports — prea multe carduri
+
+- [x] **8 StatCard-uri copleșitoare** — reorganizat în două grupuri: `SYNC_STATS` (Synced, Scanned) și `RISK_STATS` (Safe, Suspicious, Likely phishing, Confirmed phishing). `quarantined` și `reviewed` eliminate.
+- [x] **Iconițe identice** — rezolvat prin eliminarea rândului `quarantined`.
+
+### Layout / navigare
+
+- [ ] **Topbar mobil — butonul "Connect Gmail" prea lat** — pe 390px cu brand icon + titlu pagină pe stânga + "Connect Gmail" (text + icon) pe dreapta, spațiul este comprimat. Pe mobile, afișează doar iconița în buton (fără text). Fișier: `Topbar.jsx`.
+- [ ] **BottomNav fără suport safe-area iPhone** — bara fixă `h-16` acoperă home indicator-ul pe iPhone notched. Fișiere: `BottomNav.jsx`, `index.css`.
+- [x] **GmailChip în Topbar — email lung fără truncate** — adăugat `max-w-[200px] truncate` pe span-ul cu adresa. Fișier: `Topbar.jsx`.
+
+### Polish fin
+
+- [x] **Apariția bruscă a checklist-ului de parolă la register** — `AnimatePresence` + `motion.ul` cu animație de înălțime adăugat în `LoginPage.jsx`.
+- [x] **StatCard: iconița nu reflectă culoarea tonului** — container iconiță folosește acum soft-ul corespunzător tonului (safe, quarantine, phishing, review). Fișier: `StatCard.jsx`.
+
+Dependențe: Faza 20
+
+Obligatoriu pentru MVP: da — toate completate
+
 ## Unde am rămas
 
-Ultimul punct finalizat: frontend-ul `SecureInbox` a fost reconstruit peste contractul backend, cu teste unitare backend/frontend.
+Ultimul punct finalizat: Faza 21 completă (UX gap fixes din audit desktop 2026-06-05).
 
-Următorul pas recomandat: test manual cap-coadă cu backend, frontend, MongoDB și Gmail conectat.
+Următorul pas recomandat: test manual end-to-end cu Gmail real + capturi demo.
