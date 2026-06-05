@@ -45,7 +45,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 9 (Settings + Login) — DONE**: SettingsPage = coloană unică max-w-2xl, secțiuni cu icon chip + descriere + PageHeader, **Disconnect Gmail acum în AlertDialog (blocker rezolvat)**, toggle rows clickabile cu hover, Textarea nou la support, dirty-state pe sync save, status Gmail cu ping live, stagger entry. LoginPage = entrance spring + stagger, ambient dublu-glow + logo gradient/glow, morph sign-in↔register (AnimatePresence pe name/confirm/rules), password strength meter + ticks spring, autofocus, error animat role=alert, naming `SecureInbox`. AlertDialog + Textarea acum folosite. Build + 20 teste curat.
 
-Următorul pas: Faza 10 — motion sweep & cleanup (tot motion din lib/motion.js, verificare reduced-motion, lint + teste + build, update docs), apoi Faza 11 — template-uri email premium.
+- **Faza 10 (motion sweep & cleanup) — DONE**: easing string `'easeOut'` din VerdictBanner glow → `ease` shared; `animate-pulse` din loading-ul "Needs attention" → `Skeleton` shimmer; reduced-motion acoperit (MotionConfig + guard CSS); nicio referință `staggerIndex` rămasă. Frontend nu are script `lint` → gate = build + 20 teste (curat).
+
+Următorul pas: Faza 11 — template-uri email premium (shell comun welcome/digest/alert, CTA cu link, hexes risc canonice, dark-mode variant, English).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 

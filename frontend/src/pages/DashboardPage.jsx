@@ -17,6 +17,7 @@ import { RiskDonut } from '@/components/dashboard/RiskDonut';
 import { EmailRow } from '@/components/inbox/EmailRow';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/useApi';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { getMonthlySummary } from '@/api/reportsApi';
@@ -166,11 +167,14 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="px-0 pb-2">
             {riskyQuery.loading ? (
-              <div className="space-y-0 divide-y divide-border/60 px-5 py-2">
+              <div className="divide-y divide-border/60 px-5">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="space-y-2 py-3">
-                    <div className="h-3 w-40 animate-pulse rounded bg-muted/70" />
-                    <div className="h-3 w-56 animate-pulse rounded bg-muted/70" />
+                  <div key={i} className="flex items-center gap-3 py-3">
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-3 w-40" />
+                      <Skeleton className="h-3 w-56" />
+                    </div>
                   </div>
                 ))}
               </div>
