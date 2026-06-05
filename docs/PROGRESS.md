@@ -29,7 +29,9 @@ Făcut:
 
 De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label literal "✓" vs test care cere "marked safe") — se repară în Faza 5 când se rescrie ReviewActions.
 
-Următorul pas: Faza 2 — primitive shared (Button/Card/Input/Switch/Skeleton + AlertDialog/Dialog/Textarea noi, adoptare PageHeader).
+- **Faza 2 (primitive shared) — DONE**: Button cu `active:scale-[0.97]` + token primary-hover/active + size `icon-sm`; Card cu `surface-raised` (shadow + inner highlight) + prop `interactive`; Input + Textarea nou cu focus ring soft (primary/25) + caret-primary; Switch iOS-grade (h-7 w-12, thumb 24px); Skeleton cu shimmer sweep (`@keyframes shimmer`); AlertDialog nou (`@radix-ui/react-alert-dialog`); PageHeader pe `text-h2` + `eyebrow`. Build curat, doar cele 3 teste ReviewActions pre-existente pică.
+
+Următorul pas: Faza 3 — shell & navigare (Sidebar/BottomNav traveling indicator, PageTransition spring + scroll-reset, adoptare PageHeader pe pagini).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 
