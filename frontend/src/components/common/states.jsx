@@ -94,39 +94,50 @@ export function InboxSkeleton({ rows = 8 }) {
 export function DashboardSkeleton() {
   return (
     <>
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <div className="flex items-start justify-between gap-3 p-5">
-              <div className="space-y-2 flex-1">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-7 w-12" />
-                <Skeleton className="h-3 w-20" />
-              </div>
-              <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
-            </div>
-          </Card>
-        ))}
-      </div>
+      {/* Posture hero band */}
+      <Card className="px-6 py-7">
+        <div className="flex items-center gap-5">
+          <Skeleton className="h-14 w-14 shrink-0 rounded-2xl" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-64" />
+            <Skeleton className="h-3.5 w-80 max-w-full" />
+          </div>
+        </div>
+      </Card>
 
       {/* Donut + attention */}
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-2 p-6">
-          <Skeleton className="h-4 w-28 mb-4" />
-          <Skeleton className="mx-auto h-44 w-44 rounded-full" />
+          <Skeleton className="mb-4 h-4 w-28" />
+          <Skeleton className="mx-auto h-52 w-52 rounded-full" />
         </Card>
         <Card className="lg:col-span-3 p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <Skeleton className="h-4 w-36" />
             <Skeleton className="h-7 w-16 rounded-md" />
           </div>
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+              <Skeleton key={i} className="h-11 w-full rounded-lg" />
             ))}
           </div>
         </Card>
+      </div>
+
+      {/* Secondary stat row */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <div className="flex items-start justify-between gap-3 p-5">
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-8 w-12" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+            </div>
+          </Card>
+        ))}
       </div>
     </>
   );

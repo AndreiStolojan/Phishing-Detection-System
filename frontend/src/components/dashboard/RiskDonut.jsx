@@ -1,15 +1,19 @@
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { useState } from 'react';
+import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { ShieldQuestion } from 'lucide-react';
 
 import { EmptyState } from '@/components/common/states';
-import { ShieldQuestion } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 /**
  * Donut showing how scanned messages split across verdicts.
- * `data` is [{ name, value, color }].
+ * `data` is [{ name, value, color }]. Center can show a custom value/label
+ * (e.g. the safe %); legend and slices highlight together on hover.
  */
-export function RiskDonut({ data }) {
+export function RiskDonut({ data, centerValue, centerLabel = 'scanned' }) {
   const slices = data.filter((d) => d.value > 0);
   const total = slices.reduce((sum, d) => sum + d.value, 0);
+  const [active, setActive] = useState(null);
 
   if (total === 0) {
     return (
@@ -23,51 +27,58 @@ export function RiskDonut({ data }) {
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row">
-      <div className="relative h-44 w-44 shrink-0">
+    <div className="flex flex-col items-center gap-5 sm:flex-row">
+      <div className="relative h-52 w-52 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={slices}
               dataKey="value"
               nameKey="name"
-              innerRadius={56}
-              outerRadius={80}
+              innerRadius={64}
+              outerRadius={92}
               paddingAngle={2}
               stroke="none"
+              onMouseEnter={(_, i) => setActive(i)}
+              onMouseLeave={() => setActive(null)}
             >
-              {slices.map((slice) => (
-                <Cell key={slice.name} fill={slice.color} />
+              {slices.map((slice, i) => (
+                <Cell
+                  key={slice.name}
+                  fill={slice.color}
+                  opacity={active === null || active === i ? 1 : 0.3}
+                  style={{ transition: 'opacity 150ms' }}
+                />
               ))}
             </Pie>
-            <Tooltip
-              contentStyle={{
-                background: 'var(--color-popover)',
-                border: '1px solid var(--color-border)',
-                borderRadius: '0.5rem',
-                fontSize: '0.8rem',
-              }}
-              labelStyle={{ color: 'var(--color-foreground)' }}
-            />
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold tabular-nums">{total}</span>
-          <span className="text-[11px] text-muted-foreground">scanned</span>
+          <span className="text-3xl font-semibold tabular-nums">{centerValue ?? total}</span>
+          <span className="text-[11px] text-muted-foreground">{centerLabel}</span>
         </div>
       </div>
 
-      <ul className="flex-1 space-y-2">
-        {slices.map((slice) => (
-          <li key={slice.name} className="flex items-center gap-2 text-sm">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: slice.color }}
-            />
-            <span className="text-muted-foreground">{slice.name}</span>
-            <span className="ml-auto font-medium tabular-nums">{slice.value}</span>
-          </li>
-        ))}
+      <ul className="w-full flex-1 space-y-1">
+        {slices.map((slice, i) => {
+          const pct = Math.round((slice.value / total) * 100);
+          return (
+            <li
+              key={slice.name}
+              onMouseEnter={() => setActive(i)}
+              onMouseLeave={() => setActive(null)}
+              className={cn(
+                'flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors',
+                active === i && 'bg-accent/60'
+              )}
+            >
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
+              <span className="text-muted-foreground">{slice.name}</span>
+              <span className="ml-auto font-medium tabular-nums">{slice.value}</span>
+              <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{pct}%</span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

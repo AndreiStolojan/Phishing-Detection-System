@@ -39,7 +39,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 6 (reading view + privacy gate) — DONE**: `.email-body` cu reguli reale (headings/lists/blockquote/links/img/table/pre, `:where()` ca să nu bată stilurile inline din email); `sanitizeEmailHtml` întoarce acum `{html, blockedImages}` și are privacy gate (img remote + background-image + tracking pixels blocate pe buckets riscante); EmailBody afișează banner "Load images" (auto-load pe safe). EmailDetailPage: keyboard nav (←/k, →/j, Esc, guard input), header cu monogram + "n of total", surface de citire fără cutia dublă-border, ScanDetails inline (eliminat dublu-collapse — AI explanation mereu vizibil), re-scan cu toast. 20/20 teste (2 sanitize noi). Build curat.
 
-Următorul pas: Faza 7 — dashboard posture-first (hero band protejat/atenție, donut interactiv center=safe%, StatCard linkate, attention list slim).
+- **Faza 7 (dashboard posture-first) — DONE**: PostureHero band ca focal point ("You're protected"/"N need attention" + CTA), RiskDonut mărit cu center = safe % + legend hover-linked cu procente, StatCard rescris (count-up de la valoarea precedentă nu de la 0, reduced-motion guard, linkate la filtre cu hover lift + ArrowUpRight), attention list cu EmailRow compact, DashboardSkeleton mirror nou. Build + 20 teste curat.
+
+Următorul pas: Faza 8 — reports (month stepper, TopRulesChart pe severitate, AI Failed neutral, hero stat, send-report success, ReportsSkeleton).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 
