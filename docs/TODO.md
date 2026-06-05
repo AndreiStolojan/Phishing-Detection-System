@@ -587,8 +587,47 @@ Dependențe: Faza 20
 
 Obligatoriu pentru MVP: da — toate completate
 
+## Faza 22 - UI Premium Upgrade (Apple-grade)
+
+Milestone: UI modern, simplu, premium — "simple and just works beautifully", comparabil cu produse Apple. Audit complet cu 12 agenți (un designer/suprafață + sinteză) pe 2026-06-05.
+
+Context: cerere Andrei 2026-06-05 — transformare UI în experiență premium (animații, date afișate, template email digest, culori, cum sunt afișate emailurile în inbox și la deschidere, scalare). Checkpoint de siguranță înainte de start: commits `b639409` (backend) · `110495b` (frontend) · `9c7ff4f` (docs), pushed pe `origin/main`.
+
+Documente sursă (durabile, în caz de pierdere context):
+- Plan complet + direcție de design: `docs/UI_PREMIUM_PLAN.md`
+- Findings brute, verbatim, per suprafață (12 agenți): `docs/archive/ui-premium-audit-raw-2026-06-05.json`
+
+Regulă de ordine: fundație întâi (tokens/type/motion) → primitive shared → shell → polish per pagină → template-uri email. Fiecare fază se bazează pe cea anterioară.
+
+- [ ] **Faza 1 — Fundație tokens**: self-host InterVariable + type scale + elevation ramp + motion tokens (`lib/motion.js`) + recolor risk OKLCH (păstrează numele tokenilor) + lift soft backgrounds + MotionConfig reduced-motion. Fișiere: `index.css`, `index.html`, `lib/motion.js` (nou), `lib/risk.js`, `main.jsx`, `public/fonts/`.
+- [ ] **Faza 2 — Primitive shared**: Button (press/hover), Card (elevation tiers), Input + Textarea nou, Switch iOS-grade, Skeleton shimmer, AlertDialog + Dialog noi, adoptare PageHeader. Fișiere: `components/ui/*`, `common/PageHeader.jsx`.
+- [ ] **Faza 3 — Shell & navigare**: Sidebar/BottomNav traveling `layoutId` indicator, frosted material, PageTransition spring + scroll-reset + drill-down direcțional, FAB safe-area. Fișiere: `layout/*`.
+- [ ] **Faza 4 — Inbox & EmailRow**: stagger entrance + whileTap + focus ring, ierarhie tipografică pe 3 trepte, monogram avatar, emphasis risc quiet/loud, filter chips colorate + sliding indicator, sticky headers fix, search cu clear/spinner/`/` shortcut. Fișiere: `inbox/EmailRow.jsx`, `pages/InboxPage.jsx`, `lib/risk.js`, `common/states.jsx`, `common/Pagination.jsx`, `utils/formatDate.js`.
+- [ ] **Faza 5 — Verdict UI (heart)**: VerdictBanner hero + reveal animat keyed pe riskBucket; ReviewActions cu Check animat + Sonner toast + optimistic; ScanDetails ca narativ (AI explanation primar, evidence colapsat, score bars animate); RiskBadge tooltip + spring. Fișiere: `security/*`, `lib/risk.js`, `docs/DECISIONS.md`.
+- [ ] **Faza 6 — Reading view + privacy gate**: reguli `.email-body` reale; privacy gate (blochează imagini remote pentru buckets riscante, "Load images"); keyboard nav ←/→/Esc; reading width ~68ch; entrance spring direcțional. Fișiere: `index.css`, `inbox/EmailBody.jsx`, `utils/sanitizeEmailHtml.js`, `pages/EmailDetailPage.jsx`.
+- [ ] **Faza 7 — Dashboard posture**: posture hero band ("You're protected" / "N need attention"), donut interactiv center=safe%, StatCard linkate la filtre + count-up doar la schimbare reală, attention list slim. Fișiere: `pages/DashboardPage.jsx`, `dashboard/*`, `common/states.jsx`.
+- [ ] **Faza 8 — Reports**: month stepper, TopRulesChart colorat pe severitate + entrance, AI "Failed" neutral (nu amber), ierarhie stat + send-report success, ReportsSkeleton, eliminare double error. Fișiere: `pages/ReportsPage.jsx`, `reports/TopRulesChart.jsx`, `common/states.jsx`.
+- [ ] **Faza 9 — Settings + Login**: **AlertDialog pe Disconnect Gmail (blocker)**, grouped-list layout, toggle rows; Login cu entrance spring, ambient background, morph sign-in↔register, password strength, fix naming. Fișiere: `pages/SettingsPage.jsx`, `pages/LoginPage.jsx`, `index.html`, `ui/switch.jsx`, `ui/alert-dialog.jsx`.
+- [ ] **Faza 10 — Motion sweep & cleanup**: tot motion din `lib/motion.js`, verificare reduced-motion, tabular-nums, lint + teste + build + manual E2E, update docs. Fișiere: `frontend/src/`, docs.
+- [ ] **Faza 11 — Template-uri email premium**: shell email comun (welcome/digest/alert), **CTA cu link (blocker)**, hexes risc canonice, kill gradient/emoji, dark-mode variant, digest hero cu safe-rate %. Fișiere: `backend/extras/notifications/email.template.js`, `send-email.js`, `config/env.js`.
+
+### Întrebări deschise (de decis cu Andrei înainte de fazele relevante)
+- [ ] Dark-only pentru demo dar tokens theme-aware (recomandat) vs light mode acum?
+- [ ] Font: InterVariable self-hosted (recomandat) vs display face SF-like plătit?
+- [ ] Naming canonic: "SecureInbox" vs "XAI Phishing Shield"?
+- [ ] Cât de îndrăzneț pe motion/atmosferă (flourish-uri signature vs minimal pentru timeline)?
+- [ ] Dashboard: OK restructurare în posture hero + donut interactiv (center = safe%)?
+- [ ] Inbox: paginare numerică vs infinite scroll; features de triage mari sau doar polish?
+- [ ] Filter counts: ascunde la search (quick) vs counts scoped din backend?
+- [ ] Privacy gate: blochează imagini remote default pe buckets riscante?
+- [ ] Locale email: RO, EN, sau per-user?
+- [ ] Culoare phishing-CTA: rose quarantine + brick pentru confirmed (de notat în DECISIONS.md)?
+
+Dependențe: Faza 21
+Obligatoriu pentru MVP: nu (MVP e ~99%) — îmbunătățire de calitate/prezentare pentru coordonator
+
 ## Unde am rămas
 
-Ultimul punct finalizat: Faza 21 completă (UX gap fixes din audit desktop 2026-06-05).
+Ultimul punct finalizat: Faza 21 completă (UX gap fixes din audit desktop 2026-06-05). Pe 2026-06-05: checkpoint de siguranță commis+pushed (backend/frontend/docs), audit UI premium cu 12 agenți rulat, plan în `docs/UI_PREMIUM_PLAN.md` + Faza 22 mai sus, findings brute în `docs/archive/ui-premium-audit-raw-2026-06-05.json`.
 
-Următorul pas recomandat: test manual end-to-end cu Gmail real + capturi demo.
+Următorul pas recomandat: răspuns la întrebările deschise din Faza 22, apoi implementare secvențială Faza 1 → 11. (Separat, rămâne: test manual end-to-end cu Gmail real + capturi demo.)
