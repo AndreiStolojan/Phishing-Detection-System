@@ -49,7 +49,11 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 - **Faza 11 (template-uri email) — DONE**: shell email comun dark on-brand (welcome/digest/alert) cu bulletproof tables + culori inline; CTA cu deep-link (digest→/dashboard, alert→/inbox?riskBucket=quarantine) via `FRONTEND_APP_URL`; hexes risc canonice; eliminat gradient purple/red + emoji siren; digest cu hero safe-rate % + grid 2×2 + top rules; engleză peste tot; preheader + footer brand + an dinamic. send-email welcome → en-GB. Backend 12/12 teste, render check OK.
 
-**FAZA 22 COMPLETĂ — toate 11 faze livrate.** Următorul pas: Andrei verifică vizual cap-coadă cu Gmail real (`npm --prefix frontend run dev` + backend), apoi capturi demo pentru coordonator.
+**FAZA 22 COMPLETĂ — toate 11 faze livrate.**
+
+Iterație feedback Andrei 2026-06-06: (1) eliminat PostureHero band-ul mare de pe primul rând al dashboard-ului (arăta hideous) → dashboard reorganizat: header cu eyebrow lună + "Overview" + last sync + chip de status mic (rose "N need attention" / verde "All clear"), apoi 4 KPI cards (luna curentă), apoi donut "Risk breakdown · <lună>" + needs-attention. (2) Animație inbox "weird" → eliminat stagger-ul per-rând din EmailRow (se compunea cu page transition) + PageTransition trecut pe tween curat (exit doar opacity, fără double-slide).
+
+Următorul pas: Andrei verifică vizual cap-coadă cu Gmail real (`npm --prefix frontend run dev` + backend), apoi capturi demo pentru coordonator.
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 

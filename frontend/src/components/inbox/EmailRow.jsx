@@ -6,12 +6,11 @@ import { RiskBadge } from '@/components/security/RiskBadge';
 import { emailId, getSenderName, getSnippet, getSenderMonogram } from '@/lib/email';
 import { getRiskMeta } from '@/lib/risk';
 import { formatEmailDate } from '@/utils/formatDate';
-import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 const MotionLink = motion.create(Link);
 
-export function EmailRow({ email, active = false, linkState = null, index = 0, compact = false }) {
+export function EmailRow({ email, active = false, linkState = null, compact = false }) {
   const id = emailId(email);
   const { tone } = getRiskMeta(email.riskBucket);
   const loud = tone.emphasis === 'loud';
@@ -22,9 +21,6 @@ export function EmailRow({ email, active = false, linkState = null, index = 0, c
     <MotionLink
       to={`/inbox/${id}`}
       state={linkState}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...springSoft, delay: Math.min(index * 0.035, 0.3) }}
       whileTap={{ scale: 0.995 }}
       style={{ borderLeftColor: loud ? tone.hex : 'transparent' }}
       className={cn(
