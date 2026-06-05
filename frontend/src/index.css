@@ -199,3 +199,60 @@
     transform: translateX(100%);
   }
 }
+
+/*
+  Scoped typography for rendered email HTML. Real email markup arrives unstyled,
+  so :where() gives it readable defaults at zero specificity — the email's own
+  inline styles still win where present.
+*/
+@layer components {
+  .email-body {
+    color: color-mix(in oklab, var(--color-foreground) 92%, transparent);
+    font-size: 0.875rem;
+    line-height: 1.65;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .email-body :where(h1, h2, h3, h4) {
+    color: var(--color-foreground);
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 1.2em 0 0.5em;
+  }
+  .email-body :where(h1) { font-size: 1.25rem; }
+  .email-body :where(h2) { font-size: 1.125rem; }
+  .email-body :where(h3, h4) { font-size: 1rem; }
+  .email-body :where(p) { margin: 0.75em 0; }
+  .email-body :where(a) {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .email-body :where(ul, ol) { margin: 0.75em 0; padding-left: 1.5em; }
+  .email-body :where(ul) { list-style: disc; }
+  .email-body :where(ol) { list-style: decimal; }
+  .email-body :where(li) { margin: 0.25em 0; }
+  .email-body :where(blockquote) {
+    margin: 0.75em 0;
+    padding-left: 1em;
+    border-left: 3px solid var(--color-border);
+    color: var(--color-muted-foreground);
+  }
+  .email-body :where(hr) {
+    margin: 1.25em 0;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .email-body :where(img) { max-width: 100%; height: auto; border-radius: 0.5rem; }
+  .email-body :where(table) { max-width: 100%; border-collapse: collapse; }
+  .email-body :where(td, th) { word-break: break-word; }
+  .email-body :where(code) { font-family: ui-monospace, monospace; font-size: 0.85em; }
+  .email-body :where(pre) {
+    overflow-x: auto;
+    padding: 0.75em;
+    background: var(--color-muted);
+    border-radius: 0.5rem;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85em;
+  }
+}
