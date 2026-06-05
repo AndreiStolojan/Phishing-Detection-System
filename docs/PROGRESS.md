@@ -55,6 +55,8 @@ Iterație feedback Andrei 2026-06-06: (1) eliminat PostureHero band-ul mare de p
 
 Iterație 2 feedback Andrei 2026-06-06: (1) Perioadă neclară + categorii care nu se actualizează → cauză: counts veneau din monthly-summary (evenimente scan/lună), nu din riskBucket curent. FIX: endpoint nou `GET /api/v1/emails/stats` (counts pe riskBucket curent, aceeași derivare ca lista). Dashboard + chip-uri inbox folosesc acum acest endpoint → numerele se potrivesc cu lista și se actualizează după review (+ `bustCacheByPrefix('inbox-','dash-','risky-')` la mark/rescan). Dashboard e acum stare CURENTĂ ("Your inbox", "Across N scanned messages"), fără confuzie de lună; Reports rămâne vederea pe lună. (2) Digest avea reguli cu `_` → `humanizeRule` în template (ex: `reply_to_mismatch` → "Reply To Mismatch"). Frontend build + 20 teste, backend 12 teste, render digest OK.
 
+Iterație 3 feedback Andrei 2026-06-06 (email detail): (1) Verdict nu mai e band mare full-width sus → integrat într-un header Card curat (accent stânga pe tonă + icon ring + label verdict + sursă + subiect + sender/dată + descriere), fără fill saturat. Șters `VerdictBanner.jsx` (nefolosit). (2) Re-scan acum buton vizibil (outline) în header, nu ghost. (3) "Back" ducea la emailul anterior, nu la inbox → prev/next folosesc `replace: true`, iar "Back to inbox" / Esc fac `navigate(-1)` (sau `/inbox` la deep-link) → ajung mereu la inbox cu filtrul păstrat. Build + 20 teste curat.
+
 Următorul pas: Andrei verifică vizual cap-coadă cu Gmail real (`npm --prefix frontend run dev` + backend), apoi capturi demo pentru coordonator.
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
