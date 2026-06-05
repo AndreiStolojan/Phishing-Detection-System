@@ -2,19 +2,48 @@
 @import 'tw-animate-css';
 
 /*
-  SecureInbox / XAI Phishing Shield — dark-only design system.
-  The whole UI is organised around the backend's 6 risk buckets, each with a
-  fixed colour. Tokens are CSS variables so components reference semantic names
-  (bg-card, text-muted-foreground, the risk-* helpers) instead of raw hex.
+  SecureInbox — dark-only, security-first design system.
+  Foundation: self-hosted Inter Variable, a semantic type ramp, a dark-tuned
+  elevation ramp, one motion vocabulary, and the 6 risk buckets as the core
+  semantic palette. Components reference semantic names (never raw hex), and the
+  risk-* token NAMES are stable so src/lib/risk.js and every badge/banner/chart
+  keep working unchanged.
 */
 
-@theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+@font-face {
+  font-family: 'InterVariable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+}
 
+@theme {
+  --font-sans: 'InterVariable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Type ramp — size / line-height / tracking paired per step */
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
+  --text-h1: 1.875rem;
+  --text-h1--line-height: 1.1;
+  --text-h1--letter-spacing: -0.018em;
+  --text-h2: 1.375rem;
+  --text-h2--line-height: 1.2;
+  --text-h2--letter-spacing: -0.012em;
+  --text-h3: 1.0625rem;
+  --text-h3--line-height: 1.3;
+  --text-h3--letter-spacing: -0.006em;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0.01em;
+
+  /* Radius ramp */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
 
   /* Base surfaces — deep navy/slate */
   --color-background: #0a0d14;
@@ -25,13 +54,17 @@
   --color-popover-foreground: #e7ecf3;
   --color-elevated: #161d2b;
 
-  /* Brand — security cyan/blue */
+  /* Brand — security cyan/blue + tonal steps */
   --color-primary: #3b9eff;
   --color-primary-foreground: #04111f;
+  --color-primary-hover: #57adff;
+  --color-primary-active: #2a8be6;
+  --color-primary-soft: color-mix(in oklab, var(--color-primary) 16%, var(--color-background));
   --color-secondary: #1c2536;
   --color-secondary-foreground: #cdd6e4;
   --color-muted: #1a2233;
-  --color-muted-foreground: #8a96aa;
+  --color-muted-foreground: #9aa6ba;
+  --color-muted-foreground-subtle: #6b7689;
   --color-accent: #1c2740;
   --color-accent-foreground: #dce6f7;
   --color-destructive: #ef5350;
@@ -41,17 +74,18 @@
   --color-input: #232d40;
   --color-ring: #3b9eff;
 
-  /* Risk buckets — the core semantic palette */
+  /* Risk buckets — core semantic palette. Names are STABLE.
+     Severity ramp: review (amber) -> quarantine (rose) -> phishing (brick). */
   --color-risk-safe: #34c77b;
-  --color-risk-safe-soft: #14271d;
+  --color-risk-safe-soft: color-mix(in oklab, var(--color-risk-safe) 15%, var(--color-background));
   --color-risk-review: #f0b429;
-  --color-risk-review-soft: #2a2310;
-  --color-risk-quarantine: #f43f5e;
-  --color-risk-quarantine-soft: #2a1020;
-  --color-risk-phishing: #b91c1c;
-  --color-risk-phishing-soft: #220d0d;
+  --color-risk-review-soft: color-mix(in oklab, var(--color-risk-review) 15%, var(--color-background));
+  --color-risk-quarantine: #f5506a;
+  --color-risk-quarantine-soft: color-mix(in oklab, var(--color-risk-quarantine) 16%, var(--color-background));
+  --color-risk-phishing: #c4313a;
+  --color-risk-phishing-soft: color-mix(in oklab, var(--color-risk-phishing) 17%, var(--color-background));
   --color-risk-unscanned: #8a96aa;
-  --color-risk-unscanned-soft: #1a2130;
+  --color-risk-unscanned-soft: color-mix(in oklab, var(--color-risk-unscanned) 12%, var(--color-background));
 
   /* Chart palette */
   --color-chart-1: #3b9eff;
@@ -59,10 +93,30 @@
   --color-chart-3: #f0b429;
   --color-chart-4: #f97316;
   --color-chart-5: #ef4444;
+
+  /* Elevation — dark-tuned (drives Tailwind shadow-* utilities) */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.40);
+  --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.50);
+  --shadow-md: 0 8px 24px -6px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 16px 48px -12px rgb(0 0 0 / 0.60);
+  --shadow-xl: 0 24px 60px -14px rgb(0 0 0 / 0.65);
+  --shadow-2xl: 0 32px 72px -18px rgb(0 0 0 / 0.72);
+
+  /* Motion — one vocabulary (mirrored in src/lib/motion.js) */
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 180ms;
+  --duration-base: 260ms;
+  --duration-slow: 400ms;
+
+  /* Layout rhythm */
+  --gutter: clamp(1rem, 4vw, 2rem);
 }
 
 @layer base {
-  * {
+  *,
+  ::before,
+  ::after {
     border-color: var(--color-border);
   }
 
@@ -76,6 +130,8 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -99,11 +155,40 @@
     border: 2px solid transparent;
     background-clip: padding-box;
   }
+
+  /* Respect reduced-motion everywhere (paired with <MotionConfig reducedMotion="user">) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @utility container-page {
   width: 100%;
   margin-inline: auto;
   max-width: 80rem;
-  padding-inline: 1.5rem;
+  padding-inline: var(--gutter);
+}
+
+/* Small uppercase section label */
+@utility label-overline {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+/* Elevation helpers that pair a dark shadow with a subtle top inner highlight */
+@utility surface-raised {
+  box-shadow: var(--shadow-sm), inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+}
+@utility surface-overlay {
+  box-shadow: var(--shadow-md), inset 0 1px 0 0 rgb(255 255 255 / 0.06);
 }

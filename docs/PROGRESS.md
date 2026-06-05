@@ -13,11 +13,23 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-06-05`
-- Faza curentă: `Faza 19 - Visual polish per pagină`
-- Status general: backend 100% stabil. Faza 17 (auto-sync + notificări) și Faza 18 (redesign frontend) terminate. Urmează polish vizual per pagină înainte de demo final.
-- Progres estimativ MVP: `100%` backend · `92%` produs final
-- Deadline: ~2 zile pentru app, ~10 zile pentru draft lucrare (~2026-06-17)
+- Data ultimei actualizări: `2026-06-06`
+- Faza curentă: `Faza 22 - UI Premium Upgrade (Apple-grade)` — în lucru
+- Status general: backend 100% stabil, MVP ~99% complet. În desfășurare: transformare UI premium (plan în `docs/UI_PREMIUM_PLAN.md`, audit brut în `docs/archive/`). Checkpoint de siguranță pushed înainte de start.
+- Progres estimativ MVP: `100%` backend · `95%` produs final
+- Deadline: ~2026-06-17 (draft lucrare)
+
+## Notă sesiune 2026-06-06 - UI Premium Upgrade (Faza 22)
+
+Context: Andrei a cerut UI premium tip Apple. Audit cu 12 agenți → plan 11 faze (`docs/UI_PREMIUM_PLAN.md`). Decizii: full premium, dashboard posture-first, naming `SecureInbox`, emailuri în engleză.
+
+Făcut:
+- Checkpoint de siguranță: commits `b639409`/`110495b`/`9c7ff4f` + plan docs `3a36d06`, toate pushed pe `origin/main`.
+- **Faza 1 (token foundation) — DONE**: Inter Variable self-hosted (`public/fonts/`, preload, font-features cv11/ss01); type ramp + elevation ramp + motion tokens în `index.css`; `src/lib/motion.js` nou (springSoft/springSnappy); recolor risc rose→brick + soft backgrounds via color-mix (nume tokeni neschimbate); `<MotionConfig reducedMotion="user">` + guard prefers-reduced-motion; title/meta `SecureInbox`. Build curat.
+
+De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label literal "✓" vs test care cere "marked safe") — se repară în Faza 5 când se rescrie ReviewActions.
+
+Următorul pas: Faza 2 — primitive shared (Button/Card/Input/Switch/Skeleton + AlertDialog/Dialog/Textarea noi, adoptare PageHeader).
 
 ## Notă sesiune 2026-06-05 (4) - Audit vizual complet Faza 19
 

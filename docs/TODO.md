@@ -599,7 +599,7 @@ Documente sursă (durabile, în caz de pierdere context):
 
 Regulă de ordine: fundație întâi (tokens/type/motion) → primitive shared → shell → polish per pagină → template-uri email. Fiecare fază se bazează pe cea anterioară.
 
-- [ ] **Faza 1 — Fundație tokens**: self-host InterVariable + type scale + elevation ramp + motion tokens (`lib/motion.js`) + recolor risk OKLCH (păstrează numele tokenilor) + lift soft backgrounds + MotionConfig reduced-motion. Fișiere: `index.css`, `index.html`, `lib/motion.js` (nou), `lib/risk.js`, `main.jsx`, `public/fonts/`.
+- [x] **Faza 1 — Fundație tokens**: self-host InterVariable + type scale + elevation ramp + motion tokens (`lib/motion.js`) + recolor risk OKLCH (păstrează numele tokenilor) + lift soft backgrounds + MotionConfig reduced-motion. Fișiere: `index.css`, `index.html`, `lib/motion.js` (nou), `main.jsx`, `public/fonts/`. Build curat 2026-06-06.
 - [ ] **Faza 2 — Primitive shared**: Button (press/hover), Card (elevation tiers), Input + Textarea nou, Switch iOS-grade, Skeleton shimmer, AlertDialog + Dialog noi, adoptare PageHeader. Fișiere: `components/ui/*`, `common/PageHeader.jsx`.
 - [ ] **Faza 3 — Shell & navigare**: Sidebar/BottomNav traveling `layoutId` indicator, frosted material, PageTransition spring + scroll-reset + drill-down direcțional, FAB safe-area. Fișiere: `layout/*`.
 - [ ] **Faza 4 — Inbox & EmailRow**: stagger entrance + whileTap + focus ring, ierarhie tipografică pe 3 trepte, monogram avatar, emphasis risc quiet/loud, filter chips colorate + sliding indicator, sticky headers fix, search cu clear/spinner/`/` shortcut. Fișiere: `inbox/EmailRow.jsx`, `pages/InboxPage.jsx`, `lib/risk.js`, `common/states.jsx`, `common/Pagination.jsx`, `utils/formatDate.js`.

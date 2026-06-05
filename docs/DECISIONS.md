@@ -770,3 +770,32 @@ Impact:
 - întreaga limbă vizuală e organizată în jurul celor 6 risk buckets din backend (`src/lib/risk.js` e sursa unică);
 - testele unitare au fost rescrise pentru noile componente; build + teste trec;
 - starea server-side se ține cu hook-uri custom (`useApi`, `useAsyncAction`) + context, fără TanStack Query, ca să rămână ușor de explicat la prezentare.
+
+### 2026-06-05 - UI Premium Upgrade (Faza 22): decizii de design
+
+Context:
+
+- Andrei a cerut transformarea UI într-o experiență premium, simplă, comparabilă cu Apple ("simple and just works beautifully");
+- audit complet cu 12 agenți (un designer/suprafață + sinteză), salvat în `docs/archive/ui-premium-audit-raw-2026-06-05.json`;
+- plan complet în `docs/UI_PREMIUM_PLAN.md`, checklist în `docs/TODO.md` (Faza 22).
+
+Decizii confirmate de Andrei:
+
+- **Scope: full premium** — se implementează toate cele 11 faze, inclusiv signature moves (verdict reveal, posture hero, image privacy gate, traveling nav indicator, tactile review);
+- **Dashboard: posture-first** — se înlocuiesc cele 4 KPI cards egale cu un band "You're protected / N need attention" + donut interactiv cu center = safe % și slices linkate la filtre inbox;
+- **Naming canonic: `SecureInbox`** peste tot (login, `<title>`, sidebar, emailuri); "XAI Phishing Shield" nu mai e folosit ca brand vizibil;
+- **Limbă emailuri tranzacționale: English** (welcome / digest / alert), aliniat cu UI-ul aplicației.
+
+Defaults aplicate (nedecise explicit, pot fi schimbate):
+
+- **dark-only** păstrat pentru demo, dar tokenii devin theme-aware (light = flip viitor);
+- **font: Inter self-hosted** ca `InterVariable.woff2` (drop Google Fonts blocking link);
+- **privacy gate**: imaginile remote sunt blocate by default pe buckets riscante (needs_review/quarantine/confirmed_phishing) cu buton "Load images"; safe = auto-load;
+- **filter counts** ascunse în timpul unui search activ (counts vin din monthly-summary, lista e paginată);
+- **culoare acțiuni**: mark-phishing folosește rose-ul quarantine, brick-ul `#b91c1c` rămâne pentru confirmed.
+
+Principii tehnice:
+
+- ordine: fundație (tokens/type/motion) → primitive → shell → polish per pagină → template-uri email; commit per fază pentru restore points;
+- recolorarea risk se face păstrând **numele tokenilor** din `src/lib/risk.js` (doar valorile se schimbă) ca să nu se spargă badge/banner/chart;
+- motion centralizat în `src/lib/motion.js` (springSoft/springSnappy) + `<MotionConfig reducedMotion='user'>` + guard `prefers-reduced-motion`.
