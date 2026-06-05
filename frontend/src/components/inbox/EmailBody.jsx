@@ -1,43 +1,31 @@
-import { Box, Typography } from '@mui/material';
+import { useMemo } from 'react';
 
-import { sanitizeEmailHtml } from '../../utils/sanitizeEmailHtml.js';
+import { sanitizeEmailHtml } from '@/utils/sanitizeEmailHtml';
 
-export default function EmailBody({ rawEmail }) {
-  const sanitizedHtml = sanitizeEmailHtml(rawEmail?.htmlBody);
-  const textBody = rawEmail?.textBody?.trim();
+/**
+ * Render the email body safely. Prefers sanitized HTML, falls back to plain
+ * text. Remote images are kept but scripts/iframes/forms are stripped.
+ */
+export function EmailBody({ htmlBody, textBody }) {
+  const safeHtml = useMemo(() => sanitizeEmailHtml(htmlBody), [htmlBody]);
 
-  if (sanitizedHtml) {
+  if (safeHtml) {
     return (
-      <Box
-        className="secureinbox-email-html"
-        sx={{ p: 2 }}
-        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+      <div
+        className="email-body max-w-none text-sm leading-relaxed [&_a]:text-primary [&_a]:underline [&_img]:max-w-full [&_table]:max-w-full [&_table]:table-fixed [&_td]:break-words [&_div]:max-w-full"
+        style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+        dangerouslySetInnerHTML={{ __html: safeHtml }}
       />
     );
   }
 
   if (textBody) {
     return (
-      <Typography
-        component="pre"
-        sx={{
-          p: 2,
-          m: 0,
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'inherit',
-          fontSize: 14,
-          lineHeight: 1.6,
-          color: 'text.primary',
-        }}
-      >
+      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground/90">
         {textBody}
-      </Typography>
+      </pre>
     );
   }
 
-  return (
-    <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-      No readable body was stored for this email.
-    </Typography>
-  );
+  return <p className="text-sm text-muted-foreground">This message has no readable content.</p>;
 }

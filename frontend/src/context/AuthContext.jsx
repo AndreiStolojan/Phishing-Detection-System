@@ -61,6 +61,10 @@ export function AuthProvider({ children }) {
     [completeAuth]
   );
 
+  const patchUser = useCallback((partial) => {
+    setUser((prev) => prev ? { ...prev, ...partial } : prev);
+  }, []);
+
   const logout = useCallback(() => {
     clearStoredToken();
     setToken(null);
@@ -79,8 +83,9 @@ export function AuthProvider({ children }) {
       register,
       logout,
       refreshUser,
+      patchUser,
     }),
-    [error, loading, login, logout, refreshUser, register, token, user]
+    [error, loading, login, logout, patchUser, refreshUser, register, token, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

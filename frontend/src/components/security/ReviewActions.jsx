@@ -1,42 +1,64 @@
-import GppBadOutlinedIcon from '@mui/icons-material/GppBadOutlined';
-import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
-import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
-import { Button, Stack } from '@mui/material';
+import { ShieldCheck, ShieldX, Loader2 } from 'lucide-react';
 
-export default function ReviewActions({
-  onMarkSafe,
-  onMarkPhishing,
-  onRescan,
-  loading = false,
-}) {
+import { Button } from '@/components/ui/button';
+import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+
+/**
+ * Manual review controls. mark-safe is local-only; mark-phishing also tries to
+ * move the Gmail message to Spam (handled by the backend).
+ */
+export function ReviewActions({ email, onReviewed }) {
+  const safe = useAsyncAction(markEmailSafe);
+  const phishing = useAsyncAction(markEmailPhishing);
+  const busy = safe.loading || phishing.loading;
+
+  const reviewedSafe = email?.userVerdict === 'safe';
+  const reviewedPhishing = email?.userVerdict === 'phishing';
+
+  const handle = async (action) => {
+    const result = await action.run(email.id || email._id);
+    onReviewed?.(result);
+  };
+
   return (
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-      <Button
-        startIcon={<RefreshOutlinedIcon />}
-        onClick={onRescan}
-        disabled={loading}
-        variant="outlined"
-      >
-        Rescan
-      </Button>
-      <Button
-        startIcon={<MarkEmailReadOutlinedIcon />}
-        onClick={onMarkSafe}
-        disabled={loading}
-        variant="outlined"
-        color="success"
-      >
-        Mark safe
-      </Button>
-      <Button
-        startIcon={<GppBadOutlinedIcon />}
-        onClick={onMarkPhishing}
-        disabled={loading}
-        variant="contained"
-        color="error"
-      >
-        Mark phishing
-      </Button>
-    </Stack>
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button
+          variant={reviewedSafe ? 'secondary' : 'outline'}
+          className="flex-1"
+          disabled={busy || reviewedSafe}
+          onClick={() => handle(safe)}
+        >
+          {safe.loading ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <ShieldCheck className="text-risk-safe" />
+          )}
+          {reviewedSafe ? 'Safe ✓' : 'Safe'}
+        </Button>
+        <Button
+          variant={reviewedPhishing ? 'destructive' : 'outline'}
+          className="flex-1"
+          disabled={busy || reviewedPhishing}
+          onClick={() => handle(phishing)}
+        >
+          {phishing.loading ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <ShieldX className={reviewedPhishing ? '' : 'text-risk-phishing'} />
+          )}
+          {reviewedPhishing ? 'Phishing ✓' : 'Phishing'}
+        </Button>
+      </div>
+      {reviewedPhishing && (
+        <p className="text-xs text-muted-foreground">
+          Marking as phishing also tries to move the message to Gmail Spam.
+        </p>
+      )}
+      {(safe.error || phishing.error) && (
+        <p className="text-xs text-destructive">{safe.error || phishing.error}</p>
+      )}
+    </div>
   );
 }
