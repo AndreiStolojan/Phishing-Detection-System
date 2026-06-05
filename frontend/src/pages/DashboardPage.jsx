@@ -20,18 +20,15 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/useApi';
 import { useMailAccount } from '@/context/MailAccountContext';
-import { getMonthlySummary } from '@/api/reportsApi';
-import { getEmails } from '@/api/emailsApi';
+import { getEmails, getEmailStats } from '@/api/emailsApi';
 import { normalizeEmailList } from '@/lib/email-list';
 import { formatDateTime } from '@/utils/formatDate';
-
-const thisMonth = () => new Date().toLocaleString('en', { month: 'long', year: 'numeric' });
 
 export function DashboardPage() {
   const { account, isConnected, syncVersion } = useMailAccount();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const summaryQuery = useApi(() => getMonthlySummary(), [syncVersion], `summary-${syncVersion}`);
+  const statsQuery = useApi(() => getEmailStats(), [syncVersion], `dash-stats-${syncVersion}`);
   const riskyQuery = useApi(
     () => getEmails({ riskBucket: 'quarantine' }),
     [syncVersion],
@@ -73,31 +70,35 @@ export function DashboardPage() {
     );
   }
 
-  if (summaryQuery.loading) return <DashboardSkeleton />;
-  if (summaryQuery.error)
-    return <ErrorState message={summaryQuery.error} onRetry={summaryQuery.reload} />;
+  if (statsQuery.loading) return <DashboardSkeleton />;
+  if (statsQuery.error)
+    return <ErrorState message={statsQuery.error} onRetry={statsQuery.reload} />;
 
-  const counts = summaryQuery.data?.counts || {};
+  const counts = statsQuery.data?.counts || {};
+  const total = statsQuery.data?.total ?? 0;
   const risky = normalizeEmailList(riskyQuery.data);
 
+  const safeCount = (counts.safe || 0) + (counts.reviewed_safe || 0);
+  const scanned = total - (counts.unscanned || 0);
+
   const donutData = [
-    { name: 'Safe', value: counts.safe || 0, color: 'var(--color-risk-safe)' },
-    { name: 'Suspicious', value: counts.suspicious || 0, color: 'var(--color-risk-review)' },
-    { name: 'Likely phishing', value: counts.likelyPhishing || 0, color: 'var(--color-risk-quarantine)' },
-    { name: 'Confirmed phishing', value: counts.markedPhishing || 0, color: 'var(--color-risk-phishing)' },
+    { name: 'Safe', value: safeCount, color: 'var(--color-risk-safe)' },
+    { name: 'Suspicious', value: counts.needs_review || 0, color: 'var(--color-risk-review)' },
+    { name: 'Likely phishing', value: counts.quarantine || 0, color: 'var(--color-risk-quarantine)' },
+    { name: 'Confirmed phishing', value: counts.confirmed_phishing || 0, color: 'var(--color-risk-phishing)' },
   ];
-  const donutTotal = donutData.reduce((sum, d) => sum + d.value, 0);
-  const safeRate = donutTotal > 0 ? Math.round(((counts.safe || 0) / donutTotal) * 100) : 0;
-  const attention = counts.quarantined ?? 0;
+  const safeRate = scanned > 0 ? Math.round((safeCount / scanned) * 100) : 0;
+  const attention = counts.quarantine ?? 0;
   const lastSynced = account?.lastSyncedAt;
 
   return (
     <>
       <PageHeader
-        eyebrow={thisMonth()}
         title="Overview"
         description={
-          lastSynced ? `Last synced ${formatDateTime(lastSynced)}` : 'Your inbox security at a glance'
+          lastSynced
+            ? `Your inbox · last synced ${formatDateTime(lastSynced)}`
+            : 'Your inbox security at a glance'
         }
         actions={
           attention > 0 ? (
@@ -121,19 +122,20 @@ export function DashboardPage() {
         }
       />
 
-      {/* Key numbers this month */}
+      {/* Key numbers — live, across your whole inbox */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           icon={ScanLine}
-          label="Scanned"
-          value={counts.scannedEmails ?? 0}
-          hint={`${counts.syncedEmails ?? 0} synced`}
+          label="Messages"
+          value={total}
+          hint={`${scanned} scanned`}
           tone="text-primary"
+          to="/inbox"
         />
         <StatCard
           icon={ShieldAlert}
           label="Likely phishing"
-          value={counts.quarantined ?? 0}
+          value={counts.quarantine ?? 0}
           hint="In quarantine"
           tone="text-risk-quarantine"
           to="/inbox?riskBucket=quarantine"
@@ -141,7 +143,7 @@ export function DashboardPage() {
         <StatCard
           icon={AlertTriangle}
           label="Suspicious"
-          value={counts.suspicious ?? 0}
+          value={counts.needs_review ?? 0}
           hint="Needs review"
           tone="text-risk-review"
           to="/inbox?riskBucket=needs_review"
@@ -149,7 +151,7 @@ export function DashboardPage() {
         <StatCard
           icon={ShieldX}
           label="Confirmed"
-          value={counts.markedPhishing ?? 0}
+          value={counts.confirmed_phishing ?? 0}
           hint="Marked by you"
           tone="text-risk-phishing"
           to="/inbox?riskBucket=confirmed_phishing"
@@ -161,7 +163,7 @@ export function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Risk breakdown</CardTitle>
-            <CardDescription>{thisMonth()}</CardDescription>
+            <CardDescription>Across {scanned} scanned messages</CardDescription>
           </CardHeader>
           <CardContent>
             <RiskDonut data={donutData} centerValue={`${safeRate}%`} centerLabel="safe" />

@@ -2,7 +2,21 @@ import {
     getEmailByIdForUser,
     getEmailRawByIdForUser,
     getEmailsForUser,
+    getRiskBucketCountsForUser,
 } from '../services/email.service.js';
+
+export const getEmailStats = async (req, res, next) => {
+    try {
+        const result = await getRiskBucketCountsForUser({ userId: req.user._id });
+
+        res.status(200).json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
 export const getEmails = async (req, res, next) => {
     try {

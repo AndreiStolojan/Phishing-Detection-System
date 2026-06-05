@@ -51,6 +51,15 @@ const formatDate = (value) =>
     timeZone: 'Europe/Bucharest',
   }).format(new Date(value));
 
+// Turn rule ids like "reply_to_mismatch" / "link:shortener" into "Reply To Mismatch".
+const humanizeRule = (value) =>
+  String(value ?? '')
+    .replace(/[:_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
 const formatMonth = (month) => {
   const [year, monthValue] = String(month).split('-');
   const date = new Date(Date.UTC(Number(year), Number(monthValue) - 1, 1));
@@ -186,7 +195,7 @@ const renderRules = (rules = []) => {
         .map(
           (item) => `
         <tr>
-          <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;color:${C.fg};">${escapeHtml(item.rule)}</td>
+          <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;color:${C.fg};">${escapeHtml(humanizeRule(item.rule))}</td>
           <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;font-weight:700;color:${C.fg};text-align:right;">${formatNumber(item.count)}×</td>
         </tr>`
         )

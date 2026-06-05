@@ -544,3 +544,35 @@ export const getEmailRawByIdForUser = async ({ userId, emailId }) => {
 
     return toEmailRaw(email);
 };
+
+// Live counts of emails per current risk bucket (same derivation the list uses),
+// so dashboard/inbox category counts always match the list and update on review.
+export const getRiskBucketCountsForUser = async ({ userId }) => {
+    const userObjectId = new mongoose.Types.ObjectId(String(userId));
+
+    const results = await Email.aggregate([
+        { $match: { userId: userObjectId } },
+        ...buildLatestScanLookupStages(),
+        ...buildEmailStateStages(),
+        { $group: { _id: '$riskBucket', count: { $sum: 1 } } },
+    ]);
+
+    const counts = {
+        safe: 0,
+        needs_review: 0,
+        quarantine: 0,
+        reviewed_safe: 0,
+        confirmed_phishing: 0,
+        unscanned: 0,
+    };
+    let total = 0;
+
+    for (const row of results) {
+        if (Object.hasOwn(counts, row._id)) {
+            counts[row._id] = row.count;
+        }
+        total += row.count;
+    }
+
+    return { counts, total };
+};

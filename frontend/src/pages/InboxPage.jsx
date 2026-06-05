@@ -11,8 +11,7 @@ import { Card } from '@/components/ui/card';
 import { useApi } from '@/hooks/useApi';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useMailAccount } from '@/context/MailAccountContext';
-import { getEmails } from '@/api/emailsApi';
-import { getMonthlySummary } from '@/api/reportsApi';
+import { getEmails, getEmailStats } from '@/api/emailsApi';
 import { normalizeEmailList } from '@/lib/email-list';
 import { emailId } from '@/lib/email';
 import { RISK_FILTERS, getRiskMeta } from '@/lib/risk';
@@ -37,10 +36,10 @@ function groupByDate(emails) {
 }
 
 const FILTER_COUNT_MAP = {
-  '': 'syncedEmails',
-  quarantine: 'quarantined',
-  needs_review: 'suspicious',
-  confirmed_phishing: 'markedPhishing',
+  '': '__total__',
+  quarantine: 'quarantine',
+  needs_review: 'needs_review',
+  confirmed_phishing: 'confirmed_phishing',
   safe: 'safe',
 };
 
@@ -75,13 +74,14 @@ export function InboxPage() {
   );
 
   const countsQuery = useApi(
-    () => getMonthlySummary(),
+    () => getEmailStats(),
     [syncVersion],
-    `inbox-counts-${syncVersion}`
+    `inbox-stats-${syncVersion}`
   );
   const counts = countsQuery.data?.counts || {};
-  // Counts come from the monthly summary, which can disagree with a search-scoped
-  // list — so only surface them when no search is active.
+  const totalCount = countsQuery.data?.total ?? 0;
+  // Counts are per current risk bucket (same source as the list). They can't
+  // reflect a free-text search, so only surface them when no search is active.
   const showCounts = !debouncedSearch;
 
   const emails = normalizeEmailList(data);
@@ -136,7 +136,11 @@ export function InboxPage() {
           {RISK_FILTERS.map((filter) => {
             const isActive = riskBucket === filter.key;
             const countKey = FILTER_COUNT_MAP[filter.key];
-            const count = showCounts && countKey != null ? (counts[countKey] ?? null) : null;
+            const count = !showCounts
+              ? null
+              : countKey === '__total__'
+                ? totalCount
+                : (counts[countKey] ?? null);
             const hex = filterHex(filter.key);
             return (
               <button

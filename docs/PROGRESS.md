@@ -51,7 +51,9 @@ De știut: 3 teste `ReviewActions` pică DE DINAINTE de această sesiune (label 
 
 **FAZA 22 COMPLETĂ — toate 11 faze livrate.**
 
-Iterație feedback Andrei 2026-06-06: (1) eliminat PostureHero band-ul mare de pe primul rând al dashboard-ului (arăta hideous) → dashboard reorganizat: header cu eyebrow lună + "Overview" + last sync + chip de status mic (rose "N need attention" / verde "All clear"), apoi 4 KPI cards (luna curentă), apoi donut "Risk breakdown · <lună>" + needs-attention. (2) Animație inbox "weird" → eliminat stagger-ul per-rând din EmailRow (se compunea cu page transition) + PageTransition trecut pe tween curat (exit doar opacity, fără double-slide).
+Iterație feedback Andrei 2026-06-06: (1) eliminat PostureHero band-ul mare de pe primul rând al dashboard-ului (arăta hideous) → dashboard reorganizat: header "Overview" + last sync + chip de status mic (rose "N need attention" / verde "All clear"), apoi 4 KPI cards, apoi donut + needs-attention. (2) Animație inbox "weird" → eliminat stagger-ul per-rând din EmailRow (se compunea cu page transition) + PageTransition trecut pe tween curat (exit doar opacity, fără double-slide).
+
+Iterație 2 feedback Andrei 2026-06-06: (1) Perioadă neclară + categorii care nu se actualizează → cauză: counts veneau din monthly-summary (evenimente scan/lună), nu din riskBucket curent. FIX: endpoint nou `GET /api/v1/emails/stats` (counts pe riskBucket curent, aceeași derivare ca lista). Dashboard + chip-uri inbox folosesc acum acest endpoint → numerele se potrivesc cu lista și se actualizează după review (+ `bustCacheByPrefix('inbox-','dash-','risky-')` la mark/rescan). Dashboard e acum stare CURENTĂ ("Your inbox", "Across N scanned messages"), fără confuzie de lună; Reports rămâne vederea pe lună. (2) Digest avea reguli cu `_` → `humanizeRule` în template (ex: `reply_to_mismatch` → "Reply To Mismatch"). Frontend build + 20 teste, backend 12 teste, render digest OK.
 
 Următorul pas: Andrei verifică vizual cap-coadă cu Gmail real (`npm --prefix frontend run dev` + backend), apoi capturi demo pentru coordonator.
 
