@@ -40,6 +40,10 @@ const errorMiddleware = (err, req, res, next) => {
         payload.errors = errors;
     }
 
+    if (process.env.NODE_ENV !== 'production' && statusCode >= 500) {
+        console.error('[error]', err);
+    }
+
     res.status(statusCode).json(payload);
 };
 

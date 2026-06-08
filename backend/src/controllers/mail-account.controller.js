@@ -103,6 +103,11 @@ export const syncMailAccount = async (req, res, next) => {
             mailAccountId: req.params.id,
         });
 
+        const user = await User.findById(req.user._id).select('email name settings').lean();
+        sendPhishingAlertForNewEmails({ userId: req.user._id, user, syncResult }).catch(
+            (err) => console.error('[manual-sync] Failed to send phishing alert', err.message)
+        );
+
         res.status(200).json({
             success: true,
             message: 'Mail account synced successfully',

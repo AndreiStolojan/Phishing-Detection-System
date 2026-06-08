@@ -1,3 +1,4 @@
+import cors from 'cors';
 import express from 'express';
 import userRouter from './routes/user.routes.js';
 import authRouter from './routes/auth.routes.js';
@@ -10,9 +11,11 @@ import reportRouter from './routes/report.routes.js';
 import contactRouter from './routes/contact.routes.js';
 import sendErrorResponse from './common/http/send-error-response.js';
 import errorMiddleware from './middlewares/error.middleware.js';
+import { FRONTEND_APP_URL } from './config/env.js';
 
 const app = express();
 
+app.use(cors({ origin: FRONTEND_APP_URL, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
