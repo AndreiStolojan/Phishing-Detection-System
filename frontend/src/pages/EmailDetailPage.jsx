@@ -391,7 +391,7 @@ export function EmailDetailPage() {
   const scanScore = scan?.score ?? email?.latestScan?.score ?? null;
 
   return (
-    <>
+    <div className="space-y-4">
       {/* Nav bar */}
       <div className="flex items-center justify-between gap-2">
         <Button variant="ghost" size="sm" onClick={goBack}>
@@ -560,6 +560,6 @@ export function EmailDetailPage() {
           {scan && <ScanDetails scan={scan} />}
         </div>
       </div>
-    </>
+    </div>
   );
 }
