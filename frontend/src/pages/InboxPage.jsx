@@ -216,7 +216,7 @@ export function InboxPage() {
   };
 
   return (
-    <>
+    <div className="space-y-4">
       {/* Filter chips + search + select button */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="scrollbar-none -mx-5 flex items-center gap-1 overflow-x-auto px-5 sm:mx-0 sm:flex-wrap sm:px-0">
@@ -435,6 +435,6 @@ export function InboxPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }

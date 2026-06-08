@@ -194,7 +194,7 @@ export function SettingsPage() {
   });
 
   return (
-    <>
+    <div className="space-y-4">
       <PageHeader title="Settings" description="Manage your account, Gmail connection, and detection preferences." />
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -416,6 +416,6 @@ export function SettingsPage() {
         </Section>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -114,7 +114,7 @@ export function ReportsPage() {
     scanned > 0 ? Math.round(((ai.evaluated ?? 0) / scanned) * 100) : null;
 
   return (
-    <>
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Monthly report"
         title={monthLabel(month)}
@@ -162,7 +162,6 @@ export function ReportsPage() {
         <ErrorState message={error} onRetry={reload} />
       ) : (
         <div className="space-y-4">
-
           {/* Row 1: Detection funnel + Safe-rate KPI */}
           <div className="grid gap-4 lg:grid-cols-3">
             {/* Detection funnel */}
@@ -352,6 +351,6 @@ export function ReportsPage() {
 
         </div>
       )}
-    </>
+    </div>
   );
 }
