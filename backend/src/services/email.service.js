@@ -73,11 +73,12 @@ const toEmailListItem = ({ email }) => {
 };
 
 const toEmailDetails = async ({ userId, email, latestScan }) => {
-    const emailState = await buildEmailStateForUser({
-        userId,
-        email,
-        latestScan,
-    });
+    const [emailState, priorSenderCount] = await Promise.all([
+        buildEmailStateForUser({ userId, email, latestScan }),
+        email.from
+            ? Email.countDocuments({ userId, from: email.from, _id: { $ne: email._id } })
+            : Promise.resolve(1),
+    ]);
 
     return {
         _id: email._id,
@@ -107,6 +108,7 @@ const toEmailDetails = async ({ userId, email, latestScan }) => {
         lastProviderActionError: email.lastProviderActionError || null,
         createdAt: email.createdAt,
         updatedAt: email.updatedAt,
+        isFirstTimeSender: priorSenderCount === 0,
         latestScan: toCompactLatestScan(latestScan),
         ...emailState,
     };
