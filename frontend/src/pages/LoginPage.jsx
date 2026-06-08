@@ -126,7 +126,7 @@ export function LoginPage() {
             <motion.div {...staggerChild} className="mb-6 flex flex-col items-center text-center">
               <div className="relative mb-3">
                 <div className="absolute inset-0 scale-110 rounded-3xl bg-primary/20 blur-2xl" />
-                <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-white p-1 shadow-xl">
+                <div className="relative h-24 w-24 overflow-hidden rounded-2xl">
                   <img src="/logo.png" alt="SecureInbox" className="h-full w-full object-contain" />
                 </div>
               </div>
