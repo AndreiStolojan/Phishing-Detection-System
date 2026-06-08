@@ -42,9 +42,9 @@ const formatAxisDate = (dateStr) => {
 };
 
 const TREND_SERIES = [
-  { key: 'needs_review',       name: 'Suspicious',         color: '#818CF8', gradId: 'grad-review' },
-  { key: 'quarantine',         name: 'Likely phishing',    color: '#FB923C', gradId: 'grad-quarantine' },
-  { key: 'confirmed_phishing', name: 'Confirmed phishing', color: '#F43F5E', gradId: 'grad-phishing' },
+  { key: 'needs_review',       name: 'Suspicious',         color: 'var(--color-risk-review)',      gradId: 'grad-review' },
+  { key: 'quarantine',         name: 'Likely phishing',    color: 'var(--color-risk-quarantine)',  gradId: 'grad-quarantine' },
+  { key: 'confirmed_phishing', name: 'Confirmed phishing', color: 'var(--color-risk-phishing)',    gradId: 'grad-phishing' },
 ];
 
 function TrendTooltip({ active, payload, label }) {
