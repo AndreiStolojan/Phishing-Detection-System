@@ -194,11 +194,13 @@ export function SettingsPage() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-4">
+    <>
       <PageHeader title="Settings" description="Manage your account, Gmail connection, and detection preferences." />
 
-      {/* Profile */}
-      <Section icon={User} title="Profile" description="Your account details." index={0}>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-4">
+        {/* Profile */}
+        <Section icon={User} title="Profile" description="Your account details." index={0}>
         <div className="space-y-4">
           <div className="grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-3">
             <Label htmlFor="name" className="text-sm text-muted-foreground">Name</Label>
@@ -337,14 +339,16 @@ export function SettingsPage() {
           </div>
         )}
       </Section>
+        </div>
 
-      {/* Detection & alerts */}
-      <Section
-        icon={Sparkles}
-        title="Detection & alerts"
-        description="Control how SecureInbox analyses messages and notifies you."
-        index={2}
-      >
+        <div className="space-y-4">
+        {/* Detection & alerts */}
+        <Section
+          icon={Sparkles}
+          title="Detection & alerts"
+          description="Control how SecureInbox analyses messages and notifies you."
+          index={2}
+        >
         <div className="-mx-2 divide-y divide-border/60">
           <SettingToggle
             id="ai-toggle"
@@ -409,7 +413,9 @@ export function SettingsPage() {
             </Button>
           </div>
         </div>
-      </Section>
-    </div>
+        </Section>
+        </div>
+      </div>
+    </>
   );
 }
