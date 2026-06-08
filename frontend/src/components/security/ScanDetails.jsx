@@ -1,22 +1,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Sparkles, ListChecks, Gauge, Info, ChevronDown } from 'lucide-react';
+import { Sparkles, Gauge, Info, ChevronDown, Bot, Shield } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { getVerdictMeta, humanize } from '@/lib/risk';
+import { ThreatSignals } from '@/components/security/ThreatSignals';
+import { getVerdictMeta } from '@/lib/risk';
 import { ease, springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
-
-const ruleLabel = (rule) => {
-  if (typeof rule === 'string') return humanize(rule.replace(/[:_]/g, ' '));
-  if (rule?.rule) return humanize(String(rule.rule).replace(/[:_]/g, ' '));
-  if (rule?.id) return humanize(String(rule.id).replace(/[:_]/g, ' '));
-  return 'Rule';
-};
-
-const rulePoints = (rule) =>
-  typeof rule === 'object' ? rule.points ?? rule.totalPoints ?? null : null;
 
 function ScoreBar({ label, value, max = 100, color }) {
   const pct = Math.max(0, Math.min(100, (Number(value) / max) * 100 || 0));
@@ -39,30 +29,45 @@ function ScoreBar({ label, value, max = 100, color }) {
   );
 }
 
-const RULES_PREVIEW = 3;
+function DetectionBadge({ ruleScore, aiScore }) {
+  const hasRule = (ruleScore ?? 0) > 0;
+  const hasAi = (aiScore ?? 0) > 0;
+
+  if (!hasRule && !hasAi) return null;
+
+  const label = hasRule && hasAi ? 'Rules + AI' : hasAi ? 'AI detected' : 'Rule-based';
+  const Icon = hasAi ? Bot : Shield;
+
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+        hasAi ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {label}
+    </span>
+  );
+}
 
 export function ScanDetails({ scan }) {
-  const [showAllRules, setShowAllRules] = useState(false);
-  const [showEvidence, setShowEvidence] = useState(false);
+  const [showScores, setShowScores] = useState(false);
 
   if (!scan) return null;
 
   const verdictMeta = getVerdictMeta(scan.verdict);
-  const triggered = Array.isArray(scan.triggeredRules) ? scan.triggeredRules : [];
-  const visibleRules = showAllRules ? triggered : triggered.slice(0, RULES_PREVIEW);
-  const hiddenRulesCount = triggered.length - RULES_PREVIEW;
-  const reasons = Array.isArray(scan.reasons) ? scan.reasons : [];
   const summary = scan.aiExplanation?.summary;
   const aiSource = scan.aiExplanationMeta?.source;
   const aiStatus = scan.aiExplanationMeta?.status;
   const ollamaUnavailable = aiSource === 'fallback' || aiStatus === 'fallback';
 
   return (
-    <div className="space-y-4">
-      {/* AI explanation — the plain-language "why", the primary panel */}
+    <div className="space-y-3">
+      {/* AI / rule-based explanation — primary panel */}
       {summary && (
         <Card className={ollamaUnavailable ? 'border-border' : 'border-primary/25 bg-primary/[0.06]'}>
-          <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <CardHeader className="flex-row items-center gap-2 space-y-0 pb-2">
             <span
               className={cn(
                 'flex h-7 w-7 items-center justify-center rounded-lg',
@@ -74,6 +79,9 @@ export function ScanDetails({ scan }) {
             <CardTitle className="text-sm">
               {ollamaUnavailable ? 'Rule-based explanation' : 'AI explanation'}
             </CardTitle>
+            <div className="ml-auto">
+              <DetectionBadge ruleScore={scan.ruleScore} aiScore={scan.aiScore} />
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-sm leading-relaxed text-foreground/90">{summary}</p>
@@ -81,26 +89,52 @@ export function ScanDetails({ scan }) {
         </Card>
       )}
 
-      {/* Ollama unavailable — calm info note (on-brand, not raw amber) */}
-      {ollamaUnavailable && (
-        <div className="flex items-start gap-2 rounded-lg border border-risk-review/30 bg-risk-review-soft px-3 py-2.5 text-sm text-risk-review">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>The local AI model (Ollama) was unavailable, so this explanation came from the rule-based fallback.</span>
+      {/* If no AI explanation, still show the detection badge */}
+      {!summary && (
+        <div className="flex justify-end">
+          <DetectionBadge ruleScore={scan.ruleScore} aiScore={scan.aiScore} />
         </div>
       )}
 
-      {/* Evidence — score + rules, demoted behind a disclosure */}
+      {/* Ollama unavailable — calm info note */}
+      {ollamaUnavailable && (
+        <div className="flex items-start gap-2 rounded-lg border border-risk-review/30 bg-risk-review-soft px-3 py-2.5 text-sm text-risk-review">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            The local AI model (Ollama) was unavailable — this explanation came from the
+            rule-based fallback.
+          </span>
+        </div>
+      )}
+
+      {/* Threat signals — always visible, not hidden */}
+      <ThreatSignals scan={scan} />
+
+      {/* Score breakdown — collapsible, score visible in header */}
       <div>
         <button
-          onClick={() => setShowEvidence((v) => !v)}
+          onClick={() => setShowScores((v) => !v)}
           className="flex w-full items-center justify-between rounded-md py-1 text-muted-foreground transition-colors hover:text-foreground"
         >
-          <span className="label-overline">Evidence</span>
-          <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', !showEvidence && '-rotate-90')} />
+          <span className="label-overline flex items-center gap-1.5">
+            <Gauge className="h-3.5 w-3.5" />
+            Score breakdown
+          </span>
+          <div className="flex items-center gap-2">
+            <span className={cn('text-xs font-semibold tabular-nums', verdictMeta.tone.text)}>
+              {scan.score}
+            </span>
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 transition-transform duration-200',
+                !showScores && '-rotate-90'
+              )}
+            />
+          </div>
         </button>
 
         <AnimatePresence initial={false}>
-          {showEvidence && (
+          {showScores && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
@@ -108,73 +142,24 @@ export function ScanDetails({ scan }) {
               transition={{ duration: 0.22, ease }}
               className="overflow-hidden"
             >
-              <div className="space-y-4 pt-3">
-                {/* Score breakdown */}
-                <Card>
-                  <CardHeader className="flex-row items-center gap-2 space-y-0">
-                    <Gauge className="h-4 w-4 text-muted-foreground" />
-                    <CardTitle className="text-sm">Risk score</CardTitle>
-                    <span className={cn('ml-auto text-sm font-semibold', verdictMeta.tone.text)}>
-                      {verdictMeta.label}
-                    </span>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <ScoreBar label="Total score" value={scan.score} color={verdictMeta.tone.hex} />
-                    <div className="grid grid-cols-2 gap-4">
-                      <ScoreBar label="Rule signals" value={scan.ruleScore} color="var(--color-chart-3)" />
-                      <ScoreBar label="AI signals" value={scan.aiScore} color="var(--color-chart-1)" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Triggered rules */}
-                <Card>
-                  <CardHeader className="flex-row items-center gap-2 space-y-0">
-                    <ListChecks className="h-4 w-4 text-muted-foreground" />
-                    <CardTitle className="text-sm">
-                      Triggered rules{triggered.length ? ` (${triggered.length})` : ''}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {triggered.length === 0 && reasons.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No rules were triggered for this message.
-                      </p>
-                    ) : (
-                      <>
-                        <ul className="space-y-2">
-                          {visibleRules.map((rule, i) => (
-                            <li
-                              key={i}
-                              className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm"
-                            >
-                              <span>{ruleLabel(rule)}</span>
-                              {rulePoints(rule) != null && (
-                                <Badge variant="muted" className="tabular-nums">
-                                  +{rulePoints(rule)}
-                                </Badge>
-                              )}
-                            </li>
-                          ))}
-                          {triggered.length === 0 &&
-                            reasons.map((reason, i) => (
-                              <li key={i} className="text-sm text-muted-foreground">
-                                • {reason}
-                              </li>
-                            ))}
-                        </ul>
-                        {hiddenRulesCount > 0 && (
-                          <button
-                            onClick={() => setShowAllRules((v) => !v)}
-                            className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                          >
-                            {showAllRules ? 'Show less' : `Show ${hiddenRulesCount} more`}
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+              <div className="space-y-3 pt-3">
+                <ScoreBar
+                  label="Total score"
+                  value={scan.score}
+                  color={verdictMeta.tone.hex}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <ScoreBar
+                    label="Rule signals"
+                    value={scan.ruleScore}
+                    color="var(--color-chart-3)"
+                  />
+                  <ScoreBar
+                    label="AI signals"
+                    value={scan.aiScore}
+                    color="var(--color-chart-1)"
+                  />
+                </div>
               </div>
             </motion.div>
           )}

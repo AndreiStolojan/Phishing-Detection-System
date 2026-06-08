@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,7 +10,13 @@ import {
   ScanLine,
   CheckCircle2,
   UserCheck,
+  UserPlus,
+  Copy,
+  Check,
+  ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
 import { LoadingState, ErrorState } from '@/components/common/states';
@@ -26,14 +32,186 @@ import { bustCacheByPrefix } from '@/hooks/useApi';
 import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
 import { getRiskMeta } from '@/lib/risk';
 import { formatDateTime } from '@/utils/formatDate';
+import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
+
+/* ─── Score ring ─────────────────────────────────────────────────────────── */
+
+function ScoreRing({ score, color, children }) {
+  const size = 52;
+  const r = 23;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min((score ?? 0) / 100, 1);
+  const offset = circ * (1 - pct);
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg
+        width={size}
+        height={size}
+        className="absolute inset-0 -rotate-90"
+        aria-hidden="true"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          className="text-border/40"
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          initial={{ strokeDashoffset: circ }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 0.9, ease: [0.4, 0, 0.2, 1] }}
+        />
+      </svg>
+      <div className="absolute inset-[4px] flex items-center justify-center">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Warning banner (injected above email body) ─────────────────────────── */
+
+const WARN_BUCKETS = new Set(['quarantine', 'confirmed_phishing', 'needs_review']);
+
+const WARN_COPY = {
+  quarantine: {
+    heading: 'Likely phishing — proceed with caution',
+    body: 'Do not click links, open attachments, or enter credentials. Review the signals on the right before taking any action.',
+  },
+  confirmed_phishing: {
+    heading: 'Confirmed phishing',
+    body: 'You marked this email as phishing. Do not interact with any links or attachments.',
+  },
+  needs_review: {
+    heading: 'Suspicious signals detected',
+    body: 'The scan found unusual patterns. Review the signals carefully before clicking anything.',
+  },
+};
+
+function WarningBanner({ riskBucket, tone }) {
+  if (!WARN_BUCKETS.has(riskBucket)) return null;
+  const copy = WARN_COPY[riskBucket];
+  const WarnIcon = riskBucket === 'needs_review' ? AlertTriangle : ShieldAlert;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSoft}
+      className="rounded-lg border p-3"
+      style={{
+        backgroundColor: `color-mix(in oklch, ${tone.hex} 10%, transparent)`,
+        borderColor: `color-mix(in oklch, ${tone.hex} 25%, transparent)`,
+      }}
+    >
+      <div className="flex items-start gap-2.5">
+        <WarnIcon className={cn('mt-0.5 h-4 w-4 shrink-0', tone.text)} />
+        <div className="min-w-0">
+          <p className={cn('text-sm font-semibold', tone.text)}>{copy.heading}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{copy.body}</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ─── Sender trust signals ───────────────────────────────────────────────── */
+
+function SenderSignals({ email }) {
+  const chips = [];
+
+  if (email.isFirstTimeSender) {
+    chips.push(
+      <span
+        key="first"
+        className="inline-flex items-center gap-1 rounded-full border border-risk-review/30 bg-risk-review-soft px-2 py-0.5 text-[11px] font-medium text-risk-review"
+      >
+        <UserPlus className="h-3 w-3" />
+        First-time sender
+      </span>
+    );
+  }
+
+  const replyMismatch =
+    email.replyToDomain &&
+    email.senderDomain &&
+    email.replyToDomain.toLowerCase() !== email.senderDomain.toLowerCase();
+
+  if (replyMismatch) {
+    chips.push(
+      <span
+        key="reply"
+        className="inline-flex items-center gap-1 rounded-full border border-risk-quarantine/30 bg-risk-quarantine-soft px-2 py-0.5 text-[11px] font-medium text-risk-quarantine"
+        title={`Reply-To: ${email.replyToDomain} · Sender: ${email.senderDomain}`}
+      >
+        <AlertTriangle className="h-3 w-3" />
+        Reply-To mismatch
+      </span>
+    );
+  }
+
+  if (chips.length === 0) return null;
+  return <div className="mt-2 flex flex-wrap gap-1.5">{chips}</div>;
+}
+
+/* ─── Copy-to-clipboard link row ─────────────────────────────────────────── */
+
+function LinkRow({ url }) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef(null);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1800);
+    });
+  };
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  return (
+    <li className="flex items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1.5">
+      <span
+        className="min-w-0 flex-1 truncate font-mono text-xs text-foreground/80"
+        title={url}
+      >
+        {url}
+      </span>
+      <button
+        onClick={handleCopy}
+        title={copied ? 'Copied!' : 'Copy URL'}
+        className={cn(
+          'shrink-0 rounded p-0.5 transition-colors',
+          copied ? 'text-risk-safe' : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+    </li>
+  );
+}
+
+/* ─── Main page ──────────────────────────────────────────────────────────── */
 
 export function EmailDetailPage() {
   const { emailId: paramId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Prev/next navigation — passed from InboxPage via router state
   const { ids = [] } = location.state || {};
   const currentIdx = ids.indexOf(paramId);
   const prevId = currentIdx > 0 ? ids[currentIdx - 1] : null;
@@ -67,12 +245,8 @@ export function EmailDetailPage() {
     }
   }, [paramId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  // Replace history when stepping between messages so "Back" returns to the inbox
-  // (with its filter) rather than walking back through every message viewed.
   const navTo = useCallback(
     (id) => navigate(`/inbox/${id}`, { state: { ids }, replace: true }),
     [navigate, ids]
@@ -83,28 +257,19 @@ export function EmailDetailPage() {
     else navigate('/inbox');
   }, [ids, navigate]);
 
-  // Keyboard navigation: ←/k prev, →/j next, Esc back to inbox (ignored while typing)
   useEffect(() => {
     const onKey = (e) => {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if ((e.key === 'ArrowLeft' || e.key === 'k') && prevId) {
-        e.preventDefault();
-        navTo(prevId);
-      } else if ((e.key === 'ArrowRight' || e.key === 'j') && nextId) {
-        e.preventDefault();
-        navTo(nextId);
-      } else if (e.key === 'Escape') {
-        goBack();
-      }
+      if ((e.key === 'ArrowLeft' || e.key === 'k') && prevId) { e.preventDefault(); navTo(prevId); }
+      else if ((e.key === 'ArrowRight' || e.key === 'j') && nextId) { e.preventDefault(); navTo(nextId); }
+      else if (e.key === 'Escape') goBack();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [prevId, nextId, navTo, goBack]);
 
   const handleReviewed = (result) => {
-    // Merge the server's updated email in place — no full reload, so the verdict
-    // header and badge update instantly without a loading flash.
     setEmail((prev) => ({ ...prev, ...result }));
     bustCacheByPrefix('inbox-', 'dash-', 'risky-');
   };
@@ -129,7 +294,7 @@ export function EmailDetailPage() {
 
   const links = raw?.links || [];
   const attachments = raw?.attachments || [];
-  const LINKS_PREVIEW = 3;
+  const LINKS_PREVIEW = 5;
   const visibleLinks = showAllLinks ? links : links.slice(0, LINKS_PREVIEW);
   const hiddenLinksCount = links.length - LINKS_PREVIEW;
 
@@ -140,17 +305,21 @@ export function EmailDetailPage() {
   const total = ids.length;
   const position = currentIdx >= 0 ? currentIdx + 1 : null;
 
-  // Verdict
   const { label, description, tone } = getRiskMeta(email.riskBucket);
   const isSafe = email.riskBucket === 'safe' || email.riskBucket === 'reviewed_safe';
   const VerdictIcon = isSafe ? CheckCircle2 : tone.icon;
   const sourceLabel =
-    email.verdictSource === 'user' ? 'Manual review' : email.verdictSource === 'scan' ? 'Auto scan' : null;
+    email.verdictSource === 'user'
+      ? 'Manual review'
+      : email.verdictSource === 'scan'
+      ? 'Auto scan'
+      : null;
   const SourceIcon = email.verdictSource === 'user' ? UserCheck : ScanLine;
+  const scanScore = scan?.score ?? email?.latestScan?.score ?? null;
 
   return (
     <>
-      {/* Nav bar: back + prev/next */}
+      {/* Nav bar */}
       <div className="flex items-center justify-between gap-2">
         <Button variant="ghost" size="sm" onClick={goBack}>
           <ArrowLeft className="h-4 w-4" />
@@ -163,43 +332,37 @@ export function EmailDetailPage() {
                 {position} of {total}
               </span>
             )}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled={!prevId}
-              onClick={() => prevId && navTo(prevId)}
-              title="Previous message (←)"
-            >
+            <Button variant="ghost" size="icon-sm" disabled={!prevId}
+              onClick={() => prevId && navTo(prevId)} title="Previous message (←)">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled={!nextId}
-              onClick={() => nextId && navTo(nextId)}
-              title="Next message (→)"
-            >
+            <Button variant="ghost" size="icon-sm" disabled={!nextId}
+              onClick={() => nextId && navTo(nextId)} title="Next message (→)">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         )}
       </div>
 
-      {/* Header: verdict + subject + sender, with a visible Re-scan */}
+      {/* Verdict header card */}
       <Card style={{ borderLeftColor: tone.hex, borderLeftWidth: 3 }}>
         <CardContent className="p-5">
           <div className="flex items-start gap-4">
-            <span
-              className={cn(
-                'flex h-11 w-11 shrink-0 items-center justify-center rounded-full',
-                tone.soft
-              )}
-            >
-              <VerdictIcon className={cn('h-5 w-5', tone.text)} />
-            </span>
+            {/* Animated score ring wrapping the verdict icon */}
+            <ScoreRing score={scanScore} color={tone.hex}>
+              <span className={cn('flex h-9 w-9 items-center justify-center rounded-full', tone.soft)}>
+                <VerdictIcon className={cn('h-5 w-5', tone.text)} />
+              </span>
+            </ScoreRing>
+
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className={cn('text-sm font-semibold', tone.text)}>{label}</span>
+                {scanScore != null && (
+                  <span className={cn('text-xs tabular-nums opacity-70', tone.text)}>
+                    {scanScore}/100
+                  </span>
+                )}
                 {sourceLabel && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground">
                     <SourceIcon className="h-3 w-3" />
@@ -213,25 +376,24 @@ export function EmailDetailPage() {
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
                 <span className="font-medium text-foreground/90">{senderName}</span>
                 {showAddress && (
-                  <span className="min-w-0 truncate text-muted-foreground">&lt;{senderAddress}&gt;</span>
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    &lt;{senderAddress}&gt;
+                  </span>
                 )}
                 <span className="text-border">·</span>
                 <span className="text-muted-foreground">{formatDateTime(email.receivedAt)}</span>
               </div>
-              {description && <p className="mt-2 text-sm text-muted-foreground">{description}</p>}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              disabled={rescanning}
-              onClick={handleRescan}
-            >
-              {rescanning ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ScanLine className="h-4 w-4" />
+              {description && (
+                <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
               )}
+
+              {/* Sender trust signals: first-time sender + reply-to mismatch */}
+              <SenderSignals email={email} />
+            </div>
+
+            <Button variant="outline" size="sm" className="shrink-0"
+              disabled={rescanning} onClick={handleRescan}>
+              {rescanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
               {rescanning ? 'Scanning…' : 'Re-scan'}
             </Button>
           </div>
@@ -244,40 +406,42 @@ export function EmailDetailPage() {
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <Card className="min-w-0">
             <CardContent className="overflow-x-auto pt-5">
-              <EmailBody
-                htmlBody={raw?.htmlBody}
-                textBody={raw?.textBody}
-                riskBucket={email.riskBucket}
-              />
+              {/* Warning banner lives inside the reading context, above the body */}
+              <WarningBanner riskBucket={email.riskBucket} tone={tone} />
+              <div className={cn(WARN_BUCKETS.has(email.riskBucket) && 'mt-4')}>
+                <EmailBody
+                  htmlBody={raw?.htmlBody}
+                  textBody={raw?.textBody}
+                  riskBucket={email.riskBucket}
+                />
+              </div>
             </CardContent>
           </Card>
 
           {(links.length > 0 || attachments.length > 0) && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Extracted indicators</CardTitle>
+                <CardTitle className="text-sm">Links &amp; Attachments</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 {links.length > 0 && (
                   <div className="space-y-2">
                     <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      <Link2 className="h-3.5 w-3.5" /> Links ({links.length})
+                      <Link2 className="h-3.5 w-3.5" />
+                      Links ({links.length})
                     </p>
                     <ul className="space-y-1">
                       {visibleLinks.map((link, i) => (
-                        <li
+                        <LinkRow
                           key={i}
-                          className="truncate rounded-md bg-muted/40 px-2.5 py-1.5 text-xs text-foreground/80"
-                          title={typeof link === 'string' ? link : link.url}
-                        >
-                          {typeof link === 'string' ? link : link.url || link.href}
-                        </li>
+                          url={typeof link === 'string' ? link : link.url || link.href || ''}
+                        />
                       ))}
                     </ul>
                     {hiddenLinksCount > 0 && (
                       <button
                         onClick={() => setShowAllLinks((v) => !v)}
-                        className="mt-1.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                        className="mt-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                       >
                         {showAllLinks ? 'Show less' : `Show ${hiddenLinksCount} more`}
                       </button>
@@ -285,13 +449,19 @@ export function EmailDetailPage() {
                   </div>
                 )}
                 {attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {attachments.map((att, i) => (
-                      <Badge key={i} variant="muted">
-                        <Paperclip className="h-3 w-3" />
-                        {typeof att === 'string' ? att : att.filename || att.name || 'file'}
-                      </Badge>
-                    ))}
+                  <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Attachments ({attachments.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {attachments.map((att, i) => (
+                        <Badge key={i} variant="muted">
+                          <Paperclip className="h-3 w-3" />
+                          {typeof att === 'string' ? att : att.filename || att.name || 'file'}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -299,11 +469,11 @@ export function EmailDetailPage() {
           )}
         </div>
 
-        {/* Security panel: review, then scan details */}
+        {/* Security panel */}
         <div className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Your review</CardTitle>
+              <CardTitle className="text-sm">Your verdict</CardTitle>
             </CardHeader>
             <CardContent>
               <ReviewActions email={email} onReviewed={handleReviewed} />
