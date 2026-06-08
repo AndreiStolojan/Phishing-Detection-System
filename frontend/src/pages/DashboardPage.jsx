@@ -41,18 +41,36 @@ const formatAxisDate = (dateStr) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+const TREND_SERIES = [
+  { key: 'needs_review',      name: 'Suspicious',        color: 'var(--color-risk-review)',      gradId: 'grad-review' },
+  { key: 'quarantine',        name: 'Likely phishing',   color: 'var(--color-risk-quarantine)',  gradId: 'grad-quarantine' },
+  { key: 'confirmed_phishing',name: 'Confirmed phishing',color: 'var(--color-risk-phishing)',    gradId: 'grad-phishing' },
+];
+
 function TrendTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
+  const visible = payload.filter((e) => e.value > 0);
+  if (!visible.length) return null;
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-md">
-      <p className="mb-1.5 font-medium">{formatAxisDate(label)}</p>
-      {payload.map((entry) => (
-        <div key={entry.dataKey} className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full" style={{ background: entry.color }} />
-          <span className="text-muted-foreground capitalize">{entry.name}:</span>
-          <span className="font-medium">{entry.value}</span>
-        </div>
-      ))}
+      <p className="mb-2 font-semibold">{formatAxisDate(label)}</p>
+      <div className="space-y-1">
+        {TREND_SERIES.map(({ key, name, color }) => {
+          const entry = payload.find((e) => e.dataKey === key);
+          const val = entry?.value ?? 0;
+          return (
+            <div key={key} className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+                <span className="text-muted-foreground">{name}</span>
+              </div>
+              <span className={cn('font-semibold tabular-nums', val === 0 && 'text-muted-foreground/50')}>
+                {val === 0 ? '—' : val}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -64,67 +82,58 @@ function ThreatTrendChart({ data }) {
   };
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <AreaChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-        <defs>
-          <linearGradient id="grad-review" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-risk-review)" stopOpacity={0.55} />
-            <stop offset="95%" stopColor="var(--color-risk-review)" stopOpacity={0.04} />
-          </linearGradient>
-          <linearGradient id="grad-quarantine" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.65} />
-            <stop offset="95%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.04} />
-          </linearGradient>
-          <linearGradient id="grad-phishing" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-risk-phishing)" stopOpacity={0.75} />
-            <stop offset="95%" stopColor="var(--color-risk-phishing)" stopOpacity={0.04} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" strokeOpacity={0.5} />
-        <XAxis
-          dataKey="date"
-          tickFormatter={tickFormatter}
-          tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
-          axisLine={false}
-          tickLine={false}
-        />
-        <YAxis
-          tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
-          axisLine={false}
-          tickLine={false}
-          allowDecimals={false}
-        />
-        <Tooltip content={<TrendTooltip />} />
-        {/* Suspicious at base, phishing on top — each spike is clearly its threat color */}
-        <Area
-          type="monotone"
-          dataKey="needs_review"
-          name="Suspicious"
-          stackId="1"
-          stroke="var(--color-risk-review)"
-          fill="url(#grad-review)"
-          strokeWidth={1.5}
-        />
-        <Area
-          type="monotone"
-          dataKey="quarantine"
-          name="Likely phishing"
-          stackId="1"
-          stroke="var(--color-risk-quarantine)"
-          fill="url(#grad-quarantine)"
-          strokeWidth={1.5}
-        />
-        <Area
-          type="monotone"
-          dataKey="confirmed_phishing"
-          name="Confirmed"
-          stackId="1"
-          stroke="var(--color-risk-phishing)"
-          fill="url(#grad-phishing)"
-          strokeWidth={1.5}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div>
+      <ResponsiveContainer width="100%" height={200}>
+        <AreaChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+          <defs>
+            {TREND_SERIES.map(({ gradId, color }) => (
+              <linearGradient key={gradId} id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" strokeOpacity={0.4} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={tickFormatter}
+            tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
+            axisLine={false}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip content={<TrendTooltip />} />
+          {TREND_SERIES.map(({ key, name, color, gradId }) => (
+            <Area
+              key={key}
+              type="monotone"
+              dataKey={key}
+              name={name}
+              stroke={color}
+              fill={`url(#${gradId})`}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+            />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+
+      {/* Legend */}
+      <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1.5">
+        {TREND_SERIES.map(({ key, name, color }) => (
+          <div key={key} className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color }} />
+            <span className="text-[11px] text-muted-foreground">{name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
