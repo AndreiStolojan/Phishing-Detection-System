@@ -20,7 +20,6 @@ import {
 } from 'recharts';
 
 import { DashboardSkeleton, ErrorState, EmptyState } from '@/components/common/states';
-import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RiskDonut } from '@/components/dashboard/RiskDonut';
 import { EmailRow } from '@/components/inbox/EmailRow';
@@ -267,8 +266,6 @@ export function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Overview" />
-
       {/* Security posture hero — full width */}
       <PostureHero
         attention={attention}
