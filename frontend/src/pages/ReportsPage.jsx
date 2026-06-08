@@ -161,7 +161,7 @@ export function ReportsPage() {
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : (
-        <div className="mt-2 space-y-4">
+        <div className="space-y-4">
 
           {/* Row 1: Detection funnel + Safe-rate KPI */}
           <div className="grid gap-4 lg:grid-cols-3">
@@ -173,7 +173,7 @@ export function ReportsPage() {
               className="lg:col-span-2"
             >
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader>
                   <CardTitle className="text-sm">Detection funnel</CardTitle>
                   <p className="text-xs text-muted-foreground">
                     From inbox sync to confirmed threats — this is how your month looked.
@@ -229,7 +229,7 @@ export function ReportsPage() {
             transition={{ ...springSoft, delay: 0.1 }}
           >
             <Card>
-              <CardHeader className="pb-2">
+              <CardHeader>
                 <CardTitle className="text-sm">Risk breakdown</CardTitle>
                 <p className="text-xs text-muted-foreground">
                   Proportion of each verdict across all scanned emails this month.
@@ -251,7 +251,7 @@ export function ReportsPage() {
               className="lg:col-span-3"
             >
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader>
                   <CardTitle className="text-sm">Top triggered rules</CardTitle>
                   <p className="text-xs text-muted-foreground">
                     Detection rules that fired most often on scanned emails.
@@ -294,7 +294,7 @@ export function ReportsPage() {
               className="lg:col-span-2"
             >
               <Card className="h-full">
-                <CardHeader className="pb-2">
+                <CardHeader>
                   <div className="flex items-center gap-2">
                     <Bot className="h-4 w-4 text-muted-foreground" />
                     <CardTitle className="text-sm">AI analysis</CardTitle>

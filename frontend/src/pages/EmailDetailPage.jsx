@@ -478,7 +478,7 @@ export function EmailDetailPage() {
         {/* Message */}
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <Card className="min-w-0">
-            <CardContent className="overflow-x-auto pt-5">
+            <CardContent className="overflow-x-auto p-5">
               {/* Warning banner lives inside the reading context, above the body */}
               <WarningBanner riskBucket={email.riskBucket} tone={tone} />
               <div className={cn(WARN_BUCKETS.has(email.riskBucket) && 'mt-4')}>
