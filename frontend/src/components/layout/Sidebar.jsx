@@ -6,7 +6,6 @@ import {
   BarChart3,
   Settings,
   ShieldCheck,
-  ShieldAlert,
   LogOut,
   RefreshCw,
   MailX,
@@ -30,7 +29,6 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/inbox', label: 'Inbox', icon: Inbox },
-  { to: '/inbox?riskBucket=quarantine', label: 'Quarantine', icon: ShieldAlert, sub: true },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];

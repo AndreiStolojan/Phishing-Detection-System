@@ -59,7 +59,6 @@ function TrendTooltip({ active, payload, label }) {
 }
 
 function ThreatTrendChart({ data }) {
-  // Show only every 5th label to avoid crowding
   const tickFormatter = (value, index) => {
     if (index % 5 !== 0) return '';
     return formatAxisDate(value);
@@ -69,17 +68,17 @@ function ThreatTrendChart({ data }) {
     <ResponsiveContainer width="100%" height={200}>
       <AreaChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
         <defs>
-          <linearGradient id="grad-safe" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-risk-safe)" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="var(--color-risk-safe)" stopOpacity={0.02} />
-          </linearGradient>
           <linearGradient id="grad-review" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-risk-review)" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="var(--color-risk-review)" stopOpacity={0.02} />
+            <stop offset="5%" stopColor="var(--color-risk-review)" stopOpacity={0.55} />
+            <stop offset="95%" stopColor="var(--color-risk-review)" stopOpacity={0.04} />
           </linearGradient>
           <linearGradient id="grad-quarantine" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.35} />
-            <stop offset="95%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.02} />
+            <stop offset="5%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.65} />
+            <stop offset="95%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.04} />
+          </linearGradient>
+          <linearGradient id="grad-phishing" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--color-risk-phishing)" stopOpacity={0.75} />
+            <stop offset="95%" stopColor="var(--color-risk-phishing)" stopOpacity={0.04} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" strokeOpacity={0.5} />
@@ -97,15 +96,7 @@ function ThreatTrendChart({ data }) {
           allowDecimals={false}
         />
         <Tooltip content={<TrendTooltip />} />
-        <Area
-          type="monotone"
-          dataKey="safe"
-          name="Safe"
-          stackId="1"
-          stroke="var(--color-risk-safe)"
-          fill="url(#grad-safe)"
-          strokeWidth={1.5}
-        />
+        {/* Suspicious at base, phishing on top — each spike is clearly its threat color */}
         <Area
           type="monotone"
           dataKey="needs_review"
@@ -118,10 +109,19 @@ function ThreatTrendChart({ data }) {
         <Area
           type="monotone"
           dataKey="quarantine"
-          name="Phishing"
+          name="Likely phishing"
           stackId="1"
           stroke="var(--color-risk-quarantine)"
           fill="url(#grad-quarantine)"
+          strokeWidth={1.5}
+        />
+        <Area
+          type="monotone"
+          dataKey="confirmed_phishing"
+          name="Confirmed"
+          stackId="1"
+          stroke="var(--color-risk-phishing)"
+          fill="url(#grad-phishing)"
           strokeWidth={1.5}
         />
       </AreaChart>
@@ -317,8 +317,8 @@ export function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Activity over 30 days</CardTitle>
-            <CardDescription>Daily email counts by risk level</CardDescription>
+            <CardTitle>Threat activity — 30 days</CardTitle>
+            <CardDescription>Suspicious, likely phishing &amp; confirmed phishing per day</CardDescription>
           </CardHeader>
           <CardContent>
             {trendQuery.loading ? (
