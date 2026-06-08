@@ -1,4 +1,4 @@
-import { EMAIL_FROM } from '../../src/config/env.js';
+import { EMAIL_FROM, SUPPORT_EMAIL } from '../../src/config/env.js';
 import {
     monthlyDigestTemplate,
     phishingAlertTemplate,
@@ -148,7 +148,7 @@ export const sendMonthlyDigestEmail = async ({ recipient, userName, summary }) =
 
 export const sendContactMessageEmail = async ({ userName, userEmail, subject, message }) => {
     const generatedAt = new Date().toISOString();
-    const recipient = EMAIL_FROM || null;
+    const recipient = SUPPORT_EMAIL;
     const missingConfig = buildMissingContactEmailConfigResult({
         recipient,
         generatedAt,
@@ -164,7 +164,7 @@ export const sendContactMessageEmail = async ({ userName, userEmail, subject, me
     try {
         const info = await transporter.sendMail({
             from: EMAIL_FROM,
-            to: EMAIL_FROM,
+            to: SUPPORT_EMAIL,
             replyTo: userEmail,
             subject: `[Contact] ${safeSubject}`,
             text: [
@@ -186,14 +186,14 @@ export const sendContactMessageEmail = async ({ userName, userEmail, subject, me
 
         return {
             sent: true,
-            recipient: EMAIL_FROM,
+            recipient: SUPPORT_EMAIL,
             messageId: info.messageId,
             generatedAt,
         };
     } catch (error) {
         return {
             sent: false,
-            recipient: EMAIL_FROM,
+            recipient: SUPPORT_EMAIL,
             generatedAt,
             error: {
                 code: 'EMAIL_SEND_FAILED',

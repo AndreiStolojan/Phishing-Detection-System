@@ -265,7 +265,7 @@ export function DashboardPage() {
   const lastSynced = account?.lastSyncedAt;
 
   return (
-    <>
+    <div className="space-y-4">
       {/* Security posture hero — full width */}
       <PostureHero
         attention={attention}
@@ -380,6 +380,6 @@ export function DashboardPage() {
           )}
         </CardContent>
       </Card>
-    </>
+    </div>
   );
 }
