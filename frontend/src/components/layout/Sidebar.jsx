@@ -5,7 +5,6 @@ import {
   Inbox,
   BarChart3,
   Settings,
-  ShieldCheck,
   LogOut,
   RefreshCw,
   MailX,
@@ -109,8 +108,8 @@ export function Sidebar() {
     <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:flex">
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-inset ring-primary/20">
-          <ShieldCheck className="h-5 w-5" />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm">
+          <img src="/logo.png" alt="SecureInbox" className="h-full w-full object-contain" />
         </div>
         <p className="text-[15px] font-semibold tracking-tight">SecureInbox</p>
       </div>
