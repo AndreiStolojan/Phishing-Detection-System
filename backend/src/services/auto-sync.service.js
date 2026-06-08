@@ -129,3 +129,14 @@ export const runAutoSyncForAllUsers = async () => {
         errors: totalErrors,
     });
 };
+
+export const sendPhishingAlertForNewEmails = async ({ userId, user, syncResult }) => {
+    if (!syncResult?.insertedEmailIds?.length) return;
+    const phishingEmails = await findPhishingEmailsFromIds({
+        userId,
+        emailIds: syncResult.insertedEmailIds,
+    });
+    if (phishingEmails.length > 0) {
+        await sendAlertIfEnabled({ user, phishingEmails });
+    }
+};
