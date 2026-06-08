@@ -106,10 +106,10 @@ const shell = ({ preheader, accent = C.primary, title, eyebrow, body }) => `
             <td style="padding:0 4px 18px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="padding-right:10px;">
-                    <div style="width:36px;height:36px;background:${C.primary};border-radius:10px;text-align:center;line-height:36px;font-family:${FONT};font-size:18px;font-weight:700;color:${C.onPrimary};">S</div>
+                  <td style="padding-right:10px;vertical-align:middle;">
+                    <img src="${APP_URL}/logo.png" alt="SecureInbox" width="40" height="40" style="display:block;border:0;border-radius:8px;" />
                   </td>
-                  <td style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.fg};">SecureInbox</td>
+                  <td style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.fg};vertical-align:middle;">SecureInbox</td>
                 </tr>
               </table>
             </td>
