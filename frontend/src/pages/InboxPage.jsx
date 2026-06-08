@@ -9,6 +9,7 @@ import {
   X,
   Loader2,
   CheckSquare,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -62,7 +63,7 @@ const filterTextClass = (key) => (key ? getRiskMeta(key).tone.text : 'text-prima
 export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isConnected, syncVersion } = useMailAccount();
+  const { isConnected, syncVersion, sync, syncing } = useMailAccount();
   const searchRef = useRef(null);
 
   const riskBucket = searchParams.get('riskBucket') || '';
@@ -302,10 +303,18 @@ export function InboxPage() {
                   </div>
                 )}
               </div>
-              <Button variant="outline" size="sm" onClick={enterSelectMode} disabled={emails.length === 0}>
+              <Button variant="outline" size="sm" onClick={enterSelectMode} disabled={emails.length === 0 || syncing}>
                 <CheckSquare className="h-4 w-4" />
                 Select
               </Button>
+              {isConnected && (
+                <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
+                  {syncing
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <RefreshCw className="h-4 w-4" />}
+                  {syncing ? 'Syncing…' : 'Sync'}
+                </Button>
+              )}
             </>
           ) : (
             <Button variant="ghost" size="sm" onClick={exitSelectMode}>
