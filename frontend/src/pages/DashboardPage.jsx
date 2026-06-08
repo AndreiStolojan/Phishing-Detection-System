@@ -42,7 +42,7 @@ const formatAxisDate = (dateStr) => {
 };
 
 const TREND_SERIES = [
-  { key: 'needs_review',       name: 'Suspicious',         color: '#FACC15', gradId: 'grad-review' },
+  { key: 'needs_review',       name: 'Suspicious',         color: '#818CF8', gradId: 'grad-review' },
   { key: 'quarantine',         name: 'Likely phishing',    color: '#FB923C', gradId: 'grad-quarantine' },
   { key: 'confirmed_phishing', name: 'Confirmed phishing', color: '#F43F5E', gradId: 'grad-phishing' },
 ];
@@ -88,7 +88,7 @@ function ThreatTrendChart({ data }) {
           <defs>
             {TREND_SERIES.map(({ gradId, color }) => (
               <linearGradient key={gradId} id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+                <stop offset="0%" stopColor={color} stopOpacity={0.35} />
                 <stop offset="100%" stopColor={color} stopOpacity={0} />
               </linearGradient>
             ))}
