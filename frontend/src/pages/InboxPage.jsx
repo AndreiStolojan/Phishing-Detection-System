@@ -1,17 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Search, Inbox as InboxIcon, ShieldCheck, X, Loader2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Search,
+  Inbox as InboxIcon,
+  ShieldCheck,
+  ShieldX,
+  X,
+  Loader2,
+  CheckSquare,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 import { InboxSkeleton, ErrorState, EmptyState } from '@/components/common/states';
 import { Pagination } from '@/components/common/Pagination';
 import { EmailRow } from '@/components/inbox/EmailRow';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useApi } from '@/hooks/useApi';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { getEmails, getEmailStats } from '@/api/emailsApi';
+import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
+import { bustCacheByPrefix } from '@/hooks/useApi';
 import { normalizeEmailList } from '@/lib/email-list';
 import { emailId } from '@/lib/email';
 import { RISK_FILTERS, getRiskMeta } from '@/lib/risk';
@@ -49,6 +61,7 @@ const filterTextClass = (key) => (key ? getRiskMeta(key).tone.text : 'text-prima
 
 export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { isConnected, syncVersion } = useMailAccount();
   const searchRef = useRef(null);
 
@@ -59,6 +72,11 @@ export function InboxPage() {
   // Local input state — API fires only after debounce settles
   const [searchInput, setSearchInput] = useState(rawSearch);
   const debouncedSearch = useDebounce(searchInput, 300);
+
+  // Bulk select state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const cacheKey = `inbox-${syncVersion}-${riskBucket}-${debouncedSearch}-${page}`;
   const { data, loading, error, reload } = useApi(
@@ -91,6 +109,12 @@ export function InboxPage() {
   const groups = groupByDate(emails);
 
   const searching = loading || searchInput !== debouncedSearch;
+
+  // Exit select mode when list changes (page/filter change)
+  useEffect(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+  }, [riskBucket, debouncedSearch, page, syncVersion]);
 
   // "/" focuses the search box (unless already typing in a field)
   useEffect(() => {
@@ -128,12 +152,74 @@ export function InboxPage() {
     searchRef.current?.focus();
   };
 
+  // Select mode helpers
+  const enterSelectMode = () => {
+    setSelectMode(true);
+    setSelected(new Set());
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = emails.length > 0 && emails.every((e) => selected.has(emailId(e)));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(emails.map(emailId)));
+    }
+  };
+
+  const handleBulkSafe = async () => {
+    if (selected.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selected].map((id) => markEmailSafe(id)));
+      toast.success(`${selected.size} email${selected.size > 1 ? 's' : ''} marked as safe`);
+      exitSelectMode();
+      reload();
+      bustCacheByPrefix('inbox-', 'dash-', 'risky-');
+    } catch (err) {
+      toast.error(err.message || 'Bulk action failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkPhishing = async () => {
+    if (selected.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selected].map((id) => markEmailPhishing(id)));
+      toast.success(`${selected.size} email${selected.size > 1 ? 's' : ''} marked as phishing`);
+      exitSelectMode();
+      reload();
+      bustCacheByPrefix('inbox-', 'dash-', 'risky-');
+    } catch (err) {
+      toast.error(err.message || 'Bulk action failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <>
-      {/* Filter chips + search */}
+      {/* Filter chips + search + select button */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1">
-          {RISK_FILTERS.map((filter) => {
+          {!selectMode && RISK_FILTERS.map((filter) => {
             const isActive = riskBucket === filter.key;
             const countKey = FILTER_COUNT_MAP[filter.key];
             const count = !showCounts
@@ -171,30 +257,61 @@ export function InboxPage() {
               </button>
             );
           })}
-        </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            ref={searchRef}
-            value={searchInput}
-            onChange={handleSearchChange}
-            placeholder="Search sender or subject…  (press /)"
-            className="pl-9 pr-9"
-          />
-          {searchInput && (
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-              {searching ? (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              ) : (
-                <button
-                  onClick={clearSearch}
-                  aria-label="Clear search"
-                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+
+          {selectMode && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleSelectAll}
+                className="h-4 w-4 rounded border-border accent-primary"
+                aria-label="Select all"
+              />
+              <span className="text-xs text-muted-foreground">
+                {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
+              </span>
             </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!selectMode ? (
+            <>
+              <div className="relative w-full sm:w-72">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={searchRef}
+                  value={searchInput}
+                  onChange={handleSearchChange}
+                  placeholder="Search sender or subject…  (press /)"
+                  className="pl-9 pr-9"
+                />
+                {searchInput && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                    {searching ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <button
+                        onClick={clearSearch}
+                        aria-label="Clear search"
+                        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={enterSelectMode} disabled={emails.length === 0}>
+                <CheckSquare className="h-4 w-4" />
+                Select
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
           )}
         </div>
       </div>
@@ -228,19 +345,87 @@ export function InboxPage() {
                 <p className="label-overline">{label}</p>
               </div>
               <div className="divide-y divide-border/60">
-                {groupEmails.map((email) => (
-                  <EmailRow
-                    key={email.id || email._id}
-                    email={email}
-                    linkState={{ ids: emailIds }}
-                  />
-                ))}
+                {groupEmails.map((email) => {
+                  const id = emailId(email);
+                  if (selectMode) {
+                    return (
+                      <div
+                        key={id}
+                        className={cn(
+                          'flex cursor-pointer items-center transition-colors hover:bg-accent/50',
+                          selected.has(id) && 'bg-primary/5'
+                        )}
+                        onClick={() => toggleSelect(id)}
+                      >
+                        <div className="flex shrink-0 items-center justify-center px-3 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(id)}
+                            onChange={() => toggleSelect(id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-border accent-primary"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1 pointer-events-none">
+                          <EmailRow email={email} compact={false} />
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <EmailRow
+                      key={id}
+                      email={email}
+                      linkState={{ ids: emailIds }}
+                    />
+                  );
+                })}
               </div>
             </div>
           ))}
           <Pagination page={page} totalPages={totalPages} onPage={setPage} />
         </Card>
       )}
+
+      {/* Bulk action bar */}
+      <AnimatePresence>
+        {selectMode && selected.size > 0 && (
+          <motion.div
+            initial={{ y: 60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 60, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2 shadow-lg backdrop-blur-xl"
+          >
+            <span className="text-sm font-medium">{selected.size} selected</span>
+            <div className="h-4 w-px bg-border" />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-risk-safe"
+              onClick={handleBulkSafe}
+              disabled={bulkBusy}
+            >
+              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              Mark safe
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-risk-quarantine"
+              onClick={handleBulkPhishing}
+              disabled={bulkBusy}
+            >
+              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldX className="h-4 w-4" />}
+              Mark phishing
+            </Button>
+            <Button size="sm" variant="ghost" onClick={exitSelectMode} disabled={bulkBusy}>
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

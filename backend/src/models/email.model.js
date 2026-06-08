@@ -166,6 +166,10 @@ const emailSchema = new mongoose.Schema(
             type: providerActionErrorSchema,
             default: null,
         },
+        rawHeaders: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
     },
     {
         timestamps: true,

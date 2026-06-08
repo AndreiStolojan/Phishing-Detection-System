@@ -3,6 +3,7 @@ import {
     getEmailRawByIdForUser,
     getEmailsForUser,
     getRiskBucketCountsForUser,
+    getTrendForUser,
 } from '../services/email.service.js';
 
 export const getEmailStats = async (req, res, next) => {
@@ -61,6 +62,15 @@ export const getEmailRawById = async (req, res, next) => {
             success: true,
             data: rawEmail,
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getEmailTrend = async (req, res, next) => {
+    try {
+        const trend = await getTrendForUser({ userId: req.user._id });
+        res.status(200).json({ success: true, data: trend });
     } catch (error) {
         next(error);
     }

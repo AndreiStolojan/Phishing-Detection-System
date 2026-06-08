@@ -18,6 +18,8 @@ export const getEmails = (params) => apiClient.get(`/emails${toQueryString(param
 
 export const getEmailStats = () => apiClient.get('/emails/stats');
 
+export const getEmailTrend = () => apiClient.get('/emails/trend');
+
 export const getEmail = (emailId) => apiClient.get(`/emails/${emailId}`);
 
 export const getEmailRaw = (emailId) => apiClient.get(`/emails/${emailId}/raw`);
