@@ -40,3 +40,4 @@ export const {
 } = process.env;
 
 export const FRONTEND_APP_URL = process.env.FRONTEND_APP_URL || 'http://localhost:5173';
+export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'andreistolojan@gmail.com';

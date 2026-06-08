@@ -161,7 +161,7 @@ export function ReportsPage() {
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : (
-        <div className="space-y-4">
+        <div className="mt-2 space-y-4">
 
           {/* Row 1: Detection funnel + Safe-rate KPI */}
           <div className="grid gap-4 lg:grid-cols-3">
