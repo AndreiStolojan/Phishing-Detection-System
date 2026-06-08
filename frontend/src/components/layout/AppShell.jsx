@@ -43,7 +43,7 @@ export function AppShell() {
     <MailAccountProvider>
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <main className="flex min-w-0 flex-1 flex-col px-5 py-6 pb-28 md:pb-8">
+        <main className="flex min-w-0 flex-1 flex-col px-5 py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
           <div className="mx-auto w-full max-w-6xl space-y-6">
             <AnimatePresence mode="wait" initial={false}>
               <PageTransition key={location.pathname}>

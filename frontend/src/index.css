@@ -136,6 +136,13 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Only apply safe-area bottom padding on devices that support it (e.g. iPhone with home indicator) */
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    body {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
   ::selection {
     background-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
   }
@@ -191,6 +198,14 @@
 }
 @utility surface-overlay {
   box-shadow: var(--shadow-md), inset 0 1px 0 0 rgb(255 255 255 / 0.06);
+}
+
+/* Hide scrollbar visually while preserving scroll functionality */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Skeleton shimmer sweep */
