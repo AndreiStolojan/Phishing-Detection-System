@@ -217,8 +217,8 @@ export function InboxPage() {
   return (
     <>
       {/* Filter chips + search + select button */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="scrollbar-none -mx-5 flex items-center gap-1 overflow-x-auto px-5 sm:mx-0 sm:flex-wrap sm:px-0">
           {!selectMode && RISK_FILTERS.map((filter) => {
             const isActive = riskBucket === filter.key;
             const countKey = FILTER_COUNT_MAP[filter.key];

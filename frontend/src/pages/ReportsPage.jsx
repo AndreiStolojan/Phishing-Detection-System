@@ -2,27 +2,27 @@ import { useState } from 'react';
 import {
   Send,
   Loader2,
-  Mail,
   Check,
   ChevronLeft,
   ChevronRight,
-  ScanLine,
+  Bot,
   ShieldCheck,
-  AlertTriangle,
-  ShieldAlert,
-  ShieldX,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
 import { ReportsSkeleton, ErrorState } from '@/components/common/states';
 import { PageHeader } from '@/components/common/PageHeader';
-import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TopRulesChart } from '@/components/reports/TopRulesChart';
+import { DetectionFunnel } from '@/components/reports/DetectionFunnel';
+import { RiskBreakdownBar } from '@/components/reports/RiskBreakdownBar';
 import { useApi } from '@/hooks/useApi';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { getMonthlySummary, sendMonthlySummary } from '@/api/reportsApi';
+import { cn } from '@/lib/utils';
+import { springSoft } from '@/lib/motion';
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 
@@ -37,17 +37,46 @@ const monthLabel = (m) => {
   return new Date(y, mo - 1, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
 };
 
-const SYNC_STATS = [
-  { key: 'syncedEmails', label: 'Synced', icon: Mail, tone: 'text-primary' },
-  { key: 'scannedEmails', label: 'Scanned', icon: ScanLine, tone: 'text-primary' },
-];
+/** Safe rate KPI — color thresholds: ≥80% green, ≥50% amber, else rose. */
+function safeRateColor(pct) {
+  if (pct >= 80) return 'text-risk-safe';
+  if (pct >= 50) return 'text-risk-review';
+  return 'text-risk-phishing';
+}
 
-const RISK_STATS = [
-  { key: 'safe', label: 'Safe', icon: ShieldCheck, tone: 'text-risk-safe' },
-  { key: 'suspicious', label: 'Suspicious', icon: AlertTriangle, tone: 'text-risk-review' },
-  { key: 'likelyPhishing', label: 'Likely phishing', icon: ShieldAlert, tone: 'text-risk-quarantine' },
-  { key: 'markedPhishing', label: 'Confirmed phishing', icon: ShieldX, tone: 'text-risk-phishing' },
-];
+/**
+ * Short, human-readable descriptions for the most common rule keys.
+ * Falls back to a humanized version for anything not listed.
+ */
+const RULE_DESCRIPTIONS = {
+  reply_to_mismatch: 'Reply-To domain differs from sender domain',
+  shortened_url_detected: 'Message contains shortened/obfuscated URLs',
+  too_many_links_high: 'Unusually high number of links in message body',
+  too_many_links_medium: 'Elevated number of links in message body',
+  high_risk_attachment_extension: 'Attachment has a high-risk file extension (.exe, .bat, etc.)',
+  archive_attachment_extension: 'Attachment is a compressed archive (.zip, .rar, etc.)',
+  'ai_semantic:urgency_high': 'AI detected strong urgency / pressure language',
+  'ai_semantic:urgency_medium': 'AI detected moderate urgency / pressure language',
+  'ai_semantic:social_engineering_high': 'AI flagged high-confidence social engineering attempt',
+  'ai_semantic:social_engineering_medium': 'AI flagged possible social engineering attempt',
+  'ai_semantic:login_or_action_request': 'AI detected a login or action request',
+  'ai_semantic:sensitive_data_request': 'AI detected a request for sensitive personal data',
+  'ai_semantic:brand_impersonation_suspected': 'AI suspects impersonation of a known brand',
+};
+
+function humanizeRule(rule) {
+  const key = String(rule || '');
+  if (RULE_DESCRIPTIONS[key]) return RULE_DESCRIPTIONS[key];
+  // For dynamic keys like suspicious_link_pattern:<pattern>
+  if (key.startsWith('suspicious_link_pattern:')) {
+    const pattern = key.split(':')[1] || '';
+    return `Link matches suspicious pattern${pattern ? `: ${pattern}` : ''}`;
+  }
+  // Generic fallback: snake_case → Title Case
+  return key
+    .replace(/[_:]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function ReportsPage() {
   const [month, setMonth] = useState(currentMonth());
@@ -75,12 +104,21 @@ export function ReportsPage() {
   const counts = data?.counts || {};
   const ai = data?.ai || {};
 
+  const scanned = counts.scannedEmails ?? 0;
+  const safe = counts.safe ?? 0;
+  const threats = (counts.suspicious ?? 0) + (counts.likelyPhishing ?? 0) + (counts.markedPhishing ?? 0);
+  const confirmed = counts.markedPhishing ?? 0;
+
+  const safeRate = scanned > 0 ? Math.round((safe / scanned) * 100) : null;
+  const aiAnalyzedPct =
+    scanned > 0 ? Math.round(((ai.evaluated ?? 0) / scanned) * 100) : null;
+
   return (
     <>
       <PageHeader
         eyebrow="Monthly report"
         title={monthLabel(month)}
-        description="Security summary for the messages synced and scanned this month."
+        description="Security audit for the messages synced and scanned this month."
         actions={
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-0.5 rounded-lg border border-border p-0.5">
@@ -123,72 +161,195 @@ export function ReportsPage() {
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-5">
-          {/* Summary as stat cards */}
-          <div className="content-start space-y-3 lg:col-span-2">
-            <div className="grid grid-cols-2 gap-3">
-              {SYNC_STATS.map((row, i) => (
-                <StatCard
-                  key={row.key}
-                  icon={row.icon}
-                  label={row.label}
-                  value={counts[row.key] ?? 0}
-                  tone={row.tone}
-                  index={i}
-                />
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {RISK_STATS.map((row, i) => (
-                <StatCard
-                  key={row.key}
-                  icon={row.icon}
-                  label={row.label}
-                  value={counts[row.key] ?? 0}
-                  tone={row.tone}
-                  index={i + 2}
-                />
-              ))}
-            </div>
-          </div>
+        <div className="space-y-4">
 
-          <div className="space-y-4 lg:col-span-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top triggered rules</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TopRulesChart rules={data?.topTriggeredRules} />
-              </CardContent>
-            </Card>
+          {/* Row 1: Detection funnel + Safe-rate KPI */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Detection funnel */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={springSoft}
+              className="lg:col-span-2"
+            >
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Detection funnel</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    From inbox sync to confirmed threats — this is how your month looked.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <DetectionFunnel
+                    synced={counts.syncedEmails}
+                    scanned={counts.scannedEmails}
+                    threats={threats}
+                    confirmed={confirmed}
+                  />
+                </CardContent>
+              </Card>
+            </motion.div>
 
-            <Card>
-              <CardHeader className="flex-row items-center gap-2 space-y-0">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm">AI analysis</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-xl font-semibold tabular-nums">{ai.evaluated ?? 0}</p>
-                    <p className="text-xs font-medium text-muted-foreground">Evaluated</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/60">by Ollama</p>
-                  </div>
-                  <div>
-                    {/* Infra status — kept neutral, not a risk colour */}
-                    <p className="text-xl font-semibold tabular-nums text-foreground/80">{ai.failed ?? 0}</p>
-                    <p className="text-xs font-medium text-muted-foreground">Failed</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/60">Ollama unavailable</p>
-                  </div>
-                  <div>
-                    <p className="text-xl font-semibold tabular-nums text-muted-foreground">{ai.disabled ?? 0}</p>
-                    <p className="text-xs font-medium text-muted-foreground">Skipped</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/60">AI turned off</p>
-                  </div>
+            {/* Safe-rate KPI */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...springSoft, delay: 0.07 }}
+            >
+              <Card className="flex h-full flex-col items-center justify-center py-6 text-center">
+                <div className="mb-1 rounded-lg bg-risk-safe-soft p-2.5">
+                  <ShieldCheck className="h-5 w-5 text-risk-safe" />
                 </div>
+                {safeRate === null ? (
+                  <p className="mt-3 text-sm text-muted-foreground">No scanned emails</p>
+                ) : (
+                  <>
+                    <span
+                      className={cn(
+                        'mt-2 text-5xl font-bold tabular-nums leading-none',
+                        safeRateColor(safeRate)
+                      )}
+                    >
+                      {safeRate}%
+                    </span>
+                    <p className="mt-1.5 text-sm font-medium text-foreground/80">Safe rate</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {safe} of {scanned} scanned emails were safe
+                    </p>
+                  </>
+                )}
+              </Card>
+            </motion.div>
+          </div>
+
+          {/* Row 2: Risk breakdown */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...springSoft, delay: 0.1 }}
+          >
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Risk breakdown</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Proportion of each verdict across all scanned emails this month.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <RiskBreakdownBar counts={counts} />
               </CardContent>
             </Card>
+          </motion.div>
+
+          {/* Row 3: Top rules + AI analysis */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            {/* Top triggered rules */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...springSoft, delay: 0.13 }}
+              className="lg:col-span-3"
+            >
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Top triggered rules</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Detection rules that fired most often on scanned emails.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <TopRulesChart rules={data?.topTriggeredRules} />
+
+                  {/* Rule legend */}
+                  {data?.topTriggeredRules?.length > 0 && (
+                    <div className="border-t border-border/60 pt-3">
+                      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        What these rules mean
+                      </p>
+                      <ul className="space-y-1.5">
+                        {data.topTriggeredRules.slice(0, 6).map((r) => (
+                          <li key={r.rule} className="flex gap-2 text-xs text-muted-foreground">
+                            <span className="mt-px h-1.5 w-1.5 shrink-0 translate-y-[0.2rem] rounded-full bg-muted-foreground/50" />
+                            <span>
+                              <span className="font-medium text-foreground/70">
+                                {String(r.rule || '').replace(/[_:]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                              </span>
+                              {' — '}
+                              {humanizeRule(r.rule)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* AI analysis */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...springSoft, delay: 0.16 }}
+              className="lg:col-span-2"
+            >
+              <Card className="h-full">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm">AI analysis</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Headline sentence */}
+                  <p className="text-sm leading-relaxed text-foreground/80">
+                    {scanned === 0 ? (
+                      'No emails were scanned this month.'
+                    ) : (
+                      <>
+                        AI analyzed{' '}
+                        <span className="font-semibold text-foreground">{ai.evaluated ?? 0}</span>
+                        {' of '}
+                        <span className="font-semibold text-foreground">{scanned}</span>
+                        {' scanned emails'}
+                        {aiAnalyzedPct !== null && (
+                          <span className="text-muted-foreground"> ({aiAnalyzedPct}%)</span>
+                        )}
+                        .
+                      </>
+                    )}
+                  </p>
+
+                  {/* Detail line */}
+                  <p className="text-xs text-muted-foreground">
+                    {[
+                      ai.failed ? `Failed: ${ai.failed} (Ollama unavailable)` : null,
+                      ai.disabled ? `Skipped: ${ai.disabled} (AI off)` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'No failures or skipped emails.'}
+                  </p>
+
+                  {/* Mini stat row */}
+                  <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/30 p-3 text-center">
+                    <div>
+                      <p className="text-lg font-semibold tabular-nums">{ai.evaluated ?? 0}</p>
+                      <p className="text-[11px] text-muted-foreground">Analyzed</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold tabular-nums text-foreground/70">{ai.failed ?? 0}</p>
+                      <p className="text-[11px] text-muted-foreground">Failed</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold tabular-nums text-muted-foreground">{ai.disabled ?? 0}</p>
+                      <p className="text-[11px] text-muted-foreground">Skipped</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           </div>
+
         </div>
       )}
     </>

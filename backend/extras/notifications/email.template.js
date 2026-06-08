@@ -184,6 +184,19 @@ const renderMetric = (label, value, hex) => `
     </table>
   </td>`;
 
+const RULE_DESCRIPTIONS = {
+  reply_to_mismatch: 'Reply-To address differs from sender domain',
+  shortened_url_detected: 'Email contains shortened or redirected URLs',
+  high_risk_attachment_extension: 'Dangerous attachment type attached',
+};
+
+const getRuleDescription = (rule) => {
+  if (RULE_DESCRIPTIONS[rule]) return RULE_DESCRIPTIONS[rule];
+  if (/^too_many_links/.test(rule)) return 'Unusually high number of links';
+  if (/^ai_semantic:/.test(rule)) return 'AI detected suspicious intent';
+  return humanizeRule(rule);
+};
+
 const renderRules = (rules = []) => {
   if (rules.length === 0) {
     return `<p style="margin:0;font-family:${FONT};font-size:14px;color:${C.muted};">No rules were triggered this period.</p>`;
@@ -195,8 +208,11 @@ const renderRules = (rules = []) => {
         .map(
           (item) => `
         <tr>
-          <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;color:${C.fg};">${escapeHtml(humanizeRule(item.rule))}</td>
-          <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;font-weight:700;color:${C.fg};text-align:right;">${formatNumber(item.count)}×</td>
+          <td style="padding:9px 0;border-bottom:1px solid ${C.border};">
+            <p style="margin:0;font-family:${FONT};font-size:14px;color:${C.fg};">${escapeHtml(getRuleDescription(item.rule))}</p>
+            <p style="margin:2px 0 0;font-family:${FONT};font-size:11px;color:${C.subtle};">${escapeHtml(humanizeRule(item.rule))}</p>
+          </td>
+          <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;font-weight:700;color:${C.fg};text-align:right;vertical-align:top;">${formatNumber(item.count)}×</td>
         </tr>`
         )
         .join('')}
@@ -211,12 +227,16 @@ export const monthlyDigestTemplate = ({ summary, userName }) => {
     counts.scannedEmails > 0 ? Math.round((counts.safe / counts.scannedEmails) * 100) : 0;
   const heroAccent = safeRate >= 80 ? C.safe : safeRate >= 50 ? C.review : C.quarantine;
 
+  const threats = (counts.suspicious || 0) + (counts.likelyPhishing || 0) + (counts.markedPhishing || 0);
+  const synced = counts.syncedEmails ?? counts.scannedEmails;
+  const scanned = counts.scannedEmails;
+
   return {
     subject: `Your SecureInbox report — ${monthLabel}`,
     html: shell({
-      preheader: `${safeRate}% of scanned messages were safe in ${monthLabel}.`,
+      preheader: `${safeRate}% safe · ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} found in ${monthLabel}.`,
       accent: heroAccent,
-      eyebrow: 'Monthly report',
+      eyebrow: 'Monthly security briefing',
       title: `Security summary for ${monthLabel}`,
       body: `
         ${paragraph(`Hi ${escapeHtml(userName)}, here's how SecureInbox protected your inbox this month.`)}
@@ -225,11 +245,16 @@ export const monthlyDigestTemplate = ({ summary, userName }) => {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin:4px 0 12px;">
           <tr><td style="padding:20px;text-align:center;">
             <p style="margin:0;font-family:${FONT};font-size:40px;font-weight:700;line-height:1;color:${heroAccent};">${safeRate}%</p>
-            <p style="margin:6px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of ${formatNumber(counts.scannedEmails)} scanned messages were safe</p>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of scanned messages were safe</p>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${formatNumber(scanned)} emails scanned &mdash; ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} found</p>
           </td></tr>
         </table>
 
-        <!-- 2x2 metric grid -->
+        <!-- Detection flow summary -->
+        ${mutedLine(`Synced: <strong style="color:${C.muted};">${formatNumber(synced)}</strong> &nbsp;&middot;&nbsp; Scanned: <strong style="color:${C.muted};">${formatNumber(scanned)}</strong> &nbsp;&middot;&nbsp; Threats: <strong style="color:${C.quarantine};">${formatNumber(threats)}</strong>`)}
+
+        <!-- Risk breakdown grid -->
+        <h2 style="margin:20px 0 10px;font-family:${FONT};font-size:14px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:${C.muted};">Risk breakdown</h2>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 -6px;">
           <tr>
             ${renderMetric('Safe', counts.safe, C.safe)}
@@ -244,9 +269,9 @@ export const monthlyDigestTemplate = ({ summary, userName }) => {
         <h2 style="margin:24px 0 12px;font-family:${FONT};font-size:16px;font-weight:600;color:${C.fg};">Top triggered rules</h2>
         ${renderRules(summary.topTriggeredRules)}
 
-        ${mutedLine(`Local AI analysis — evaluated: <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong>, failed: <strong style="color:${C.fg};">${formatNumber(ai.failed)}</strong>, skipped: <strong style="color:${C.fg};">${formatNumber(ai.disabled)}</strong>.`)}
+        ${mutedLine(`AI analyzed <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong> of ${formatNumber(scanned)} scanned emails. ${formatNumber(ai.failed)} failed (Ollama unavailable) &nbsp;&middot;&nbsp; ${formatNumber(ai.disabled)} skipped (AI off).`)}
 
-        <div style="margin-top:20px;">${ctaButton('Open dashboard', `${APP_URL}/dashboard`)}</div>
+        <div style="margin-top:20px;">${ctaButton('View your inbox', `${APP_URL}/inbox`)}</div>
 
         ${mutedLine(`Period: ${escapeHtml(summary.period.from)} – ${escapeHtml(summary.period.to)}. Generated ${escapeHtml(formatDate(summary.generatedAt))}.`)}
       `,
@@ -263,32 +288,51 @@ export const phishingAlertTemplate = ({ userName, emails, detectedAt }) => {
 
   const rows = emails
     .map(
-      (email) => `
+      (email) => {
+        const scoreLabel = email.score != null
+          ? `<span style="float:right;font-family:${FONT};font-size:11px;font-weight:700;color:${C.quarantine};">Score ${Math.round(email.score)}</span>`
+          : '';
+        return `
       <tr>
-        <td style="padding:12px 14px;border-bottom:1px solid ${C.border};">
-          <p style="margin:0;font-family:${FONT};font-size:14px;font-weight:600;color:${C.fg};">${escapeHtml(email.subject || '(no subject)')}</p>
-          <p style="margin:3px 0 0;font-family:${FONT};font-size:12px;color:${C.muted};">From: ${escapeHtml(email.from || 'unknown sender')}</p>
+        <td style="padding:0;border-bottom:1px solid ${C.border};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="4" style="background:${C.quarantine};border-radius:0;font-size:0;line-height:0;">&nbsp;</td>
+              <td style="padding:12px 14px;">
+                <p style="margin:0;font-family:${FONT};font-size:14px;font-weight:600;color:${C.fg};">${escapeHtml(email.subject || '(no subject)')}${scoreLabel}</p>
+                <p style="margin:3px 0 0;font-family:${FONT};font-size:12px;color:${C.muted};">From: ${escapeHtml(email.from || 'unknown sender')}</p>
+              </td>
+            </tr>
+          </table>
         </td>
-      </tr>`
+      </tr>`;
+      }
     )
     .join('');
+
+  const singleEmailId = emailCount === 1
+    ? (emails[0].providerMessageId || String(emails[0]._id) || null)
+    : null;
+  const ctaHref = singleEmailId
+    ? `${APP_URL}/inbox/${singleEmailId}`
+    : `${APP_URL}/inbox?riskBucket=quarantine`;
 
   return {
     subject,
     html: shell({
-      preheader: `SecureInbox flagged ${emailCount} likely-phishing message${emailCount > 1 ? 's' : ''} — review before acting.`,
+      preheader: `Action needed: SecureInbox flagged ${emailCount} phishing message${emailCount > 1 ? 's' : ''} — do not interact until reviewed.`,
       accent: C.quarantine,
       eyebrow: 'Phishing alert',
-      title: emailCount === 1 ? 'A likely-phishing email was detected' : `${emailCount} likely-phishing emails were detected`,
+      title: `⚠ Phishing detected in your inbox`,
       body: `
         ${paragraph(`Hi ${escapeHtml(userName)}, SecureInbox flagged <strong style="color:${C.quarantine};">${emailCount} message${emailCount > 1 ? 's' : ''}</strong> as likely phishing during the latest sync on ${escapeHtml(detectedAt)}.`)}
+        ${paragraph(`<strong>Do not click any links or download attachments</strong> from these messages until you have reviewed them in SecureInbox.`)}
 
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;overflow:hidden;margin:4px 0 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;overflow:hidden;margin:4px 0 16px;">
           ${rows}
         </table>
 
-        ${paragraph(`Do <strong>not</strong> click links or download attachments until you've verified these messages are safe.`)}
-        ${ctaButton('Review in SecureInbox', `${APP_URL}/inbox?riskBucket=quarantine`, C.quarantine, '#ffffff')}
+        ${ctaButton('Review flagged messages', ctaHref, C.quarantine, '#ffffff')}
         ${mutedLine('You receive this because phishing alerts are enabled. Turn them off in Settings → Notifications.')}
       `,
     }),

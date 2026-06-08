@@ -15,7 +15,7 @@ const findPhishingEmailsFromIds = async ({ userId, emailIds }) => {
         emailId: { $in: emailIds },
         verdict: 'likely_phishing',
     })
-        .select('emailId')
+        .select('emailId score triggeredRules')
         .lean();
 
     if (phishingScans.length === 0) {
@@ -24,9 +24,22 @@ const findPhishingEmailsFromIds = async ({ userId, emailIds }) => {
 
     const phishingEmailIds = phishingScans.map((s) => s.emailId);
 
-    return Email.find({ _id: { $in: phishingEmailIds }, userId })
-        .select('subject from')
+    const scanByEmailId = new Map(
+        phishingScans.map((s) => [String(s.emailId), s])
+    );
+
+    const emails = await Email.find({ _id: { $in: phishingEmailIds }, userId })
+        .select('subject from providerMessageId')
         .lean();
+
+    return emails.map((email) => {
+        const scan = scanByEmailId.get(String(email._id));
+        return {
+            ...email,
+            score: scan?.score ?? null,
+            triggeredRules: scan?.triggeredRules ?? [],
+        };
+    });
 };
 
 const sendAlertIfEnabled = async ({ user, phishingEmails }) => {
