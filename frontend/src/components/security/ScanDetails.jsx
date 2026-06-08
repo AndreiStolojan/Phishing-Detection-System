@@ -60,7 +60,7 @@ export function ScanDetails({ scan }) {
   const ollamaUnavailable = aiSource === 'fallback' || aiStatus === 'fallback';
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* AI / rule-based explanation — primary panel */}
       {summary && (
         <Card className={ollamaUnavailable ? 'border-border' : 'border-primary/25 bg-primary/[0.06]'}>
@@ -95,7 +95,7 @@ export function ScanDetails({ scan }) {
       )}
 
       {/* Score breakdown — always visible */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <span className="label-overline flex items-center gap-1.5">
             <Gauge className="h-3.5 w-3.5" />
@@ -109,7 +109,7 @@ export function ScanDetails({ scan }) {
           </div>
         </div>
         <ScoreBar label="Total" value={scan.score} color={verdictMeta.tone.hex} />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <ScoreBar label="Rules" value={scan.ruleScore} color="var(--color-chart-3)" />
           <ScoreBar label="AI" value={scan.aiScore} color="var(--color-chart-1)" />
         </div>

@@ -197,7 +197,7 @@ export function SettingsPage() {
     <>
       <PageHeader title="Settings" description="Manage your account, Gmail connection, and detection preferences." />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
         {/* Profile */}
         <Section icon={User} title="Profile" description="Your account details." index={0}>
