@@ -1,11 +1,10 @@
-import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Sparkles, Gauge, Info, ChevronDown, Bot, Shield } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Sparkles, Gauge, Info, Bot, Shield } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThreatSignals } from '@/components/security/ThreatSignals';
 import { getVerdictMeta } from '@/lib/risk';
-import { ease, springSoft } from '@/lib/motion';
+import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 function ScoreBar({ label, value, max = 100, color }) {
@@ -52,8 +51,6 @@ function DetectionBadge({ ruleScore, aiScore }) {
 }
 
 export function ScanDetails({ scan }) {
-  const [showScores, setShowScores] = useState(false);
-
   if (!scan) return null;
 
   const verdictMeta = getVerdictMeta(scan.verdict);
@@ -79,21 +76,11 @@ export function ScanDetails({ scan }) {
             <CardTitle className="text-sm">
               {ollamaUnavailable ? 'Rule-based explanation' : 'AI explanation'}
             </CardTitle>
-            <div className="ml-auto">
-              <DetectionBadge ruleScore={scan.ruleScore} aiScore={scan.aiScore} />
-            </div>
           </CardHeader>
           <CardContent>
             <p className="text-sm leading-relaxed text-foreground/90">{summary}</p>
           </CardContent>
         </Card>
-      )}
-
-      {/* If no AI explanation, still show the detection badge */}
-      {!summary && (
-        <div className="flex justify-end">
-          <DetectionBadge ruleScore={scan.ruleScore} aiScore={scan.aiScore} />
-        </div>
       )}
 
       {/* Ollama unavailable — calm info note */}
@@ -107,64 +94,29 @@ export function ScanDetails({ scan }) {
         </div>
       )}
 
-      {/* Threat signals — always visible, not hidden */}
-      <ThreatSignals scan={scan} />
-
-      {/* Score breakdown — collapsible, score visible in header */}
-      <div>
-        <button
-          onClick={() => setShowScores((v) => !v)}
-          className="flex w-full items-center justify-between rounded-md py-1 text-muted-foreground transition-colors hover:text-foreground"
-        >
+      {/* Score breakdown — always visible */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <span className="label-overline flex items-center gap-1.5">
             <Gauge className="h-3.5 w-3.5" />
-            Score breakdown
+            Score
           </span>
           <div className="flex items-center gap-2">
-            <span className={cn('text-xs font-semibold tabular-nums', verdictMeta.tone.text)}>
+            <DetectionBadge ruleScore={scan.ruleScore} aiScore={scan.aiScore} />
+            <span className={cn('text-sm font-semibold tabular-nums', verdictMeta.tone.text)}>
               {scan.score}
             </span>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 transition-transform duration-200',
-                !showScores && '-rotate-90'
-              )}
-            />
           </div>
-        </button>
-
-        <AnimatePresence initial={false}>
-          {showScores && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease }}
-              className="overflow-hidden"
-            >
-              <div className="space-y-3 pt-3">
-                <ScoreBar
-                  label="Total score"
-                  value={scan.score}
-                  color={verdictMeta.tone.hex}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <ScoreBar
-                    label="Rule signals"
-                    value={scan.ruleScore}
-                    color="var(--color-chart-3)"
-                  />
-                  <ScoreBar
-                    label="AI signals"
-                    value={scan.aiScore}
-                    color="var(--color-chart-1)"
-                  />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </div>
+        <ScoreBar label="Total" value={scan.score} color={verdictMeta.tone.hex} />
+        <div className="grid grid-cols-2 gap-3">
+          <ScoreBar label="Rules" value={scan.ruleScore} color="var(--color-chart-3)" />
+          <ScoreBar label="AI" value={scan.aiScore} color="var(--color-chart-1)" />
+        </div>
       </div>
+
+      {/* Threat signals — always visible below score */}
+      <ThreatSignals scan={scan} />
     </div>
   );
 }

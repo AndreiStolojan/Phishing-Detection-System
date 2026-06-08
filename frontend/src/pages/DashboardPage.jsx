@@ -9,6 +9,15 @@ import {
   ArrowRight,
   ShieldCheck,
 } from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 import { DashboardSkeleton, ErrorState, EmptyState } from '@/components/common/states';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -20,9 +29,168 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/useApi';
 import { useMailAccount } from '@/context/MailAccountContext';
-import { getEmails, getEmailStats } from '@/api/emailsApi';
+import { getEmails, getEmailStats, getEmailTrend } from '@/api/emailsApi';
 import { normalizeEmailList } from '@/lib/email-list';
 import { formatDateTime } from '@/utils/formatDate';
+import { cn } from '@/lib/utils';
+
+/* ─── Trend chart ─────────────────────────────────────────────────────────── */
+
+const formatAxisDate = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+function TrendTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-md">
+      <p className="mb-1.5 font-medium">{formatAxisDate(label)}</p>
+      {payload.map((entry) => (
+        <div key={entry.dataKey} className="flex items-center gap-2">
+          <span className="inline-block h-2 w-2 rounded-full" style={{ background: entry.color }} />
+          <span className="text-muted-foreground capitalize">{entry.name}:</span>
+          <span className="font-medium">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThreatTrendChart({ data }) {
+  // Show only every 5th label to avoid crowding
+  const tickFormatter = (value, index) => {
+    if (index % 5 !== 0) return '';
+    return formatAxisDate(value);
+  };
+
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <AreaChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+        <defs>
+          <linearGradient id="grad-safe" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--color-risk-safe)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="var(--color-risk-safe)" stopOpacity={0.02} />
+          </linearGradient>
+          <linearGradient id="grad-review" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--color-risk-review)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="var(--color-risk-review)" stopOpacity={0.02} />
+          </linearGradient>
+          <linearGradient id="grad-quarantine" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.35} />
+            <stop offset="95%" stopColor="var(--color-risk-quarantine)" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" strokeOpacity={0.5} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={tickFormatter}
+          tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
+          axisLine={false}
+          tickLine={false}
+          allowDecimals={false}
+        />
+        <Tooltip content={<TrendTooltip />} />
+        <Area
+          type="monotone"
+          dataKey="safe"
+          name="Safe"
+          stackId="1"
+          stroke="var(--color-risk-safe)"
+          fill="url(#grad-safe)"
+          strokeWidth={1.5}
+        />
+        <Area
+          type="monotone"
+          dataKey="needs_review"
+          name="Suspicious"
+          stackId="1"
+          stroke="var(--color-risk-review)"
+          fill="url(#grad-review)"
+          strokeWidth={1.5}
+        />
+        <Area
+          type="monotone"
+          dataKey="quarantine"
+          name="Phishing"
+          stackId="1"
+          stroke="var(--color-risk-quarantine)"
+          fill="url(#grad-quarantine)"
+          strokeWidth={1.5}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* ─── Posture hero card ───────────────────────────────────────────────────── */
+
+function PostureHero({ attention, safeRate, scanned, lastSynced }) {
+  const allClear = attention === 0;
+
+  return (
+    <Card
+      className="overflow-hidden"
+      style={{
+        borderLeftWidth: 3,
+        borderLeftColor: allClear ? 'var(--color-risk-safe)' : 'var(--color-risk-quarantine)',
+      }}
+    >
+      <CardContent className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                'flex h-10 w-10 items-center justify-center rounded-xl',
+                allClear ? 'bg-risk-safe-soft text-risk-safe' : 'bg-risk-quarantine-soft text-risk-quarantine'
+              )}
+            >
+              {allClear ? (
+                <ShieldCheck className="h-5 w-5" />
+              ) : (
+                <ShieldAlert className="h-5 w-5" />
+              )}
+            </div>
+            <div>
+              <p className={cn('text-sm font-semibold', allClear ? 'text-risk-safe' : 'text-risk-quarantine')}>
+                {allClear ? 'Your inbox is protected' : `${attention} email${attention > 1 ? 's' : ''} need your review`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {allClear
+                  ? 'No threats detected right now.'
+                  : 'Likely phishing messages are in quarantine.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-6 text-right">
+            <div>
+              <p className="text-lg font-bold tabular-nums text-risk-safe">{safeRate}%</p>
+              <p className="text-[11px] text-muted-foreground">safe rate</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold tabular-nums">{scanned}</p>
+              <p className="text-[11px] text-muted-foreground">scanned</p>
+            </div>
+            {lastSynced && (
+              <div className="hidden sm:block">
+                <p className="text-xs text-muted-foreground">Last synced</p>
+                <p className="text-xs font-medium">{formatDateTime(lastSynced)}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Dashboard page ──────────────────────────────────────────────────────── */
 
 export function DashboardPage() {
   const { account, isConnected, syncVersion } = useMailAccount();
@@ -33,6 +201,11 @@ export function DashboardPage() {
     () => getEmails({ riskBucket: 'quarantine' }),
     [syncVersion],
     `risky-${syncVersion}`
+  );
+  const trendQuery = useApi(
+    () => getEmailTrend(),
+    [syncVersion],
+    `dash-trend-${syncVersion}`
   );
 
   useEffect(() => {
@@ -77,6 +250,7 @@ export function DashboardPage() {
   const counts = statsQuery.data?.counts || {};
   const total = statsQuery.data?.total ?? 0;
   const risky = normalizeEmailList(riskyQuery.data);
+  const trendData = trendQuery.data || [];
 
   const safeCount = (counts.safe || 0) + (counts.reviewed_safe || 0);
   const scanned = total - (counts.unscanned || 0);
@@ -93,36 +267,17 @@ export function DashboardPage() {
 
   return (
     <>
-      <PageHeader
-        title="Overview"
-        description={
-          lastSynced
-            ? `Your inbox · last synced ${formatDateTime(lastSynced)}`
-            : 'Your inbox security at a glance'
-        }
-        actions={
-          attention > 0 ? (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="border-risk-quarantine/40 text-risk-quarantine hover:bg-risk-quarantine-soft hover:text-risk-quarantine"
-            >
-              <Link to="/inbox?riskBucket=quarantine">
-                <ShieldAlert className="h-4 w-4" />
-                {attention} need{attention > 1 ? '' : 's'} attention
-              </Link>
-            </Button>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-risk-safe/30 bg-risk-safe-soft px-3 py-1.5 text-xs font-medium text-risk-safe">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              All clear
-            </span>
-          )
-        }
+      <PageHeader title="Overview" />
+
+      {/* Security posture hero — full width */}
+      <PostureHero
+        attention={attention}
+        safeRate={safeRate}
+        scanned={scanned}
+        lastSynced={lastSynced}
       />
 
-      {/* Key numbers — live, across your whole inbox */}
+      {/* 4 stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           icon={ScanLine}
@@ -158,8 +313,26 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Breakdown + attention */}
+      {/* Trend chart (3/5) + Risk donut (2/5) */}
       <div className="grid gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Activity over 30 days</CardTitle>
+            <CardDescription>Daily email counts by risk level</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {trendQuery.loading ? (
+              <Skeleton className="h-48 w-full" />
+            ) : trendData.length > 0 ? (
+              <ThreatTrendChart data={trendData} />
+            ) : (
+              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                No trend data yet
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Risk breakdown</CardTitle>
@@ -169,46 +342,47 @@ export function DashboardPage() {
             <RiskDonut data={donutData} centerValue={`${safeRate}%`} centerLabel="safe" />
           </CardContent>
         </Card>
-
-        <Card className="lg:col-span-3">
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Needs your attention</CardTitle>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/inbox?riskBucket=quarantine">
-                View all <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="px-0 pb-2">
-            {riskyQuery.loading ? (
-              <div className="divide-y divide-border/60 px-5">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 py-3">
-                    <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-3 w-40" />
-                      <Skeleton className="h-3 w-56" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : risky.length === 0 ? (
-              <EmptyState
-                icon={ShieldCheck}
-                title="All clear"
-                description="No quarantined messages right now."
-                className="mx-5 border-0 py-10"
-              />
-            ) : (
-              <div className="divide-y divide-border/60">
-                {risky.slice(0, 5).map((email) => (
-                  <EmailRow key={email.id || email._id} email={email} compact />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Needs attention — full width */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle>Needs your attention</CardTitle>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/inbox?riskBucket=quarantine">
+              View all <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="px-0 pb-2">
+          {riskyQuery.loading ? (
+            <div className="divide-y divide-border/60 px-5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 py-3">
+                  <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-40" />
+                    <Skeleton className="h-3 w-56" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : risky.length === 0 ? (
+            <EmptyState
+              icon={ShieldCheck}
+              title="All clear"
+              description="No quarantined messages right now."
+              className="mx-5 border-0 py-10"
+            />
+          ) : (
+            <div className="divide-y divide-border/60">
+              {risky.slice(0, 5).map((email) => (
+                <EmailRow key={email.id || email._id} email={email} compact />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

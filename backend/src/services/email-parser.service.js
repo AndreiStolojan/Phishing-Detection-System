@@ -165,5 +165,6 @@ export const parseGmailMessageToEmailPayload = ({ gmailMessage, mailAccount, syn
         attachmentExtensions,
         receivedAt: getReceivedAtDate(gmailMessage, headers),
         syncSource,
+        rawHeaders: headers.map(h => ({ name: h.name || '', value: h.value || '' })),
     };
 };

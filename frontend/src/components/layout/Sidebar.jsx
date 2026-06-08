@@ -6,6 +6,7 @@ import {
   BarChart3,
   Settings,
   ShieldCheck,
+  ShieldAlert,
   LogOut,
   RefreshCw,
   MailX,
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/inbox', label: 'Inbox', icon: Inbox },
+  { to: '/inbox?riskBucket=quarantine', label: 'Quarantine', icon: ShieldAlert, sub: true },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -40,7 +42,27 @@ const initials = (name, email) => {
   return source.slice(0, 2).toUpperCase();
 };
 
-function NavItem({ to, label, icon: Icon }) {
+function NavItem({ to, label, icon: Icon, sub }) {
+  if (sub) {
+    return (
+      <NavLink
+        to={to}
+        end={false}
+        className={({ isActive }) =>
+          cn(
+            'ml-4 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors outline-none',
+            isActive
+              ? 'text-risk-quarantine bg-risk-quarantine-soft'
+              : 'text-muted-foreground hover:text-risk-quarantine hover:bg-risk-quarantine-soft/60'
+          )
+        }
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        {label}
+      </NavLink>
+    );
+  }
+
   return (
     <NavLink
       to={to}

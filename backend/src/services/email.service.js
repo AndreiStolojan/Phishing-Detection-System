@@ -145,6 +145,7 @@ const toEmailRaw = (email) => ({
     lastProviderActionError: email.lastProviderActionError || null,
     createdAt: email.createdAt,
     updatedAt: email.updatedAt,
+    rawHeaders: email.rawHeaders || null,
 });
 
 const parsePositiveInt = ({ value, fallback, paramName, code }) => {
@@ -545,6 +546,49 @@ export const getEmailRawByIdForUser = async ({ userId, emailId }) => {
     const email = await findOwnedEmailById({ userId, emailId });
 
     return toEmailRaw(email);
+};
+
+export const getTrendForUser = async ({ userId, days = 30 }) => {
+    const userObjectId = new mongoose.Types.ObjectId(String(userId));
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const results = await Email.aggregate([
+        { $match: { userId: userObjectId, receivedAt: { $gte: since } } },
+        ...buildLatestScanLookupStages(),
+        ...buildEmailStateStages(),
+        {
+            $group: {
+                _id: {
+                    date: { $dateToString: { format: '%Y-%m-%d', date: '$receivedAt' } },
+                    riskBucket: '$riskBucket',
+                },
+                count: { $sum: 1 },
+            },
+        },
+        { $sort: { '_id.date': 1 } },
+    ]);
+
+    const map = {};
+    for (const row of results) {
+        const { date, riskBucket } = row._id;
+        if (!map[date]) {
+            map[date] = { date, safe: 0, needs_review: 0, quarantine: 0, confirmed_phishing: 0 };
+        }
+        if (riskBucket in map[date]) {
+            map[date][riskBucket] = row.count;
+        }
+    }
+
+    const trend = [];
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        trend.push(map[dateStr] || { date: dateStr, safe: 0, needs_review: 0, quarantine: 0, confirmed_phishing: 0 });
+    }
+
+    return trend;
 };
 
 // Live counts of emails per current risk bucket (same derivation the list uses),

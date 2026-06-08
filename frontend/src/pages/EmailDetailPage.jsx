@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Link2,
   Loader2,
   Paperclip,
@@ -15,8 +16,9 @@ import {
   Check,
   ShieldAlert,
   AlertTriangle,
+  Terminal,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 
 import { LoadingState, ErrorState } from '@/components/common/states';
@@ -205,6 +207,77 @@ function LinkRow({ url }) {
   );
 }
 
+/* ─── Raw headers viewer ─────────────────────────────────────────────────── */
+
+const IMPORTANT_HEADERS = new Set([
+  'authentication-results', 'arc-authentication-results',
+  'received', 'from', 'reply-to', 'dkim-signature',
+  'x-spam-status', 'x-mailer'
+]);
+
+function RawHeadersCard({ headers }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyAll = () => {
+    const text = headers.map(h => `${h.name}: ${h.value}`).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
+
+  return (
+    <Card>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex w-full items-center justify-between p-4 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Email Headers</span>
+          <Badge variant="muted">{headers.length}</Badge>
+        </div>
+        <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0 }}
+            animate={{ height: 'auto' }}
+            exit={{ height: 0 }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-border/60 px-4 pb-4 pt-3">
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={copyAll}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5 text-risk-safe" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? 'Copied' : 'Copy all'}
+                </button>
+              </div>
+              <div className="max-h-80 overflow-y-auto rounded-lg bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
+                {headers.map((h, i) => {
+                  const isImportant = IMPORTANT_HEADERS.has(h.name.toLowerCase());
+                  return (
+                    <div key={i} className={cn('break-all', isImportant && 'text-primary')}>
+                      <span className="font-semibold">{h.name}:</span>{' '}
+                      <span className="text-foreground/70">{h.value}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Card>
+  );
+}
+
 /* ─── Main page ──────────────────────────────────────────────────────────── */
 
 export function EmailDetailPage() {
@@ -293,7 +366,7 @@ export function EmailDetailPage() {
   if (!email) return null;
 
   const links = raw?.links || [];
-  const attachments = raw?.attachments || [];
+  const attachments = raw?.attachmentExtensions || [];
   const LINKS_PREVIEW = 5;
   const visibleLinks = showAllLinks ? links : links.slice(0, LINKS_PREVIEW);
   const hiddenLinksCount = links.length - LINKS_PREVIEW;
@@ -455,10 +528,10 @@ export function EmailDetailPage() {
                       Attachments ({attachments.length})
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {attachments.map((att, i) => (
+                      {attachments.map((ext, i) => (
                         <Badge key={i} variant="muted">
                           <Paperclip className="h-3 w-3" />
-                          {typeof att === 'string' ? att : att.filename || att.name || 'file'}
+                          .{ext}
                         </Badge>
                       ))}
                     </div>
@@ -466,6 +539,10 @@ export function EmailDetailPage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {raw?.rawHeaders?.length > 0 && (
+            <RawHeadersCard headers={raw.rawHeaders} />
           )}
         </div>
 
