@@ -219,6 +219,46 @@ const renderRules = (rules = []) => {
     </table>`;
 };
 
+const BAR_TOTAL_CELLS = 16;
+
+const renderBreakdownBar = (count, total, color) => {
+  const filled = total > 0 ? Math.round((count / total) * BAR_TOTAL_CELLS) : 0;
+  const empty = BAR_TOTAL_CELLS - filled;
+  const filledHtml = filled > 0
+    ? `<td width="${filled}" style="background:${color};height:8px;border-radius:3px 0 0 3px;font-size:0;line-height:0;">&nbsp;</td>`
+    : '';
+  const emptyHtml = empty > 0
+    ? `<td width="${empty}" style="background:${C.border};height:8px;${filled === 0 ? 'border-radius:3px;' : 'border-radius:0 3px 3px 0;'}font-size:0;line-height:0;">&nbsp;</td>`
+    : '';
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:${BAR_TOTAL_CELLS * 8}px;">
+      <tr>${filledHtml}${emptyHtml}</tr>
+    </table>`;
+};
+
+const renderBreakdownRow = (label, count, total, color, isLast) => {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const borderStyle = isLast ? '' : `border-bottom:1px solid ${C.border};`;
+  return `
+    <tr>
+      <td style="${borderStyle}padding:10px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="14" style="vertical-align:middle;">
+              <div style="width:8px;height:8px;border-radius:50%;background:${color};font-size:0;line-height:0;">&nbsp;</div>
+            </td>
+            <td style="vertical-align:middle;font-family:${FONT};font-size:14px;color:${C.fg};">${escapeHtml(label)}</td>
+            <td width="140" style="vertical-align:middle;text-align:center;">
+              ${renderBreakdownBar(count, total, color)}
+            </td>
+            <td width="36" style="vertical-align:middle;text-align:right;font-family:${FONT};font-size:13px;font-weight:700;color:${C.fg};">${formatNumber(count)}</td>
+            <td width="40" style="vertical-align:middle;text-align:right;font-family:${FONT};font-size:12px;color:${C.muted};">${pct}%</td>
+          </tr>
+        </table>
+      </td>
+    </tr>`;
+};
+
 export const monthlyDigestTemplate = ({ summary, userName }) => {
   const monthLabel = formatMonth(summary.period.month);
   const counts = summary.counts;
@@ -231,45 +271,53 @@ export const monthlyDigestTemplate = ({ summary, userName }) => {
   const synced = counts.syncedEmails ?? counts.scannedEmails;
   const scanned = counts.scannedEmails;
 
+  // AI line — only mention failed/skipped if > 0
+  const aiFailedPart = (ai.failed || 0) > 0
+    ? ` ${formatNumber(ai.failed)} failed (Ollama unavailable).`
+    : '';
+  const aiDisabledPart = (ai.disabled || 0) > 0
+    ? ` ${formatNumber(ai.disabled)} skipped (AI off).`
+    : '';
+  const aiPct = scanned > 0 ? Math.round(((ai.evaluated || 0) / scanned) * 100) : 0;
+  const aiLine = `AI evaluated <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong> emails (${aiPct}%).${aiFailedPart}${aiDisabledPart}`;
+
   return {
     subject: `Your SecureInbox report — ${monthLabel}`,
     html: shell({
       preheader: `${safeRate}% safe · ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} found in ${monthLabel}.`,
       accent: heroAccent,
       eyebrow: 'Monthly security briefing',
-      title: `Security summary for ${monthLabel}`,
+      title: `Security report — ${monthLabel}`,
       body: `
-        ${paragraph(`Hi ${escapeHtml(userName)}, here's how SecureInbox protected your inbox this month.`)}
+        ${paragraph(`SecureInbox scanned ${formatNumber(scanned)} of ${formatNumber(synced)} synced emails in ${escapeHtml(monthLabel)} — here's what it found.`)}
 
-        <!-- Hero: safe rate -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin:4px 0 12px;">
-          <tr><td style="padding:20px;text-align:center;">
-            <p style="margin:0;font-family:${FONT};font-size:40px;font-weight:700;line-height:1;color:${heroAccent};">${safeRate}%</p>
-            <p style="margin:6px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of scanned messages were safe</p>
-            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${formatNumber(scanned)} emails scanned &mdash; ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} found</p>
+        <!-- Hero: safe rate banner -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin:4px 0 20px;">
+          <tr><td style="padding:24px;text-align:center;">
+            <p style="margin:0;font-family:${FONT};font-size:48px;font-weight:700;line-height:1;color:${heroAccent};">${safeRate}%</p>
+            <p style="margin:8px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of scanned messages were safe</p>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${formatNumber(counts.safe || 0)} emails were safe &mdash; ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} detected</p>
           </td></tr>
         </table>
 
-        <!-- Detection flow summary -->
-        ${mutedLine(`Synced: <strong style="color:${C.muted};">${formatNumber(synced)}</strong> &nbsp;&middot;&nbsp; Scanned: <strong style="color:${C.muted};">${formatNumber(scanned)}</strong> &nbsp;&middot;&nbsp; Threats: <strong style="color:${C.quarantine};">${formatNumber(threats)}</strong>`)}
-
-        <!-- Risk breakdown grid -->
-        <h2 style="margin:20px 0 10px;font-family:${FONT};font-size:14px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:${C.muted};">Risk breakdown</h2>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 -6px;">
-          <tr>
-            ${renderMetric('Safe', counts.safe, C.safe)}
-            ${renderMetric('Suspicious', counts.suspicious, C.review)}
-          </tr>
-          <tr>
-            ${renderMetric('Likely phishing', counts.likelyPhishing, C.quarantine)}
-            ${renderMetric('Confirmed phishing', counts.markedPhishing, C.phishing)}
-          </tr>
+        <!-- Threat breakdown: single-column list with progress bars -->
+        <h2 style="margin:0 0 8px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Threat breakdown</h2>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;padding:0 16px;margin-bottom:20px;">
+          <tr><td style="padding:0 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              ${renderBreakdownRow('Safe', counts.safe || 0, scanned, C.safe, false)}
+              ${renderBreakdownRow('Suspicious', counts.suspicious || 0, scanned, C.review, false)}
+              ${renderBreakdownRow('Likely phishing', counts.likelyPhishing || 0, scanned, C.quarantine, false)}
+              ${renderBreakdownRow('Confirmed phishing', counts.markedPhishing || 0, scanned, C.phishing, true)}
+            </table>
+          </td></tr>
         </table>
 
-        <h2 style="margin:24px 0 12px;font-family:${FONT};font-size:16px;font-weight:600;color:${C.fg};">Top triggered rules</h2>
-        ${renderRules(summary.topTriggeredRules)}
+        <!-- Top triggered rules -->
+        <h2 style="margin:0 0 10px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Most active detection rules</h2>
+        ${renderRules((summary.topTriggeredRules || []).slice(0, 4))}
 
-        ${mutedLine(`AI analyzed <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong> of ${formatNumber(scanned)} scanned emails. ${formatNumber(ai.failed)} failed (Ollama unavailable) &nbsp;&middot;&nbsp; ${formatNumber(ai.disabled)} skipped (AI off).`)}
+        ${mutedLine(aiLine)}
 
         <div style="margin-top:20px;">${ctaButton('View your inbox', `${APP_URL}/inbox`)}</div>
 

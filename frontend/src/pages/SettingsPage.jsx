@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -10,6 +10,9 @@ import {
   Loader2,
   Trash2,
   Link2,
+  Check,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/PageHeader';
@@ -55,8 +58,8 @@ function Section({ icon: Icon, title, description, children, index = 0 }) {
     >
       <Card>
         <CardHeader className="flex-row items-center gap-3 space-y-0">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="h-4.5 w-4.5" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className="h-5 w-5" />
           </span>
           <div className="space-y-0.5">
             <CardTitle className="text-base">{title}</CardTitle>
@@ -69,7 +72,7 @@ function Section({ icon: Icon, title, description, children, index = 0 }) {
   );
 }
 
-function SettingToggle({ id, icon: Icon, title, description, checked, onChange, disabled }) {
+function SettingToggle({ id, icon: Icon, title, description, checked, onChange, disabled, caption }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg px-2 py-3 transition-colors hover:bg-accent/40">
       <label htmlFor={id} className="flex cursor-pointer gap-3">
@@ -77,9 +80,48 @@ function SettingToggle({ id, icon: Icon, title, description, checked, onChange, 
         <div className="space-y-0.5">
           <p className="text-sm font-medium">{title}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
+          {caption && <p className="text-xs text-muted-foreground/70 italic">{caption}</p>}
         </div>
       </label>
       <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
+    </div>
+  );
+}
+
+/** Small +/- stepper for a number within [min, max]. */
+function NumberStepper({ id, value, onChange, min = 1, max = 50 }) {
+  const num = Number(value);
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <div className="flex flex-col">
+        <button
+          type="button"
+          aria-label="Increase"
+          className="flex h-5 w-6 items-center justify-center rounded-t border border-border bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          disabled={num >= max}
+          onClick={() => onChange(Math.min(num + 1, max))}
+        >
+          <ChevronUp className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          aria-label="Decrease"
+          className="flex h-5 w-6 items-center justify-center rounded-b border-x border-b border-border bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          disabled={num <= min}
+          onClick={() => onChange(Math.max(num - 1, min))}
+        >
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -92,12 +134,21 @@ export function SettingsPage() {
   const [maxResults, setMaxResults] = useState(account?.syncMaxResults ?? 10);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [contactSent, setContactSent] = useState(false);
+  const contactSentTimer = useRef(null);
 
   useEffect(() => {
     if (account?.syncMaxResults != null) {
       setMaxResults(account.syncMaxResults);
     }
   }, [account?.syncMaxResults]);
+
+  // Clean up the timer on unmount
+  useEffect(() => {
+    return () => {
+      if (contactSentTimer.current) clearTimeout(contactSentTimer.current);
+    };
+  }, []);
 
   const aiEnabled = Boolean(user?.settings?.aiEnabled);
   const alertsEnabled = Boolean(user?.settings?.alertsEnabled);
@@ -137,7 +188,9 @@ export function SettingsPage() {
     await sendContactMessage({ subject: subject.trim() || undefined, message: message.trim() });
     setSubject('');
     setMessage('');
+    setContactSent(true);
     toast.success("Message sent — we'll get back to you by email.");
+    contactSentTimer.current = setTimeout(() => setContactSent(false), 3000);
   });
 
   return (
@@ -147,22 +200,27 @@ export function SettingsPage() {
       {/* Profile */}
       <Section icon={User} title="Profile" description="Your account details." index={0}>
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="name">Name</Label>
+          <div className="grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-3">
+            <Label htmlFor="name" className="text-sm text-muted-foreground">Name</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Label htmlFor="email" className="text-sm text-muted-foreground">Email</Label>
+            <Input
+              id="email"
+              value={user?.email || ''}
+              disabled
+              className="cursor-default text-muted-foreground opacity-60 hover:border-border focus-visible:ring-0"
+            />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" value={user?.email || ''} disabled />
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => saveName.run().catch((e) => toast.error(e.message || 'Failed to save.'))}
+              disabled={saveName.loading || name.trim().length < 2 || name.trim() === user?.name}
+            >
+              {saveName.loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save profile
+            </Button>
           </div>
-          <Button
-            size="sm"
-            onClick={() => saveName.run().catch((e) => toast.error(e.message || 'Failed to save.'))}
-            disabled={saveName.loading || name.trim().length < 2 || name.trim() === user?.name}
-          >
-            {saveName.loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save profile
-          </Button>
         </div>
       </Section>
 
@@ -175,29 +233,35 @@ export function SettingsPage() {
       >
         {isConnected ? (
           <div className="space-y-4">
+            {/* Connected status tile */}
             <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/40 p-3">
-              <span className="relative flex h-2 w-2 shrink-0">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-risk-safe/60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-risk-safe" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-risk-safe" />
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{account.email}</p>
                 <p className="text-xs text-muted-foreground">
                   Last sync: {formatDateTime(account.lastSyncedAt)}
                 </p>
               </div>
+              <span className="shrink-0 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+                Up to {account.syncMaxResults ?? maxResults} emails
+              </span>
             </div>
+
+            {/* Sync count stepper */}
             <div className="space-y-1.5">
-              <Label htmlFor="maxResults">How many recent emails to scan per sync (1–50)</Label>
-              <div className="flex gap-2">
-                <Input
+              <Label htmlFor="maxResults" className="text-sm text-muted-foreground">
+                Recent emails to scan per sync (1–50)
+              </Label>
+              <div className="flex items-center gap-3">
+                <NumberStepper
                   id="maxResults"
-                  type="number"
+                  value={maxResults}
+                  onChange={setMaxResults}
                   min={1}
                   max={50}
-                  value={maxResults}
-                  onChange={(e) => setMaxResults(e.target.value)}
-                  className="w-28"
                 />
                 <Button
                   size="sm"
@@ -210,7 +274,12 @@ export function SettingsPage() {
                 </Button>
               </div>
             </div>
-            <Separator />
+
+            {/* Danger zone */}
+            <Separator className="my-4" />
+            <p className="text-[11px] text-muted-foreground">
+              This removes all synced data and scans from SecureInbox.
+            </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -232,7 +301,7 @@ export function SettingsPage() {
                   <AlertDialogTitle>Disconnect Gmail?</AlertDialogTitle>
                   <AlertDialogDescription>
                     This removes <span className="text-foreground/80">{account.email}</span> along with its
-                    synced messages and scans from SecureInbox. You can reconnect anytime, but you’ll
+                    synced messages and scans from SecureInbox. You can reconnect anytime, but you'll
                     need to sync again.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -249,7 +318,7 @@ export function SettingsPage() {
             </AlertDialog>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <CardDescription>
               Connect your Gmail to sync and scan your inbox for phishing.
             </CardDescription>
@@ -285,6 +354,7 @@ export function SettingsPage() {
             checked={aiEnabled}
             disabled={toggleAi.loading}
             onChange={(next) => toggleAi.run(next).catch((e) => toast.error(e.message || 'Failed to update.'))}
+            caption={!aiEnabled ? 'Without AI, only rule-based signals are used.' : undefined}
           />
           <SettingToggle
             id="alerts-toggle"
@@ -299,8 +369,11 @@ export function SettingsPage() {
       </Section>
 
       {/* Support */}
-      <Section icon={LifeBuoy} title="Contact support" description="Send us a question and we’ll reply by email." index={3}>
-        <div className="space-y-3">
+      <Section icon={LifeBuoy} title="Contact support" description="Send us a question and we'll reply by email." index={3}>
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Your message will be sent to the SecureInbox team. We'll reply to your registered email.
+          </p>
           <div className="space-y-1.5">
             <Label htmlFor="subject">Subject (optional)</Label>
             <Input
@@ -320,14 +393,21 @@ export function SettingsPage() {
               placeholder="Describe your question or issue…"
             />
           </div>
-          <Button
-            size="sm"
-            onClick={() => contact.run().catch((e) => toast.error(e.message || 'Failed to send.'))}
-            disabled={contact.loading || message.trim().length === 0}
-          >
-            {contact.loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Send message
-          </Button>
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => contact.run().catch((e) => toast.error(e.message || 'Failed to send.'))}
+              disabled={contact.loading || message.trim().length === 0 || contactSent}
+              className={contactSent ? 'text-risk-safe' : ''}
+            >
+              {contact.loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : contactSent ? (
+                <Check className="h-4 w-4 text-risk-safe" />
+              ) : null}
+              {contactSent ? 'Sent' : 'Send message'}
+            </Button>
+          </div>
         </div>
       </Section>
     </div>
