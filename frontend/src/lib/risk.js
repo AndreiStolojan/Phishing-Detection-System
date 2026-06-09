@@ -128,3 +128,35 @@ export const humanize = (value) => {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 };
+
+/** Short, user-friendly names for every rule key — used in charts and tooltips. */
+const RULE_LABELS = {
+  reply_to_mismatch: 'Reply-To mismatch',
+  shortened_url_detected: 'Shortened URL',
+  'suspicious_link_pattern:ip_address_link': 'Link uses IP address',
+  'suspicious_link_pattern:embedded_credentials': 'Login details in link',
+  'suspicious_link_pattern:punycode_domain': 'Lookalike domain',
+  'suspicious_link_pattern:very_long_url': 'Unusually long link',
+  high_risk_attachment_extension: 'Dangerous attachment',
+  archive_attachment_extension: 'Archive attachment',
+  too_many_links_high: 'Too many links',
+  too_many_links_medium: 'Too many links',
+  'ai_semantic:urgency_high': 'Urgency language',
+  'ai_semantic:urgency_medium': 'Urgency language',
+  'ai_semantic:sensitive_data_request': 'Asks for personal info',
+  'ai_semantic:login_or_action_request': 'Pressures to act',
+  'ai_semantic:social_engineering_high': 'Social engineering',
+  'ai_semantic:social_engineering_medium': 'Social engineering',
+  'ai_semantic:brand_impersonation_suspected': 'Brand impersonation',
+};
+
+export const getRuleLabel = (rule) => {
+  const key = String(rule || '');
+  if (RULE_LABELS[key]) return RULE_LABELS[key];
+  if (key.startsWith('suspicious_link_pattern:')) return 'Suspicious link';
+  return key
+    .replace(/^ai_semantic:/, '')
+    .replace(/_(high|medium|low)$/, '')
+    .replace(/[_:]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};

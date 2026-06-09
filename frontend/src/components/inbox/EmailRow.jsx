@@ -46,14 +46,9 @@ export function EmailRow({ email, active = false, linkState = null, compact = fa
       )}
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-[15px] font-semibold text-foreground">
-            {getSenderName(email)}
-          </p>
-          <time className="shrink-0 text-xs tabular-nums text-muted-foreground">
-            {formatEmailDate(email.receivedAt)}
-          </time>
-        </div>
+        <p className="truncate text-[15px] font-semibold text-foreground">
+          {getSenderName(email)}
+        </p>
         <p className={cn('truncate text-sm', loud ? 'text-foreground/90' : 'text-foreground/80')}>
           {email.subject || '(no subject)'}
         </p>
@@ -62,10 +57,14 @@ export function EmailRow({ email, active = false, linkState = null, compact = fa
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <time className="text-xs tabular-nums text-muted-foreground">
+          {formatEmailDate(email.receivedAt)}
+        </time>
         {loud && <RiskBadge riskBucket={email.riskBucket} size="sm" />}
-        <ChevronRight className="h-4 w-4 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
       </div>
+
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
     </MotionLink>
   );
 }

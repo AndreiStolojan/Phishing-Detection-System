@@ -127,6 +127,7 @@ const RULE_META = {
 const fallbackMeta = (rule) => ({
   label: rule
     .replace(/^ai_semantic:/, '')
+    .replace(/_(high|medium|low)$/, '')
     .replace(/[_:]/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase()),
   detail: null,
@@ -195,7 +196,7 @@ export function ThreatSignals({ scan }) {
     <div className="space-y-2">
       <p className="label-overline flex items-center gap-1.5 text-muted-foreground">
         <ShieldAlert className="h-3.5 w-3.5" />
-        Why this was flagged
+        What triggered the warning
         <span className="ml-auto rounded-full bg-muted px-2 py-0 text-[10px] font-semibold tabular-nums text-foreground/70">
           {triggered.length}
         </span>
