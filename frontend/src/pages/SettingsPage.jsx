@@ -435,74 +435,56 @@ export function SettingsPage() {
             </div>
           )}
         </div>
+
+        <Separator className="my-4" />
+        <div className="flex items-center justify-between gap-4 px-2">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">Delete account</p>
+            <p className="text-[11px] text-muted-foreground">
+              Permanently removes your account and all data. This can't be undone.
+            </p>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0 text-destructive hover:bg-destructive/10"
+                disabled={deleteAccount.loading}
+              >
+                {deleteAccount.loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                Delete account
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Account</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action is permanent and cannot be undone. All your data, emails, and scan
+                  results will be deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() =>
+                    deleteAccount.run().catch((e) => toast.error(e.message || 'Failed to delete account.'))
+                  }
+                >
+                  Delete My Account
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </Section>
         </div>
       </div>
-
-      {/* Danger zone */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...springSoft, delay: 0.2 }}
-      >
-        <Card className="border-destructive/40">
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-              <Trash2 className="h-5 w-5" />
-            </span>
-            <div className="space-y-0.5">
-              <CardTitle className="text-base text-destructive">Danger zone</CardTitle>
-              <CardDescription>Irreversible actions for your account.</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Delete account</p>
-                <p className="text-xs text-muted-foreground">
-                  Permanently removes your account and all associated data. This cannot be undone.
-                </p>
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="shrink-0 bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    disabled={deleteAccount.loading}
-                  >
-                    {deleteAccount.loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                    Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Account</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action is permanent and cannot be undone. All your data, emails, and scan
-                      results will be deleted.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={() =>
-                        deleteAccount.run().catch((e) => toast.error(e.message || 'Failed to delete account.'))
-                      }
-                    >
-                      Delete My Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
     </div>
   );
 }

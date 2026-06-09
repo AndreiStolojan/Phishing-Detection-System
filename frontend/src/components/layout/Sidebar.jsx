@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SidebarSupport } from './SidebarSupport';
 import { useAuth } from '@/hooks/useAuth';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { springSoft } from '@/lib/motion';
@@ -118,6 +119,7 @@ export function Sidebar() {
         {NAV.map((item) => (
           <NavItem key={item.to} {...item} />
         ))}
+        <SidebarSupport />
       </nav>
 
       {/* Gmail account */}
