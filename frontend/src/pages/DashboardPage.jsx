@@ -172,7 +172,7 @@ function PostureHero({ attention, safeRate, scanned, lastSynced }) {
               <p className="text-xs text-muted-foreground">
                 {allClear
                   ? 'No threats detected right now.'
-                  : 'Likely phishing messages are in quarantine.'}
+                  : 'These emails may be phishing attacks. Review them before opening.'}
               </p>
             </div>
           </div>
@@ -311,7 +311,7 @@ export function DashboardPage() {
         />
         <StatCard
           icon={ShieldX}
-          label="Confirmed"
+          label="Confirmed phishing"
           value={counts.confirmed_phishing ?? 0}
           hint="Marked by you"
           tone="text-risk-phishing"
