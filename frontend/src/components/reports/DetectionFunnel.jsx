@@ -17,7 +17,7 @@ const STEPS = [
   {
     key: 'scanned',
     label: 'Scanned',
-    sublabel: 'by engine',
+    sublabel: 'for threats',
     icon: ScanLine,
     color: 'text-primary',
     bg: 'bg-primary/10',
@@ -25,15 +25,15 @@ const STEPS = [
   {
     key: 'threats',
     label: 'Threats found',
-    sublabel: 'suspicious+',
+    sublabel: 'suspicious or worse',
     icon: ShieldAlert,
     color: 'text-risk-quarantine',
     bg: 'bg-risk-quarantine-soft',
   },
   {
     key: 'confirmed',
-    label: 'Confirmed',
-    sublabel: 'phishing',
+    label: 'Confirmed phishing',
+    sublabel: 'reviewed & marked',
     icon: ShieldX,
     color: 'text-risk-phishing',
     bg: 'bg-risk-phishing-soft',
