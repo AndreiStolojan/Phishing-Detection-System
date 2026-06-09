@@ -1,14 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import {
-  LayoutDashboard,
-  Inbox,
-  BarChart3,
-  Settings,
-  LogOut,
-  MailX,
-  ChevronsUpDown,
-} from 'lucide-react';
+import { LayoutDashboard, Inbox, BarChart3, Settings, LogOut, ChevronsUpDown } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -39,30 +31,11 @@ const initials = (name, email) => {
   return source.slice(0, 2).toUpperCase();
 };
 
-function NavItem({ to, label, icon: Icon, sub }) {
-  if (sub) {
-    return (
-      <NavLink
-        to={to}
-        end={false}
-        className={({ isActive }) =>
-          cn(
-            'ml-4 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors outline-none',
-            isActive
-              ? 'text-risk-quarantine bg-risk-quarantine-soft'
-              : 'text-muted-foreground hover:text-risk-quarantine hover:bg-risk-quarantine-soft/60'
-          )
-        }
-      >
-        <Icon className="h-3.5 w-3.5 shrink-0" />
-        {label}
-      </NavLink>
-    );
-  }
-
+function NavItem({ to, label, icon: Icon, onNavigate }) {
   return (
     <NavLink
       to={to}
+      onClick={onNavigate}
       className={({ isActive }) =>
         cn(
           'block rounded-lg outline-none transition-colors',
@@ -74,7 +47,7 @@ function NavItem({ to, label, icon: Icon, sub }) {
         <motion.span
           whileTap={{ scale: 0.97 }}
           className={cn(
-            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+            'relative flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
             !isActive && 'hover:bg-accent'
           )}
         >
@@ -100,12 +73,46 @@ function NavItem({ to, label, icon: Icon, sub }) {
   );
 }
 
-export function Sidebar() {
-  const { user, logout } = useAuth();
+function GmailStatus({ onNavigate }) {
   const { account, isConnected } = useMailAccount();
 
+  if (isConnected) {
+    return (
+      <div className="flex min-h-[44px] items-center gap-2.5 rounded-lg px-3 py-2">
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-risk-safe/60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-risk-safe" />
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="text-xs font-medium text-foreground">Gmail connected</p>
+          <p className="truncate text-[11px] text-muted-foreground">{account.email}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:flex">
+    <NavLink
+      to="/settings"
+      onClick={onNavigate}
+      className="flex min-h-[44px] items-center gap-2.5 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <span className="h-2 w-2 shrink-0 rounded-full bg-risk-quarantine" />
+      <span className="text-xs font-medium text-foreground">Gmail not connected</span>
+    </NavLink>
+  );
+}
+
+/*
+  Shared sidebar body used both by the static desktop column (<Sidebar />) and
+  the mobile slide-in drawer (<MobileDrawer />). `onNavigate` is called whenever
+  the user follows a link or opens Support, so the mobile drawer can close itself.
+*/
+export function SidebarContent({ onNavigate }) {
+  const { user, logout } = useAuth();
+
+  return (
+    <div className="flex h-full flex-col">
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-5 py-5">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">
@@ -114,38 +121,24 @@ export function Sidebar() {
         <p className="text-[15px] font-semibold tracking-tight">SecureInbox</p>
       </div>
 
-      {/* Nav */}
+      {/* Primary navigation */}
       <nav className="flex-1 space-y-1 px-3 py-2">
         {NAV.map((item) => (
-          <NavItem key={item.to} {...item} />
+          <NavItem key={item.to} {...item} onNavigate={onNavigate} />
         ))}
-        <SidebarSupport />
       </nav>
 
-      {/* Gmail account */}
+      {/* Secondary — kept below the primary nav so it doesn't read as a 5th page */}
+      <div className="border-t border-border/60 px-3 py-2">
+        <SidebarSupport onNavigate={onNavigate} />
+      </div>
+
+      {/* Gmail connection status */}
       <div className="border-t border-border/60 px-3 py-2.5">
-        <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+        <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
           Gmail
         </p>
-        {isConnected ? (
-          <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-            <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-risk-safe/60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-risk-safe" />
-            </span>
-            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-              {account.email}
-            </span>
-          </div>
-        ) : (
-          <NavLink
-            to="/settings"
-            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <MailX className="h-3.5 w-3.5 shrink-0" />
-            Connect Gmail
-          </NavLink>
-        )}
+        <GmailStatus onNavigate={onNavigate} />
       </div>
 
       {/* User */}
@@ -171,6 +164,14 @@ export function Sidebar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </div>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:block">
+      <SidebarContent />
     </aside>
   );
 }
