@@ -34,7 +34,7 @@ function DetectionBadge({ ruleScore, aiScore }) {
 
   if (!hasRule && !hasAi) return null;
 
-  const label = hasRule && hasAi ? 'Rules + AI' : hasAi ? 'AI detected' : 'Rule-based';
+  const label = hasRule && hasAi ? 'Rules + AI' : hasAi ? 'AI detected' : 'Rules only';
   const Icon = hasAi ? Bot : Shield;
 
   return (
@@ -74,7 +74,7 @@ export function ScanDetails({ scan }) {
               <Sparkles className="h-4 w-4" />
             </span>
             <CardTitle className="text-sm">
-              {ollamaUnavailable ? 'Rule-based explanation' : 'AI explanation'}
+              {ollamaUnavailable ? 'Automated explanation' : 'AI explanation'}
             </CardTitle>
           </CardHeader>
           <CardContent>

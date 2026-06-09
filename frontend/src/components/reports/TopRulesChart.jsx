@@ -2,7 +2,7 @@ import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YA
 import { ListChecks } from 'lucide-react';
 
 import { EmptyState } from '@/components/common/states';
-import { humanize } from '@/lib/risk';
+import { getRuleLabel } from '@/lib/risk';
 
 // Colour bars along a severity ramp by how often a rule fired relative to the top one.
 const barColor = (frac) =>
@@ -39,7 +39,7 @@ export function TopRulesChart({ rules }) {
   }
 
   const data = rules.slice(0, 6).map((rule) => ({
-    name: humanize(String(rule.rule || '').replace(/[:_]/g, ' ')),
+    name: getRuleLabel(rule.rule),
     count: rule.count || 0,
     points: rule.totalPoints || 0,
   }));
