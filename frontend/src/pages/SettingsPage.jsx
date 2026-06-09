@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -8,11 +8,9 @@ import {
   BellRing,
   CalendarDays,
   Clock,
-  LifeBuoy,
   Loader2,
   Trash2,
   Link2,
-  Check,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
@@ -21,7 +19,6 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
@@ -39,13 +36,12 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { updateMe, updateAiSettings, updateNotificationSettings } from '@/api/usersApi';
+import { updateMe, updateAiSettings, updateNotificationSettings, deleteMe } from '@/api/usersApi';
 import {
   getGoogleConnectUrl,
   updateMailAccountSettings,
   disconnectMailAccount,
 } from '@/api/mailAccountsApi';
-import { sendContactMessage } from '@/api/contactApi';
 import { formatDateTime } from '@/utils/formatDate';
 import { springSoft } from '@/lib/motion';
 
@@ -143,15 +139,11 @@ function NumberStepper({ id, value, onChange, min = 1, max = 50 }) {
 }
 
 export function SettingsPage() {
-  const { user, patchUser } = useAuth();
+  const { user, patchUser, logout } = useAuth();
   const { account, isConnected, reload } = useMailAccount();
 
   const [name, setName] = useState(user?.name || '');
   const [maxResults, setMaxResults] = useState(account?.syncMaxResults ?? 10);
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
-  const [contactSent, setContactSent] = useState(false);
-  const contactSentTimer = useRef(null);
 
   useEffect(() => {
     if (account?.syncMaxResults != null) {
@@ -164,13 +156,6 @@ export function SettingsPage() {
       setDigestHour(user.settings.digestHour);
     }
   }, [user?.settings?.digestHour]);
-
-  // Clean up the timer on unmount
-  useEffect(() => {
-    return () => {
-      if (contactSentTimer.current) clearTimeout(contactSentTimer.current);
-    };
-  }, []);
 
   const aiEnabled = Boolean(user?.settings?.aiEnabled);
   const alertsEnabled = Boolean(user?.settings?.alertsEnabled);
@@ -219,13 +204,10 @@ export function SettingsPage() {
     await reload();
     toast.success('Gmail disconnected.');
   });
-  const contact = useAsyncAction(async () => {
-    await sendContactMessage({ subject: subject.trim() || undefined, message: message.trim() });
-    setSubject('');
-    setMessage('');
-    setContactSent(true);
-    toast.success("Message sent — we'll get back to you by email.");
-    contactSentTimer.current = setTimeout(() => setContactSent(false), 3000);
+  const deleteAccount = useAsyncAction(async () => {
+    await deleteMe();
+    toast.success('Your account has been deleted.');
+    logout();
   });
 
   return (
@@ -454,51 +436,73 @@ export function SettingsPage() {
           )}
         </div>
       </Section>
-
-      {/* Support */}
-      <Section icon={LifeBuoy} title="Contact support" description="Send us a question and we'll reply by email." index={3}>
-        <div className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            Your message will be sent to the SecureInbox team. We'll reply to your registered email.
-          </p>
-          <div className="space-y-1.5">
-            <Label htmlFor="subject">Subject (optional)</Label>
-            <Input
-              id="subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="How can we help?"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="message">Message</Label>
-            <Textarea
-              id="message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              placeholder="Describe your question or issue…"
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              onClick={() => contact.run().catch((e) => toast.error(e.message || 'Failed to send.'))}
-              disabled={contact.loading || message.trim().length === 0 || contactSent}
-              className={contactSent ? 'text-risk-safe' : ''}
-            >
-              {contact.loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : contactSent ? (
-                <Check className="h-4 w-4 text-risk-safe" />
-              ) : null}
-              {contactSent ? 'Sent' : 'Send message'}
-            </Button>
-          </div>
-        </div>
-        </Section>
         </div>
       </div>
+
+      {/* Danger zone */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springSoft, delay: 0.2 }}
+      >
+        <Card className="border-destructive/40">
+          <CardHeader className="flex-row items-center gap-3 space-y-0">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <Trash2 className="h-5 w-5" />
+            </span>
+            <div className="space-y-0.5">
+              <CardTitle className="text-base text-destructive">Danger zone</CardTitle>
+              <CardDescription>Irreversible actions for your account.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Delete account</p>
+                <p className="text-xs text-muted-foreground">
+                  Permanently removes your account and all associated data. This cannot be undone.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={deleteAccount.loading}
+                  >
+                    {deleteAccount.loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    Delete Account
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Account</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action is permanent and cannot be undone. All your data, emails, and scan
+                      results will be deleted.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() =>
+                        deleteAccount.run().catch((e) => toast.error(e.message || 'Failed to delete account.'))
+                      }
+                    >
+                      Delete My Account
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
