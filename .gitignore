@@ -68,3 +68,4 @@ extras/*
 scripts/*
 /.postman/
 /postman/
+.claude/*
