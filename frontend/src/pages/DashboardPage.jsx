@@ -5,7 +5,6 @@ import {
   ShieldAlert,
   AlertTriangle,
   ShieldX,
-  Mail,
   ArrowRight,
   ShieldCheck,
 } from 'lucide-react';
@@ -19,7 +18,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { DashboardSkeleton, ErrorState, EmptyState } from '@/components/common/states';
+import { DashboardSkeleton, ErrorState, EmptyState, ConnectGmailState } from '@/components/common/states';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RiskDonut } from '@/components/dashboard/RiskDonut';
 import { EmailRow } from '@/components/inbox/EmailRow';
@@ -226,30 +225,7 @@ export function DashboardPage() {
     }
   }, [searchParams, setSearchParams]);
 
-  if (!isConnected) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-4 py-14 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-            <ShieldCheck className="h-7 w-7" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-h3 font-semibold">Connect your Gmail to get started</h3>
-            <p className="max-w-md text-sm text-muted-foreground">
-              SecureInbox syncs your inbox, scans every message for phishing signals, and keeps a
-              security overlay on top — no need to open Gmail.
-            </p>
-          </div>
-          <Button asChild>
-            <Link to="/settings">
-              <Mail className="h-4 w-4" />
-              Connect Gmail
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (!isConnected) return <ConnectGmailState />;
 
   if (statsQuery.loading) return <DashboardSkeleton />;
   if (statsQuery.error)

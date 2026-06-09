@@ -100,8 +100,9 @@ export function InboxPage() {
   const counts = countsQuery.data?.counts || {};
   const totalCount = countsQuery.data?.total ?? 0;
   // Counts are per current risk bucket (same source as the list). They can't
-  // reflect a free-text search, so only surface them when no search is active.
-  const showCounts = !debouncedSearch;
+  // reflect a free-text search, so only surface them when no search is active —
+  // and never before a Gmail account is connected (no data to reveal).
+  const showCounts = isConnected && !debouncedSearch;
 
   const emails = normalizeEmailList(data);
   const totalPages = data?.pagination?.totalPages ?? (emails.length > 0 ? 1 : 0);
