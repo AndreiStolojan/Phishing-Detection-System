@@ -4,6 +4,10 @@ export const getMe = () => apiClient.get('/users/me');
 
 export const updateMe = (payload) => apiClient.patch('/users/me', payload);
 
+// TODO(backend): there is no DELETE /users/me route yet. Wire this to the real
+// account-deletion endpoint once it exists; until then it will resolve to 404.
+export const deleteMe = () => apiClient.del('/users/me');
+
 export const updateAiSettings = (aiEnabled) =>
   apiClient.patch('/users/me/ai-settings', { aiEnabled: aiEnabled ? 1 : 0 });
 
