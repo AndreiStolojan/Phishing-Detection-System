@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search,
@@ -10,6 +10,7 @@ import {
   Loader2,
   CheckSquare,
   RefreshCw,
+  Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -330,8 +331,16 @@ export function InboxPage() {
       {!isConnected ? (
         <EmptyState
           icon={InboxIcon}
-          title="No Gmail connected"
-          description="Connect your Gmail account in Settings to start syncing messages."
+          title="Connect Gmail to see your inbox"
+          description="SecureInbox syncs and scans your messages once a Gmail account is connected. No counts are shown until then."
+          action={
+            <Button asChild>
+              <Link to="/settings">
+                <Mail className="h-4 w-4" />
+                Connect Gmail
+              </Link>
+            </Button>
+          }
         />
       ) : loading ? (
         <InboxSkeleton />

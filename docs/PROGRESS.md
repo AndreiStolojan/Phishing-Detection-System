@@ -19,6 +19,18 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Progres estimativ MVP: `100%` backend · `97%` produs final
 - Deadline: ~2026-06-17 (draft lucrare)
 
+## Notă sesiune 2026-06-09 - Integritate date, scop dashboard 30 zile, culori consistente (branch `feat/data-integrity-dashboard`)
+
+Context: 5 task-uri pe corectitudinea datelor și dashboard.
+
+- **Task 1 - bug synced/scanned (60 > 58):** cauză în `report.service.js` — `synced` se număra pe `Email.createdAt`, `scanned` pe `Scan.scannedAt` (un re-scan rescrie `scannedAt`). Rescris: o singură sursă de adevăr — emailurile sincronizate în fereastră (`Email.createdAt`) + cel mai recent scan per email via `$lookup`; `scanned` = subsetul cu scan. `scanned ≤ synced` garantat. Comentariu explicativ în cod. Aplicat și la digestul zilnic. Test nou `report-counts.test.js` (integrare, se skip-uiește dacă nu e Mongo).
+- **Task 2 - inbox fără numere când Gmail neconectat:** deja gata pe main (`showCounts = isConnected && ...`). Adăugat link „Connect Gmail" → /settings în empty-state-ul inbox.
+- **Task 3 - dashboard pe ultimele 30 zile:** `/emails/stats` acceptă `?days`; dashboard trimite `days=30` (inbox rămâne all-time). Etichetă „Last 30 days" sus pe dashboard. Stare absolută păstrată: Gmail conectat, Last synced, lista Needs attention (vezi DECISIONS).
+- **Task 4 - culori consistente:** `CATEGORY_COLORS` + `CATEGORY_LABELS` în `lib/risk.js` ca sursă unică; dashboard (trend+donut) și RiskBreakdownBar importă de acolo. Fără hex hardcodat. Test în `risk.test.jsx` (culori distincte).
+- **Task 5 - dedup rapoarte + perioadă corectă:** rezolvat odată cu Task 1 — fiecare email contribuie o singură dată cu cel mai recent scan; perioada e impusă în query (nu în UI).
+
+Verificare: backend 12/12 (+1 skip DB), frontend 22/22, build frontend curat, lint backend curat.
+
 ## Notă sesiune 2026-06-09 - Simplificare limbaj UX (pregătire producție)
 
 Context: Andrei a cerut ca formularea din aplicație să fie intuitivă pentru utilizatori non-tehnici și fără scurgeri de chei brute (ex. "medium", "long_url", "semantic").

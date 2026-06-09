@@ -1,14 +1,21 @@
 import { motion } from 'framer-motion';
 
-import { cn } from '@/lib/utils';
 import { springSoft } from '@/lib/motion';
+import { CATEGORY_COLORS, CATEGORY_LABELS } from '@/lib/risk';
 
+// Each report field maps onto a canonical category so its colour matches the
+// dashboard trend/donut and inbox badges. Colours come from CATEGORY_COLORS —
+// the single source of truth — instead of being re-declared here.
 const SEGMENTS = [
-  { key: 'safe', label: 'Safe', bar: 'bg-risk-safe', text: 'text-risk-safe' },
-  { key: 'suspicious', label: 'Suspicious', bar: 'bg-risk-review', text: 'text-risk-review' },
-  { key: 'likelyPhishing', label: 'Likely phishing', bar: 'bg-risk-quarantine', text: 'text-risk-quarantine' },
-  { key: 'markedPhishing', label: 'Confirmed phishing', bar: 'bg-risk-phishing', text: 'text-risk-phishing' },
-];
+  { key: 'safe', category: 'safe' },
+  { key: 'suspicious', category: 'suspicious' },
+  { key: 'likelyPhishing', category: 'likely_phishing' },
+  { key: 'markedPhishing', category: 'confirmed_phishing' },
+].map((s) => ({
+  ...s,
+  label: CATEGORY_LABELS[s.category],
+  color: CATEGORY_COLORS[s.category],
+}));
 
 export function RiskBreakdownBar({ counts = {} }) {
   const total = SEGMENTS.reduce((acc, s) => acc + (counts[s.key] ?? 0), 0);
@@ -27,11 +34,11 @@ export function RiskBreakdownBar({ counts = {} }) {
             return (
               <motion.div
                 key={seg.key}
-                className={cn('h-full', seg.bar)}
+                className="h-full"
                 initial={{ scaleX: 0, originX: 0 }}
                 animate={{ scaleX: 1 }}
                 transition={{ ...springSoft, delay: i * 0.06 }}
-                style={{ width: `${pct}%` }}
+                style={{ width: `${pct}%`, backgroundColor: seg.color }}
               />
             );
           })
@@ -45,9 +52,12 @@ export function RiskBreakdownBar({ counts = {} }) {
           const pct = total > 0 ? Math.round((count / total) * 100) : 0;
           return (
             <div key={seg.key} className="flex items-center gap-1.5">
-              <span className={cn('h-2 w-2 rounded-full', seg.bar)} />
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: seg.color }} />
               <span className="text-xs text-muted-foreground">{seg.label}</span>
-              <span className={cn('text-xs font-medium tabular-nums', seg.text)}>
+              <span
+                className="text-xs font-medium tabular-nums"
+                style={{ color: seg.color }}
+              >
                 {count}
               </span>
               <span className="text-[11px] text-muted-foreground/50">({pct}%)</span>

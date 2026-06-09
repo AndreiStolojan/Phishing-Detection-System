@@ -107,11 +107,15 @@ Notă UI curentă:
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/v1/emails` | Listează emailurile salvate | query pentru filtrare și paginare | listă emailuri | Da |
-| `GET` | `/api/v1/emails/stats` | Numără emailurile pe `riskBucket` curent (live, aceeași derivare ca lista) | — | `{ counts: { safe, needs_review, quarantine, reviewed_safe, confirmed_phishing, unscanned }, total }` | Da |
+| `GET` | `/api/v1/emails/stats` | Numără emailurile pe `riskBucket` curent (live, aceeași derivare ca lista) | query `days` (opțional, fereastră rulantă pe `receivedAt`) | `{ counts: { safe, needs_review, quarantine, reviewed_safe, confirmed_phishing, unscanned }, total }` | Da |
 | `GET` | `/api/v1/emails/:id` | Detalii email | param `id` | email detaliat | Da |
 | `GET` | `/api/v1/emails/:id/raw` | Returnează corpul emailului și câmpurile brute utile | param `id` | `textBody`, `htmlBody`, linkuri și metadata | Da |
 
 Notă: `GET /api/v1/emails/stats` întoarce starea CURENTĂ (per `riskBucket`), nu evenimente pe lună. Dashboard-ul și chip-urile din inbox îl folosesc ca sursă unică, deci numerele se potrivesc cu lista și se actualizează după review. Sumarul lunar (`/reports/monthly-summary`) rămâne vederea pe lună (digest).
+
+Parametrul `days`: dacă e prezent și pozitiv, numărarea se limitează la emailurile cu `receivedAt` în ultimele N zile (fereastră rulantă). Dashboard-ul trimite `days=30` (scop ultimele 30 de zile); inbox-ul îl omite (toate emailurile, ca să se potrivească cu lista all-time).
+
+Notă integritate (`/reports/monthly-summary` și digest zilnic): toate cifrele din pâlnia de detecție derivă dintr-o singură sursă — setul de emailuri sincronizate în fereastră (`Email.createdAt`), cu cel mai recent scan atașat per email. Astfel `scanned ≤ synced` mereu, iar fiecare email contribuie o singură dată (cu cel mai recent verdict). Înainte, `synced` se număra pe `Email.createdAt` iar `scanned` pe `Scan.scannedAt` — un re-scan rescria `scannedAt` la „acum", deci un email vechi re-scanat umfla `scanned` peste `synced` (ex. 60 scanate vs 58 sincronizate).
 
 Contract de răspuns pentru `GET /api/v1/emails` și `GET /api/v1/emails/:id`:
 
