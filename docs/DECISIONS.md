@@ -11,6 +11,28 @@ Format recomandat pentru deciziile viitoare:
 - motiv
 - impact
 
+## 2026-06-09 - Rapoarte: o singură sursă de adevăr pentru synced/scanned + dedup pe email
+
+Decizie: toate cifrele din raport (lunar și digest zilnic) derivă dintr-un singur set de bază — emailurile sincronizate în fereastră (`Email.createdAt`) — cu cel mai recent scan atașat per email prin `$lookup`. `scanned` = subsetul acelor emailuri care au un scan; verdictele, top-rules și AI se calculează tot din scanul cel mai recent al fiecărui email.
+
+Motiv: bug de integritate „scanned (60) > synced (58)". Cauza: `synced` se număra pe `Email.createdAt`, iar `scanned` pe `Scan.scannedAt` (două colecții, două câmpuri de timp). Un re-scan rescrie `scannedAt` la „acum", deci un email sincronizat luna trecută dar re-scanat luna asta era numărat ca scanat-dar-nesincronizat.
+
+Impact: invariantul `scanned ≤ synced ≤ total` e garantat prin construcție; fiecare email apare o singură dată cu verdictul cel mai recent (rezolvă și duplicarea din rapoarte). Forma răspunsului API rămâne neschimbată.
+
+## 2026-06-09 - Dashboard scopat pe fereastră rulantă de 30 de zile
+
+Decizie: statisticile, graficele și numărătorile din dashboard reflectă ultimele 30 de zile (fereastră rulantă pe `receivedAt`, azi minus 30 de zile), nu luna calendaristică. Backend-ul aplică filtrul (param `days=30` la `/emails/stats`); trendul era deja pe 30 de zile.
+
+Motiv: fereastra rulantă e mai utilă și evită confuzia la granița de lună. Filtrarea se face în query (backend), nu pe frontend dintr-un set complet.
+
+Items păstrate ca stare absolută (NU scopate pe 30 de zile): statusul „Gmail conectat" (stare curentă, fără dimensiune temporală), „Last synced" (un moment punctual) și lista „Needs your attention" (worklist de amenințări deschise curente — un phishing nereviewuit de acum 40 de zile tot necesită atenție).
+
+## 2026-06-09 - CATEGORY_COLORS: o singură constantă pentru culorile categoriilor
+
+Decizie: culorile categoriilor de date (safe / suspicious / likely_phishing / confirmed_phishing) sunt definite o singură dată în `frontend/src/lib/risk.js` (`CATEGORY_COLORS` + `CATEGORY_LABELS`, pe variabilele `--color-risk-*`). Dashboard (trend + donut), rapoarte (RiskBreakdownBar) și badge-urile din inbox importă de aici, fără hex hardcodat.
+
+Motiv: aceeași categorie trebuie să aibă mereu aceeași culoare, vizibil distinctă, pe tot parcursul aplicației (app-ul e dark-only). Înainte fiecare componentă re-declara local maparea categorie→culoare.
+
 ## Decizii inițiale
 
 ### 2026-06-02 - Frontend-ul MVP devine `SecureInbox`, un Security Inbox Gmail-only

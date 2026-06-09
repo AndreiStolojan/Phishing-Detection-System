@@ -8,7 +8,10 @@ import {
 
 export const getEmailStats = async (req, res, next) => {
     try {
-        const result = await getRiskBucketCountsForUser({ userId: req.user._id });
+        const result = await getRiskBucketCountsForUser({
+            userId: req.user._id,
+            days: req.query.days,
+        });
 
         res.status(200).json({
             success: true,

@@ -53,141 +53,156 @@ const buildDateRange = ({ from, to }) => ({
     $lt: to,
 });
 
-const getVerdictCounts = async ({ userObjectId, from, to }) => {
-    const verdictResults = await Scan.aggregate([
-        {
-            $match: {
-                userId: userObjectId,
-                scannedAt: buildDateRange({ from, to }),
-            },
+/*
+ * SINGLE SOURCE OF TRUTH for the report counts.
+ *
+ * Every figure in the detection funnel is derived from ONE base set: the emails
+ * that were synced into SecureInbox during the report window. "Synced" is keyed
+ * on the email document's `createdAt` (the moment the email was first stored on a
+ * sync). For each of those emails we attach its single most-recent scan via
+ * `$lookup`, then derive everything else from that latest scan.
+ *
+ * Why this matters (the bug it fixes):
+ *   Previously `syncedEmails` counted Email docs by `createdAt` while
+ *   `scannedEmails` counted Scan docs by `scannedAt`. Those are two different
+ *   collections measured on two different timestamps, and a re-scan rewrites
+ *   `scannedAt` to "now" — so an email synced in a previous month but re-scanned
+ *   this month was counted as scanned-but-not-synced. That let `scanned` exceed
+ *   `synced` (e.g. 60 scanned vs 58 synced), which is impossible.
+ *
+ * Anchoring on the synced-email set guarantees the invariant
+ *   scanned ≤ synced ≤ total fetched
+ * because `scannedEmails` is, by construction, the subset of the window's synced
+ * emails that have at least one scan. Counting the LATEST scan per email also
+ * de-duplicates: each email contributes exactly once, with its most relevant
+ * (most recent) verdict — never twice with two different scores.
+ *
+ * Returned counts:
+ *   - syncedEmails:   emails first synced during the window (the base set)
+ *   - scannedEmails:  of those, how many have been scanned (subset ⇒ ≤ synced)
+ *   - safe/suspicious/likelyPhishing: split of scanned emails by latest verdict
+ *   - quarantined:    latest verdict likely_phishing AND not yet user-reviewed
+ */
+const buildLatestScanLookupStages = () => [
+    {
+        $lookup: {
+            from: 'scans',
+            let: { emailId: '$_id', ownerId: '$userId' },
+            pipeline: [
+                {
+                    $match: {
+                        $expr: {
+                            $and: [
+                                { $eq: ['$emailId', '$$emailId'] },
+                                { $eq: ['$userId', '$$ownerId'] },
+                            ],
+                        },
+                    },
+                },
+                { $sort: { scannedAt: -1, updatedAt: -1, createdAt: -1 } },
+                { $limit: 1 },
+                {
+                    $project: {
+                        _id: 1,
+                        verdict: 1,
+                        triggeredRules: 1,
+                        aiStatus: '$aiSignals.status',
+                    },
+                },
+            ],
+            as: 'latestScan',
         },
+    },
+    { $addFields: { latestScan: { $arrayElemAt: ['$latestScan', 0] } } },
+];
+
+const getWindowScanAggregates = async ({ userObjectId, from, to }) => {
+    const [result] = await Email.aggregate([
+        // Base set = emails synced (first stored) inside the window.
+        { $match: { userId: userObjectId, createdAt: buildDateRange({ from, to }) } },
+        ...buildLatestScanLookupStages(),
         {
-            $group: {
-                _id: '$verdict',
-                count: { $sum: 1 },
-            },
-        },
-    ]);
-
-    const counts = {
-        safe: 0,
-        suspicious: 0,
-        likelyPhishing: 0,
-    };
-
-    for (const item of verdictResults) {
-        if (item._id === 'safe') {
-            counts.safe = item.count;
-        }
-
-        if (item._id === 'suspicious') {
-            counts.suspicious = item.count;
-        }
-
-        if (item._id === 'likely_phishing') {
-            counts.likelyPhishing = item.count;
-        }
-    }
-
-    return counts;
-};
-
-const getAiCounts = async ({ userObjectId, from, to }) => {
-    const aiResults = await Scan.aggregate([
-        {
-            $match: {
-                userId: userObjectId,
-                scannedAt: buildDateRange({ from, to }),
-            },
-        },
-        {
-            $group: {
-                _id: '$aiSignals.status',
-                count: { $sum: 1 },
-            },
-        },
-    ]);
-
-    const counts = {
-        evaluated: 0,
-        failed: 0,
-        disabled: 0,
-    };
-
-    for (const item of aiResults) {
-        if (Object.hasOwn(counts, item._id)) {
-            counts[item._id] = item.count;
-        }
-    }
-
-    return counts;
-};
-
-const getTopTriggeredRules = async ({ userObjectId, from, to }) =>
-    Scan.aggregate([
-        {
-            $match: {
-                userId: userObjectId,
-                scannedAt: buildDateRange({ from, to }),
-            },
-        },
-        { $unwind: '$triggeredRules' },
-        {
-            $group: {
-                _id: '$triggeredRules.rule',
-                count: { $sum: 1 },
-                totalPoints: { $sum: '$triggeredRules.points' },
-            },
-        },
-        {
-            $sort: {
-                count: -1,
-                totalPoints: -1,
-                _id: 1,
-            },
-        },
-        { $limit: TOP_ITEMS_LIMIT },
-        {
-            $project: {
-                _id: 0,
-                rule: '$_id',
-                count: 1,
-                totalPoints: 1,
-            },
-        },
-    ]);
-
-const getQuarantinedCount = async ({ userObjectId, from, to }) => {
-    const scanQuarantineResult = await Scan.aggregate([
-        {
-            $match: {
-                userId: userObjectId,
-                verdict: 'likely_phishing',
-                scannedAt: buildDateRange({ from, to }),
-            },
-        },
-        {
-            $lookup: {
-                from: 'emails',
-                localField: 'emailId',
-                foreignField: '_id',
-                as: 'email',
-            },
-        },
-        { $unwind: '$email' },
-        {
-            $match: {
-                'email.userId': userObjectId,
-                $or: [
-                    { 'email.userVerdict': null },
-                    { 'email.userVerdict': { $exists: false } },
+            $facet: {
+                counts: [
+                    {
+                        $group: {
+                            _id: null,
+                            syncedEmails: { $sum: 1 },
+                            scannedEmails: {
+                                $sum: { $cond: [{ $ifNull: ['$latestScan', false] }, 1, 0] },
+                            },
+                            safe: {
+                                $sum: { $cond: [{ $eq: ['$latestScan.verdict', 'safe'] }, 1, 0] },
+                            },
+                            suspicious: {
+                                $sum: { $cond: [{ $eq: ['$latestScan.verdict', 'suspicious'] }, 1, 0] },
+                            },
+                            likelyPhishing: {
+                                $sum: {
+                                    $cond: [{ $eq: ['$latestScan.verdict', 'likely_phishing'] }, 1, 0],
+                                },
+                            },
+                            quarantined: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ],
+                // Top warning signs across the window's emails, one latest scan each.
+                topTriggeredRules: [
+                    { $match: { latestScan: { $ne: null } } },
+                    { $unwind: '$latestScan.triggeredRules' },
+                    {
+                        $group: {
+                            _id: '$latestScan.triggeredRules.rule',
+                            count: { $sum: 1 },
+                            totalPoints: { $sum: '$latestScan.triggeredRules.points' },
+                        },
+                    },
+                    { $sort: { count: -1, totalPoints: -1, _id: 1 } },
+                    { $limit: TOP_ITEMS_LIMIT },
+                    { $project: { _id: 0, rule: '$_id', count: 1, totalPoints: 1 } },
+                ],
+                // AI coverage across the window's scanned emails.
+                ai: [
+                    { $match: { latestScan: { $ne: null } } },
+                    { $group: { _id: '$latestScan.aiStatus', count: { $sum: 1 } } },
                 ],
             },
         },
-        { $count: 'count' },
     ]);
 
-    return scanQuarantineResult[0]?.count || 0;
+    const counts = result?.counts?.[0] || {};
+    const aiCounts = { evaluated: 0, failed: 0, disabled: 0 };
+    for (const item of result?.ai || []) {
+        if (Object.hasOwn(aiCounts, item._id)) {
+            aiCounts[item._id] = item.count;
+        }
+    }
+
+    return {
+        syncedEmails: counts.syncedEmails || 0,
+        scannedEmails: counts.scannedEmails || 0,
+        verdictCounts: {
+            safe: counts.safe || 0,
+            suspicious: counts.suspicious || 0,
+            likelyPhishing: counts.likelyPhishing || 0,
+        },
+        quarantined: counts.quarantined || 0,
+        topTriggeredRules: result?.topTriggeredRules || [],
+        ai: aiCounts,
+    };
 };
 
 const DAILY_RISKY_EMAILS_LIMIT = 5;
@@ -248,31 +263,13 @@ export const getDailySummaryForUser = async ({ userId }) => {
     const to = new Date();
     const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
 
-    const [
-        syncedEmails,
-        scannedEmails,
-        verdictCounts,
-        markedPhishing,
-        topTriggeredRules,
-        ai,
-        riskyEmails,
-    ] = await Promise.all([
-        Email.countDocuments({
-            userId: userObjectId,
-            createdAt: buildDateRange({ from, to }),
-        }),
-        Scan.countDocuments({
-            userId: userObjectId,
-            scannedAt: buildDateRange({ from, to }),
-        }),
-        getVerdictCounts({ userObjectId, from, to }),
+    const [aggregates, markedPhishing, riskyEmails] = await Promise.all([
+        getWindowScanAggregates({ userObjectId, from, to }),
         Email.countDocuments({
             userId: userObjectId,
             userVerdict: 'phishing',
             reviewedAt: buildDateRange({ from, to }),
         }),
-        getTopTriggeredRules({ userObjectId, from, to }),
-        getAiCounts({ userObjectId, from, to }),
         getRecentRiskyEmails({ userObjectId, from, to }),
     ]);
 
@@ -282,16 +279,16 @@ export const getDailySummaryForUser = async ({ userId }) => {
             to: to.toISOString(),
         },
         counts: {
-            syncedEmails,
-            scannedEmails,
-            safe: verdictCounts.safe,
-            suspicious: verdictCounts.suspicious,
-            likelyPhishing: verdictCounts.likelyPhishing,
+            syncedEmails: aggregates.syncedEmails,
+            scannedEmails: aggregates.scannedEmails,
+            safe: aggregates.verdictCounts.safe,
+            suspicious: aggregates.verdictCounts.suspicious,
+            likelyPhishing: aggregates.verdictCounts.likelyPhishing,
             markedPhishing,
         },
         riskyEmails,
-        topTriggeredRules,
-        ai,
+        topTriggeredRules: aggregates.topTriggeredRules,
+        ai: aggregates.ai,
         generatedAt: to.toISOString(),
     };
 };
@@ -301,26 +298,8 @@ export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
     const period = parseMonthlySummaryPeriod(query);
     const { from, to } = period;
 
-    const [
-        syncedEmails,
-        scannedEmails,
-        verdictCounts,
-        reviewed,
-        markedSafe,
-        markedPhishing,
-        quarantined,
-        topTriggeredRules,
-        ai,
-    ] = await Promise.all([
-        Email.countDocuments({
-            userId: userObjectId,
-            createdAt: buildDateRange({ from, to }),
-        }),
-        Scan.countDocuments({
-            userId: userObjectId,
-            scannedAt: buildDateRange({ from, to }),
-        }),
-        getVerdictCounts({ userObjectId, from, to }),
+    const [aggregates, reviewed, markedSafe, markedPhishing] = await Promise.all([
+        getWindowScanAggregates({ userObjectId, from, to }),
         Email.countDocuments({
             userId: userObjectId,
             userVerdict: { $in: ['safe', 'phishing'] },
@@ -336,9 +315,6 @@ export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
             userVerdict: 'phishing',
             reviewedAt: buildDateRange({ from, to }),
         }),
-        getQuarantinedCount({ userObjectId, from, to }),
-        getTopTriggeredRules({ userObjectId, from, to }),
-        getAiCounts({ userObjectId, from, to }),
     ]);
 
     return {
@@ -348,18 +324,18 @@ export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
             to: to.toISOString(),
         },
         counts: {
-            syncedEmails,
-            scannedEmails,
-            safe: verdictCounts.safe,
-            suspicious: verdictCounts.suspicious,
-            likelyPhishing: verdictCounts.likelyPhishing,
+            syncedEmails: aggregates.syncedEmails,
+            scannedEmails: aggregates.scannedEmails,
+            safe: aggregates.verdictCounts.safe,
+            suspicious: aggregates.verdictCounts.suspicious,
+            likelyPhishing: aggregates.verdictCounts.likelyPhishing,
             reviewed,
             markedSafe,
             markedPhishing,
-            quarantined,
+            quarantined: aggregates.quarantined,
         },
-        topTriggeredRules,
-        ai,
+        topTriggeredRules: aggregates.topTriggeredRules,
+        ai: aggregates.ai,
         generatedAt: new Date().toISOString(),
     };
 };
