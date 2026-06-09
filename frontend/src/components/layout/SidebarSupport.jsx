@@ -23,7 +23,7 @@ import { sendContactMessage } from '@/api/contactApi';
   Sidebar "Support" entry. Opens a popup with the contact form that previously
   lived on the Settings page, so support stays reachable from every page.
 */
-export function SidebarSupport() {
+export function SidebarSupport({ onNavigate }) {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -52,14 +52,17 @@ export function SidebarSupport() {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          onNavigate?.();
+          setOpen(true);
+        }}
         className="block w-full rounded-lg text-left text-muted-foreground outline-none transition-colors hover:text-foreground"
       >
         <motion.span
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+          className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors hover:bg-accent"
         >
-          <LifeBuoy className="h-4.5 w-4.5 shrink-0" />
+          <LifeBuoy className="h-4 w-4 shrink-0" />
           <span>Support</span>
         </motion.span>
       </button>
