@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { MessageCircle, Loader2, Check } from 'lucide-react';
+import { LifeBuoy, Loader2, Check } from 'lucide-react';
 
 import {
   AlertDialog,
@@ -18,14 +18,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { sendContactMessage } from '@/api/contactApi';
-import { springSoft } from '@/lib/motion';
 
 /*
-  Floating support button shown on every page (bottom-right). It hosts the
-  contact form that used to live in Settings. On mobile it stacks above the
-  sync FAB (which sits at bottom-[5rem]) so the two never overlap.
+  Sidebar "Support" entry. Opens a popup with the contact form that previously
+  lived on the Settings page, so support stays reachable from every page.
 */
-export function SupportFab() {
+export function SidebarSupport() {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -52,18 +50,19 @@ export function SupportFab() {
 
   return (
     <>
-      <motion.button
+      <button
         type="button"
-        initial={{ opacity: 0, scale: 0.6 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={springSoft}
-        whileTap={{ scale: 0.9 }}
         onClick={() => setOpen(true)}
-        aria-label="Contact support"
-        className="fixed right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border/60 bg-primary text-primary-foreground shadow-lg surface-overlay bottom-[calc(8.75rem+env(safe-area-inset-bottom))] md:bottom-6 md:right-6"
+        className="block w-full rounded-lg text-left text-muted-foreground outline-none transition-colors hover:text-foreground"
       >
-        <MessageCircle className="h-5 w-5" />
-      </motion.button>
+        <motion.span
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+        >
+          <LifeBuoy className="h-4.5 w-4.5 shrink-0" />
+          <span>Support</span>
+        </motion.span>
+      </button>
 
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
