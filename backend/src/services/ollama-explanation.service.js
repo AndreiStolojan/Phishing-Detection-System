@@ -115,7 +115,7 @@ const buildExplanationSystemPrompt = () => `
 You write a very short phishing scan explanation for non-technical users.
 
 Return ONLY valid JSON. No markdown. No text before or after JSON.
-Write the summary in Romanian.
+Write the summary in English.
 
 Rules:
 - Do not change the provided verdict.

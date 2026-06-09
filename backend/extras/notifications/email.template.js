@@ -51,15 +51,6 @@ const formatDate = (value) =>
     timeZone: 'Europe/Bucharest',
   }).format(new Date(value));
 
-// Turn rule ids like "reply_to_mismatch" / "link:shortener" into "Reply To Mismatch".
-const humanizeRule = (value) =>
-  String(value ?? '')
-    .replace(/[:_]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-
 const formatMonth = (month) => {
   const [year, monthValue] = String(month).split('-');
   const date = new Date(Date.UTC(Number(year), Number(monthValue) - 1, 1));
@@ -159,7 +150,7 @@ const welcomeTemplate = (userName, createdAt) => ({
     eyebrow: 'Welcome',
     title: `You're all set, ${escapeHtml(userName)}`,
     body: `
-      ${paragraph('Your account is ready. SecureInbox sits on top of your Gmail, scans every message for phishing signals, and gives each one a clear risk verdict — so you can read your inbox with confidence.')}
+      ${paragraph('Your account is ready. SecureInbox sits on top of your Gmail, scans every message for phishing signs, and gives each one a clear risk rating — so you can read your inbox with confidence.')}
       ${paragraph('Connect your Gmail to start syncing and scanning.')}
       ${ctaButton('Open SecureInbox', `${APP_URL}/dashboard`)}
       ${mutedLine(`Account created ${escapeHtml(createdAt)}.`)}
@@ -167,22 +158,39 @@ const welcomeTemplate = (userName, createdAt) => ({
   }),
 });
 
+// Plain-language description for every warning sign, mirroring the in-app labels.
+// The raw rule id is never shown to the user.
 const RULE_DESCRIPTIONS = {
-  reply_to_mismatch: 'Reply-To address differs from sender domain',
-  shortened_url_detected: 'Email contains shortened or redirected URLs',
-  high_risk_attachment_extension: 'Dangerous attachment type attached',
+  reply_to_mismatch: 'If you reply, your message would go to a different address than the sender',
+  shortened_url_detected: 'Contains shortened links that hide their real destination',
+  'suspicious_link_pattern:ip_address_link': 'A link points to a raw address instead of a normal website name',
+  'suspicious_link_pattern:embedded_credentials': 'A link contains login details — a strong sign of phishing',
+  'suspicious_link_pattern:punycode_domain': 'A link uses a lookalike web address that imitates a real brand',
+  'suspicious_link_pattern:very_long_url': 'A link is unusually long, which can hide where it really leads',
+  high_risk_attachment_extension: 'A dangerous attachment that could install malware',
+  archive_attachment_extension: 'A compressed attachment that may hide malicious files',
+  too_many_links_high: 'An unusually high number of links',
+  too_many_links_medium: 'More links than a normal email',
+  'ai_semantic:urgency_high': 'AI found language designed to create panic and rush you into acting',
+  'ai_semantic:urgency_medium': 'AI found wording that pressures you to act quickly',
+  'ai_semantic:sensitive_data_request': 'AI detected a request for your password or personal details',
+  'ai_semantic:login_or_action_request': 'AI found pressure to click a link or sign in right away',
+  'ai_semantic:social_engineering_high': 'AI found manipulative language using fear, authority, or rewards',
+  'ai_semantic:social_engineering_medium': 'AI found some manipulation tactics',
+  'ai_semantic:brand_impersonation_suspected': 'AI suspects this email imitates a company or brand you know',
 };
 
 const getRuleDescription = (rule) => {
   if (RULE_DESCRIPTIONS[rule]) return RULE_DESCRIPTIONS[rule];
-  if (/^too_many_links/.test(rule)) return 'Unusually high number of links';
+  if (/^suspicious_link_pattern:/.test(rule)) return 'A link in the email looks suspicious';
+  if (/^too_many_links/.test(rule)) return 'An unusually high number of links';
   if (/^ai_semantic:/.test(rule)) return 'AI detected suspicious intent';
-  return humanizeRule(rule);
+  return 'A suspicious pattern was detected';
 };
 
 const renderRules = (rules = []) => {
   if (rules.length === 0) {
-    return `<p style="margin:0;font-family:${FONT};font-size:14px;color:${C.muted};">No rules were triggered this period.</p>`;
+    return `<p style="margin:0;font-family:${FONT};font-size:14px;color:${C.muted};">No warning signs were found this period.</p>`;
   }
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -193,7 +201,6 @@ const renderRules = (rules = []) => {
         <tr>
           <td style="padding:9px 0;border-bottom:1px solid ${C.border};">
             <p style="margin:0;font-family:${FONT};font-size:14px;color:${C.fg};">${escapeHtml(getRuleDescription(item.rule))}</p>
-            <p style="margin:2px 0 0;font-family:${FONT};font-size:11px;color:${C.subtle};">${escapeHtml(humanizeRule(item.rule))}</p>
           </td>
           <td style="padding:9px 0;border-bottom:1px solid ${C.border};font-family:${FONT};font-size:14px;font-weight:700;color:${C.fg};text-align:right;vertical-align:top;">${formatNumber(item.count)}×</td>
         </tr>`
@@ -297,7 +304,7 @@ export const monthlyDigestTemplate = ({ summary }) => {
         </table>
 
         <!-- Top triggered rules -->
-        <h2 style="margin:0 0 10px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Most active detection rules</h2>
+        <h2 style="margin:0 0 10px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Most common warning signs</h2>
         ${renderRules((summary.topTriggeredRules || []).slice(0, 4))}
 
         ${mutedLine(aiLine)}
@@ -310,78 +317,96 @@ export const monthlyDigestTemplate = ({ summary }) => {
   };
 };
 
+// Daily digest helpers — a compact, attention-first layout distinct from the
+// monthly audit. The daily email leads with the actual messages to review.
+const DAILY_VERDICT = {
+  suspicious: { label: 'Suspicious', color: C.review },
+  likely_phishing: { label: 'Likely phishing', color: C.quarantine },
+};
+
+const renderDailyEmailRows = (emails = []) =>
+  emails
+    .map((email) => {
+      const meta = DAILY_VERDICT[email.verdict] || { label: 'Needs review', color: C.review };
+      return `
+      <tr>
+        <td style="padding:0;border-bottom:1px solid ${C.border};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="4" style="background:${meta.color};font-size:0;line-height:0;">&nbsp;</td>
+              <td style="padding:12px 14px;">
+                <p style="margin:0;font-family:${FONT};font-size:14px;font-weight:600;color:${C.fg};">${escapeHtml(email.subject || '(no subject)')}<span style="float:right;font-family:${FONT};font-size:11px;font-weight:700;color:${meta.color};">${meta.label}</span></p>
+                <p style="margin:3px 0 0;font-family:${FONT};font-size:12px;color:${C.muted};">From: ${escapeHtml(email.from || 'unknown sender')}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+const dailyStatCell = (value, label, color = C.fg) => `
+  <td align="center" width="25%" style="padding:14px 4px;">
+    <p style="margin:0;font-family:${FONT};font-size:24px;font-weight:700;line-height:1;color:${color};">${formatNumber(value)}</p>
+    <p style="margin:5px 0 0;font-family:${FONT};font-size:11px;color:${C.muted};">${label}</p>
+  </td>`;
+
 export const dailyDigestTemplate = ({ summary, userName }) => {
   const counts = summary.counts;
-  const ai = summary.ai;
-  const scanned = counts.scannedEmails;
-  const threats = (counts.suspicious || 0) + (counts.likelyPhishing || 0) + (counts.markedPhishing || 0);
-  const safeRate = scanned > 0 ? Math.round((counts.safe / scanned) * 100) : 0;
-  const heroAccent = threats === 0 ? C.safe : threats <= 2 ? C.review : C.quarantine;
+  const riskyEmails = Array.isArray(summary.riskyEmails) ? summary.riskyEmails : [];
+  const scanned = counts.scannedEmails || 0;
+  const newEmails = counts.syncedEmails ?? scanned;
+  const safe = counts.safe || 0;
+  const needsReview = (counts.suspicious || 0) + (counts.likelyPhishing || 0);
+  const allClear = needsReview === 0;
+  const heroAccent = allClear ? C.safe : needsReview <= 2 ? C.review : C.quarantine;
 
-  const fromDate = new Date(summary.period.from);
-  const periodLabel = new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Bucharest',
-  }).format(fromDate);
-
-  const aiPct = scanned > 0 ? Math.round(((ai.evaluated || 0) / scanned) * 100) : 0;
-  const aiLine = `AI evaluated <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong> emails (${aiPct}%).`;
-
-  const heroLabel = threats === 0
-    ? 'No threats detected'
-    : `${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} detected`;
+  const reviewLabel = `${formatNumber(needsReview)} email${needsReview !== 1 ? 's' : ''} need${needsReview === 1 ? 's' : ''} your review`;
 
   return {
-    subject: threats > 0
-      ? `[SecureInbox] ${threats} threat${threats !== 1 ? 's' : ''} found in your inbox today`
-      : '[SecureInbox] Your inbox is clear today',
+    subject: allClear
+      ? '[SecureInbox] Your inbox is clear today'
+      : `[SecureInbox] ${needsReview} email${needsReview !== 1 ? 's' : ''} to review from the last 24 hours`,
     html: shell({
-      preheader: threats === 0
-        ? `All ${formatNumber(scanned)} scanned emails are safe in the last 24 hours.`
-        : `${threats} threat${threats !== 1 ? 's' : ''} found — ${formatNumber(scanned)} emails scanned in the last 24 hours.`,
+      preheader: allClear
+        ? `All ${formatNumber(scanned)} email${scanned !== 1 ? 's' : ''} scanned in the last 24 hours look safe.`
+        : `${reviewLabel} — open SecureInbox to check ${needsReview === 1 ? 'it' : 'them'}.`,
       accent: heroAccent,
-      eyebrow: 'Daily security briefing',
-      title: `Your inbox — last 24 hours`,
+      eyebrow: 'Daily digest',
+      title: 'Your inbox — last 24 hours',
       body: `
-        ${paragraph(`Hi ${escapeHtml(userName || 'there')}, here's what SecureInbox found in your inbox since ${escapeHtml(periodLabel)}.`)}
+        ${paragraph(`Hi ${escapeHtml(userName || 'there')}, here's what SecureInbox checked in your inbox over the last 24 hours.`)}
 
-        <!-- Hero banner -->
+        <!-- Hero: attention-first -->
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin:4px 0 20px;">
-          <tr><td style="padding:24px;text-align:center;">
-            <p style="margin:0;font-family:${FONT};font-size:40px;font-weight:700;line-height:1;color:${heroAccent};">${safeRate}%</p>
-            <p style="margin:8px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of scanned messages were safe</p>
-            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${escapeHtml(heroLabel)} &mdash; ${formatNumber(scanned)} email${scanned !== 1 ? 's' : ''} scanned</p>
+          <tr><td style="padding:22px 24px;text-align:center;">
+            <p style="margin:0;font-family:${FONT};font-size:40px;font-weight:700;line-height:1;color:${heroAccent};">${allClear ? '✓' : formatNumber(needsReview)}</p>
+            <p style="margin:10px 0 0;font-family:${FONT};font-size:14px;font-weight:600;color:${C.fg};">${allClear ? 'You’re all clear' : escapeHtml(reviewLabel)}</p>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${allClear ? `All ${formatNumber(scanned)} email${scanned !== 1 ? 's' : ''} scanned in the last 24 hours look safe.` : 'Review these before clicking any links or attachments.'}</p>
           </td></tr>
         </table>
 
-        <!-- Threat breakdown -->
-        <h2 style="margin:0 0 8px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Breakdown</h2>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;padding:0 16px;margin-bottom:20px;">
-          <tr><td style="padding:0 16px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              ${renderBreakdownRow('Safe', counts.safe || 0, scanned, C.safe, false)}
-              ${renderBreakdownRow('Suspicious', counts.suspicious || 0, scanned, C.review, false)}
-              ${renderBreakdownRow('Likely phishing', counts.likelyPhishing || 0, scanned, C.quarantine, false)}
-              ${renderBreakdownRow('Confirmed phishing', counts.markedPhishing || 0, scanned, C.phishing, true)}
-            </table>
-          </td></tr>
+        ${needsReview > 0 && riskyEmails.length > 0 ? `
+        <!-- Emails that need attention -->
+        <h2 style="margin:0 0 10px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Needs your attention</h2>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;overflow:hidden;margin-bottom:20px;">
+          ${renderDailyEmailRows(riskyEmails)}
         </table>
-
-        ${(summary.topTriggeredRules || []).length > 0 ? `
-        <!-- Top triggered rules -->
-        <h2 style="margin:0 0 10px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Active detection rules</h2>
-        ${renderRules((summary.topTriggeredRules || []).slice(0, 4))}
         ` : ''}
 
-        ${scanned > 0 ? mutedLine(aiLine) : ''}
+        <!-- Activity at a glance -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin-bottom:20px;">
+          <tr>
+            ${dailyStatCell(newEmails, 'New')}
+            ${dailyStatCell(scanned, 'Scanned')}
+            ${dailyStatCell(safe, 'Safe', C.safe)}
+            ${dailyStatCell(needsReview, 'To review', allClear ? C.muted : heroAccent)}
+          </tr>
+        </table>
 
-        <div style="margin-top:20px;">${ctaButton('Review your inbox', `${APP_URL}/inbox`)}</div>
+        <div style="margin-top:4px;">${ctaButton('Review your inbox', `${APP_URL}/inbox`, heroAccent, allClear ? C.onPrimary : '#ffffff')}</div>
 
-        ${mutedLine(`Period: ${escapeHtml(summary.period.from.slice(0, 16).replace('T', ' '))} – ${escapeHtml(summary.period.to.slice(0, 16).replace('T', ' '))} UTC. Generated ${escapeHtml(formatDate(summary.generatedAt))}.`)}
+        ${mutedLine('You receive this daily digest because it’s enabled in Settings → Detection & alerts.')}
       `,
     }),
   };
@@ -398,7 +423,7 @@ export const phishingAlertTemplate = ({ userName, emails, detectedAt }) => {
     .map(
       (email) => {
         const scoreLabel = email.score != null
-          ? `<span style="float:right;font-family:${FONT};font-size:11px;font-weight:700;color:${C.quarantine};">Score ${Math.round(email.score)}</span>`
+          ? `<span style="float:right;font-family:${FONT};font-size:11px;font-weight:700;color:${C.quarantine};">Risk ${Math.round(email.score)}</span>`
           : '';
         return `
       <tr>

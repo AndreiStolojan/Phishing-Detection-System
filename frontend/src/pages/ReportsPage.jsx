@@ -55,6 +55,10 @@ const RULE_DESCRIPTIONS = {
   too_many_links_medium: 'Higher than normal number of links in the message',
   high_risk_attachment_extension: 'Attachment has a file type that could be used to install malware (.exe, .bat, etc.)',
   archive_attachment_extension: 'Attachment is a compressed archive that may hide malicious files (.zip, .rar, etc.)',
+  'suspicious_link_pattern:ip_address_link': 'A link points to a raw IP address instead of a normal website name',
+  'suspicious_link_pattern:embedded_credentials': 'A link contains login details — a strong sign of phishing',
+  'suspicious_link_pattern:punycode_domain': 'A link uses a lookalike web address that imitates a real brand',
+  'suspicious_link_pattern:very_long_url': 'A link is unusually long, which can hide where it really leads',
   'ai_semantic:urgency_high': 'AI detected language designed to create panic and rush you into acting',
   'ai_semantic:urgency_medium': 'AI detected words pressuring you to act immediately',
   'ai_semantic:social_engineering_high': 'AI detected manipulative tactics — using fear, authority, or rewards to trick you',
@@ -67,13 +71,14 @@ const RULE_DESCRIPTIONS = {
 function humanizeRule(rule) {
   const key = String(rule || '');
   if (RULE_DESCRIPTIONS[key]) return RULE_DESCRIPTIONS[key];
-  // For dynamic keys like suspicious_link_pattern:<pattern>
+  // Any other suspicious-link subtype: friendly text, never the raw pattern key.
   if (key.startsWith('suspicious_link_pattern:')) {
-    const pattern = key.split(':')[1] || '';
-    return `Link matches suspicious pattern${pattern ? `: ${pattern}` : ''}`;
+    return 'A link in the email looks suspicious';
   }
-  // Generic fallback: snake_case → Title Case
+  // Generic fallback: drop any AI prefix and severity suffix, then Title Case.
   return key
+    .replace(/^ai_semantic:/, '')
+    .replace(/_(high|medium|low)$/, '')
     .replace(/[_:]/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -173,9 +178,9 @@ export function ReportsPage() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Detection funnel</CardTitle>
+                  <CardTitle className="text-sm">Detection overview</CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    From inbox sync to confirmed threats — this is how your month looked.
+                    From synced emails to confirmed threats — this is how your month looked.
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -231,7 +236,7 @@ export function ReportsPage() {
               <CardHeader>
                 <CardTitle className="text-sm">Risk breakdown</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Proportion of each verdict across all scanned emails this month.
+                  Share of each risk level across all scanned emails this month.
                 </p>
               </CardHeader>
               <CardContent>
@@ -251,9 +256,9 @@ export function ReportsPage() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Top triggered rules</CardTitle>
+                  <CardTitle className="text-sm">Most common warning signs</CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Detection rules that fired most often on scanned emails.
+                    The warning signs found most often in your scanned emails.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4">

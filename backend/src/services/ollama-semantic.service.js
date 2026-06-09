@@ -119,7 +119,7 @@ Rules:
 - socialEngineeringLevel must be one of: none, low, medium, high.
 - sensitiveDataRequest, loginOrActionRequest, brandImpersonationSuspected must be booleans.
 - language should be a short language code when possible (example: ro, en, fr).
-- summary must be short (max 20 words), factual, and in Romanian.
+- summary must be short (max 20 words), factual, and in English.
 `.trim();
 
 const buildSemanticUserPrompt = (analysisInput) => `

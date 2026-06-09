@@ -7,7 +7,7 @@ import User from '../models/user.model.js';
 import { analyzeEmailSemanticsWithOllama } from './ollama-semantic.service.js';
 import { generateNaturalExplanationWithOllama } from './ollama-explanation.service.js';
 import {
-    buildControlledRomanianExplanationObject,
+    buildControlledExplanationObject,
 } from './scan-explanation.service.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 
@@ -333,7 +333,7 @@ const buildFallbackExplanationResult = ({
     aiSignals,
     fallbackReason,
 }) => ({
-    explanation: buildControlledRomanianExplanationObject({
+    explanation: buildControlledExplanationObject({
         verdict,
         triggeredRules,
         aiSignals,

@@ -77,7 +77,7 @@ const RISK_BUCKET_META = {
     description: 'This email has suspicious patterns — worth a closer look.',
   },
   quarantine: {
-    label: 'Quarantine',
+    label: 'Likely phishing',
     tone: TONES.quarantine,
     description: 'This email looks like phishing. Review it before taking any action.',
   },
@@ -114,7 +114,7 @@ export const getVerdictMeta = (verdict) =>
 /** Filter chips for the inbox, in priority order. */
 export const RISK_FILTERS = [
   { key: '', label: 'All' },
-  { key: 'quarantine', label: 'Quarantine' },
+  { key: 'quarantine', label: 'Likely phishing' },
   { key: 'needs_review', label: 'Suspicious' },
   { key: 'confirmed_phishing', label: 'Confirmed phishing' },
   { key: 'safe', label: 'Safe' },
@@ -131,8 +131,8 @@ export const humanize = (value) => {
 
 /** Short, user-friendly names for every rule key — used in charts and tooltips. */
 const RULE_LABELS = {
-  reply_to_mismatch: 'Reply-To mismatch',
-  shortened_url_detected: 'Shortened URL',
+  reply_to_mismatch: 'Reply address differs',
+  shortened_url_detected: 'Shortened link',
   'suspicious_link_pattern:ip_address_link': 'Link uses IP address',
   'suspicious_link_pattern:embedded_credentials': 'Login details in link',
   'suspicious_link_pattern:punycode_domain': 'Lookalike domain',

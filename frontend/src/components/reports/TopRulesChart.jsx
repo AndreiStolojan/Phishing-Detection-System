@@ -19,8 +19,8 @@ function ChartTooltip({ active, payload }) {
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs surface-overlay">
       <p className="font-medium text-foreground">{d.name}</p>
       <p className="text-muted-foreground">
-        {d.count} occurrence{d.count !== 1 ? 's' : ''}
-        {d.points ? ` · ${d.points} pts in score` : ''}
+        Found in {d.count} email{d.count !== 1 ? 's' : ''}
+        {d.points ? ` · adds ${d.points} to risk score` : ''}
       </p>
     </div>
   );
@@ -31,8 +31,8 @@ export function TopRulesChart({ rules }) {
     return (
       <EmptyState
         icon={ListChecks}
-        title="No rules triggered"
-        description="No phishing rules fired in this period."
+        title="No warning signs"
+        description="No phishing warning signs were found in this period."
         className="border-0 py-10"
       />
     );

@@ -157,10 +157,10 @@ function SenderSignals({ email }) {
       <span
         key="reply"
         className="inline-flex items-center gap-1 rounded-full border border-risk-quarantine/30 bg-risk-quarantine-soft px-2 py-0.5 text-[11px] font-medium text-risk-quarantine"
-        title={`Reply-To: ${email.replyToDomain} · Sender: ${email.senderDomain}`}
+        title={`Replies go to ${email.replyToDomain} · Sender is ${email.senderDomain}`}
       >
         <AlertTriangle className="h-3 w-3" />
-        Reply-To mismatch
+        Reply address differs
       </span>
     );
   }
@@ -235,7 +235,7 @@ function RawHeadersCard({ headers }) {
       >
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Email Headers</span>
+          <span className="text-sm font-medium">Technical details</span>
           <Badge variant="muted">{headers.length}</Badge>
         </div>
         <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
@@ -353,9 +353,9 @@ export function EmailDetailPage() {
       await scanEmail(emailId(email));
       await load();
       bustCacheByPrefix('inbox-', 'dash-', 'risky-');
-      toast.success('Re-scan complete');
+      toast.success('Scan complete');
     } catch (err) {
-      toast.error(err.message || 'Re-scan failed.');
+      toast.error(err.message || 'Scan failed.');
     } finally {
       setRescanning(false);
     }
@@ -467,7 +467,7 @@ export function EmailDetailPage() {
             <Button variant="outline" size="sm" className="shrink-0"
               disabled={rescanning} onClick={handleRescan}>
               {rescanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
-              {rescanning ? 'Scanning…' : 'Re-scan'}
+              {rescanning ? 'Scanning…' : 'Scan again'}
             </Button>
           </div>
         </CardContent>
@@ -550,7 +550,7 @@ export function EmailDetailPage() {
         <div className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Your verdict</CardTitle>
+              <CardTitle className="text-sm">Your decision</CardTitle>
             </CardHeader>
             <CardContent>
               <ReviewActions email={email} onReviewed={handleReviewed} />
