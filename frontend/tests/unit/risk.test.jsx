@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { getRiskMeta, getVerdictMeta, humanize } from '../../src/lib/risk.js';
+import {
+  CATEGORY_COLORS,
+  CATEGORY_LABELS,
+  getRiskMeta,
+  getVerdictMeta,
+  humanize,
+} from '../../src/lib/risk.js';
 
 describe('getRiskMeta', () => {
   it('maps known risk buckets to labels', () => {
@@ -22,6 +28,22 @@ describe('getVerdictMeta', () => {
   it('maps verdicts to labels', () => {
     expect(getVerdictMeta('likely_phishing').label).toBe('Likely phishing');
     expect(getVerdictMeta(null).label).toBe('No verdict');
+  });
+});
+
+describe('CATEGORY_COLORS', () => {
+  const categories = ['safe', 'suspicious', 'likely_phishing', 'confirmed_phishing'];
+
+  it('defines a colour for every phishing data category', () => {
+    for (const category of categories) {
+      expect(CATEGORY_COLORS[category]).toMatch(/^var\(--color-risk-/);
+      expect(CATEGORY_LABELS[category]).toBeTypeOf('string');
+    }
+  });
+
+  it('gives each category a visually distinct colour (no shared shades)', () => {
+    const values = categories.map((c) => CATEGORY_COLORS[c]);
+    expect(new Set(values).size).toBe(values.length);
   });
 });
 

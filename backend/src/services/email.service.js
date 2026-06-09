@@ -593,11 +593,25 @@ export const getTrendForUser = async ({ userId, days = 30 }) => {
 
 // Live counts of emails per current risk bucket (same derivation the list uses),
 // so dashboard/inbox category counts always match the list and update on review.
-export const getRiskBucketCountsForUser = async ({ userId }) => {
+//
+// `days` optionally scopes the counts to a rolling window of the last N days
+// (by email `receivedAt`). The dashboard passes days=30 so its stats reflect
+// only the last 30 days; the inbox omits it so its chip counts match the
+// all-time list. When `days` is absent or invalid, all emails are counted.
+export const getRiskBucketCountsForUser = async ({ userId, days } = {}) => {
     const userObjectId = new mongoose.Types.ObjectId(String(userId));
 
+    const match = { userId: userObjectId };
+    const windowDays = Number.parseInt(days, 10);
+
+    if (Number.isInteger(windowDays) && windowDays > 0) {
+        const since = new Date();
+        since.setDate(since.getDate() - windowDays);
+        match.receivedAt = { $gte: since };
+    }
+
     const results = await Email.aggregate([
-        { $match: { userId: userObjectId } },
+        { $match: match },
         ...buildLatestScanLookupStages(),
         ...buildEmailStateStages(),
         { $group: { _id: '$riskBucket', count: { $sum: 1 } } },

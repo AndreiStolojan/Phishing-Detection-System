@@ -7,6 +7,7 @@ import {
   ShieldX,
   ArrowRight,
   ShieldCheck,
+  CalendarRange,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -29,8 +30,12 @@ import { useApi } from '@/hooks/useApi';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { getEmails, getEmailStats, getEmailTrend } from '@/api/emailsApi';
 import { normalizeEmailList } from '@/lib/email-list';
+import { CATEGORY_COLORS, CATEGORY_LABELS } from '@/lib/risk';
 import { formatDateTime } from '@/utils/formatDate';
 import { cn } from '@/lib/utils';
+
+// Dashboard stats + trend are scoped to a rolling window of the last N days.
+const DASHBOARD_WINDOW_DAYS = 30;
 
 /* ─── Trend chart ─────────────────────────────────────────────────────────── */
 
@@ -40,10 +45,12 @@ const formatAxisDate = (dateStr) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+// Colours come from the shared CATEGORY_COLORS map so the trend, donut, reports
+// and inbox all draw each category in the same hue.
 const TREND_SERIES = [
-  { key: 'needs_review',       name: 'Suspicious',         color: 'var(--color-risk-review)',      gradId: 'grad-review' },
-  { key: 'quarantine',         name: 'Likely phishing',    color: 'var(--color-risk-quarantine)',  gradId: 'grad-quarantine' },
-  { key: 'confirmed_phishing', name: 'Confirmed phishing', color: 'var(--color-risk-phishing)',    gradId: 'grad-phishing' },
+  { key: 'needs_review',       name: CATEGORY_LABELS.suspicious,         color: CATEGORY_COLORS.suspicious,         gradId: 'grad-review' },
+  { key: 'quarantine',         name: CATEGORY_LABELS.likely_phishing,    color: CATEGORY_COLORS.likely_phishing,    gradId: 'grad-quarantine' },
+  { key: 'confirmed_phishing', name: CATEGORY_LABELS.confirmed_phishing, color: CATEGORY_COLORS.confirmed_phishing, gradId: 'grad-phishing' },
 ];
 
 function TrendTooltip({ active, payload, label }) {
@@ -203,7 +210,11 @@ export function DashboardPage() {
   const { account, isConnected, syncVersion } = useMailAccount();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const statsQuery = useApi(() => getEmailStats(), [syncVersion], `dash-stats-${syncVersion}`);
+  const statsQuery = useApi(
+    () => getEmailStats({ days: DASHBOARD_WINDOW_DAYS }),
+    [syncVersion],
+    `dash-stats-${syncVersion}`
+  );
   const riskyQuery = useApi(
     () => getEmails({ riskBucket: 'quarantine' }),
     [syncVersion],
@@ -240,10 +251,10 @@ export function DashboardPage() {
   const scanned = total - (counts.unscanned || 0);
 
   const donutData = [
-    { name: 'Safe', value: safeCount, color: 'var(--color-risk-safe)' },
-    { name: 'Suspicious', value: counts.needs_review || 0, color: 'var(--color-risk-review)' },
-    { name: 'Likely phishing', value: counts.quarantine || 0, color: 'var(--color-risk-quarantine)' },
-    { name: 'Confirmed phishing', value: counts.confirmed_phishing || 0, color: 'var(--color-risk-phishing)' },
+    { name: CATEGORY_LABELS.safe, value: safeCount, color: CATEGORY_COLORS.safe },
+    { name: CATEGORY_LABELS.suspicious, value: counts.needs_review || 0, color: CATEGORY_COLORS.suspicious },
+    { name: CATEGORY_LABELS.likely_phishing, value: counts.quarantine || 0, color: CATEGORY_COLORS.likely_phishing },
+    { name: CATEGORY_LABELS.confirmed_phishing, value: counts.confirmed_phishing || 0, color: CATEGORY_COLORS.confirmed_phishing },
   ];
   const safeRate = scanned > 0 ? Math.round((safeCount / scanned) * 100) : 0;
   const attention = counts.quarantine ?? 0;
@@ -251,6 +262,17 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      {/* Scope label — every stat, count and graph below covers a rolling window
+          of the last 30 days. Absolute-state items (Gmail connection, last-synced
+          time) are not time-scoped and shown as-is. */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-h3 font-semibold">Security overview</h2>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground">
+          <CalendarRange className="h-3.5 w-3.5" />
+          Last 30 days
+        </span>
+      </div>
+
       {/* Security posture hero — full width */}
       <PostureHero
         attention={attention}
