@@ -106,6 +106,37 @@ const UNKNOWN = {
   description: '',
 };
 
+/*
+  CATEGORY_COLORS — the single source of truth for the colour of each phishing
+  data category, used everywhere the same categories are charted: the dashboard
+  trend + risk donut, the reports detection breakdown, and the inbox badges.
+
+  Keys are the canonical category ids. Every chart maps its own local field name
+  (e.g. `needs_review`, `quarantine`, `likelyPhishing`) onto one of these, so a
+  category is always drawn in the same colour across the whole app. The values
+  point at the stable `--color-risk-*` CSS variables defined in index.css, so
+  there are no duplicated or drifting hex values.
+
+  The four colours are deliberately distinct hues on the dark theme this app
+  ships with: green / amber / rose / violet. The app is dark-only, so only the
+  dark background is targeted (see PROJECT_STATE.md).
+*/
+export const CATEGORY_COLORS = {
+  safe: 'var(--color-risk-safe)',
+  suspicious: 'var(--color-risk-review)',
+  likely_phishing: 'var(--color-risk-quarantine)',
+  confirmed_phishing: 'var(--color-risk-phishing)',
+  unscanned: 'var(--color-risk-unscanned)',
+};
+
+export const CATEGORY_LABELS = {
+  safe: 'Safe',
+  suspicious: 'Suspicious',
+  likely_phishing: 'Likely phishing',
+  confirmed_phishing: 'Confirmed phishing',
+  unscanned: 'Unscanned',
+};
+
 export const getRiskMeta = (riskBucket) => RISK_BUCKET_META[riskBucket] || UNKNOWN;
 
 export const getVerdictMeta = (verdict) =>
