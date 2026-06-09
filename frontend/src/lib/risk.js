@@ -65,31 +65,31 @@ const TONES = {
 };
 
 const RISK_BUCKET_META = {
-  safe: { label: 'Safe', tone: TONES.safe, description: 'Scan found no risk signals.' },
+  safe: { label: 'Safe', tone: TONES.safe, description: 'No threats detected in this email.' },
   reviewed_safe: {
     label: 'Reviewed safe',
     tone: TONES.safe,
-    description: 'You confirmed this message is safe.',
+    description: 'You confirmed this email is safe.',
   },
   needs_review: {
     label: 'Suspicious',
     tone: TONES.review,
-    description: 'Scan flagged suspicious signals — worth a closer look.',
+    description: 'This email has suspicious patterns — worth a closer look.',
   },
   quarantine: {
     label: 'Quarantine',
     tone: TONES.quarantine,
-    description: 'Likely phishing, not yet reviewed.',
+    description: 'This email looks like phishing. Review it before taking any action.',
   },
   confirmed_phishing: {
     label: 'Confirmed phishing',
     tone: TONES.phishing,
-    description: 'You marked this message as phishing.',
+    description: 'You marked this email as phishing.',
   },
   unscanned: {
     label: 'Unscanned',
     tone: TONES.unscanned,
-    description: 'No current scan for this message.',
+    description: 'This email has not been scanned yet.',
   },
 };
 

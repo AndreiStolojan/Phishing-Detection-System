@@ -49,19 +49,19 @@ function safeRateColor(pct) {
  * Falls back to a humanized version for anything not listed.
  */
 const RULE_DESCRIPTIONS = {
-  reply_to_mismatch: 'Reply-To domain differs from sender domain',
-  shortened_url_detected: 'Message contains shortened/obfuscated URLs',
-  too_many_links_high: 'Unusually high number of links in message body',
-  too_many_links_medium: 'Elevated number of links in message body',
-  high_risk_attachment_extension: 'Attachment has a high-risk file extension (.exe, .bat, etc.)',
-  archive_attachment_extension: 'Attachment is a compressed archive (.zip, .rar, etc.)',
-  'ai_semantic:urgency_high': 'AI detected strong urgency / pressure language',
-  'ai_semantic:urgency_medium': 'AI detected moderate urgency / pressure language',
-  'ai_semantic:social_engineering_high': 'AI flagged high-confidence social engineering attempt',
-  'ai_semantic:social_engineering_medium': 'AI flagged possible social engineering attempt',
-  'ai_semantic:login_or_action_request': 'AI detected a login or action request',
-  'ai_semantic:sensitive_data_request': 'AI detected a request for sensitive personal data',
-  'ai_semantic:brand_impersonation_suspected': 'AI suspects impersonation of a known brand',
+  reply_to_mismatch: 'Reply address differs from the sender — a common phishing trick',
+  shortened_url_detected: 'Email contains shortened links that hide the real destination',
+  too_many_links_high: 'Unusually high number of links in the message',
+  too_many_links_medium: 'Higher than normal number of links in the message',
+  high_risk_attachment_extension: 'Attachment has a file type that could be used to install malware (.exe, .bat, etc.)',
+  archive_attachment_extension: 'Attachment is a compressed archive that may hide malicious files (.zip, .rar, etc.)',
+  'ai_semantic:urgency_high': 'AI detected language designed to create panic and rush you into acting',
+  'ai_semantic:urgency_medium': 'AI detected words pressuring you to act immediately',
+  'ai_semantic:social_engineering_high': 'AI detected manipulative tactics — using fear, authority, or rewards to trick you',
+  'ai_semantic:social_engineering_medium': 'AI detected some manipulation tactics in the email',
+  'ai_semantic:login_or_action_request': 'AI detected language pushing you to click a link or sign in right away',
+  'ai_semantic:sensitive_data_request': 'AI detected a request for your password, payment details, or personal codes',
+  'ai_semantic:brand_impersonation_suspected': 'AI suspects this email is impersonating a company or brand you know',
 };
 
 function humanizeRule(rule) {
@@ -263,19 +263,13 @@ export function ReportsPage() {
                   {data?.topTriggeredRules?.length > 0 && (
                     <div className="border-t border-border/60 pt-3">
                       <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        What these rules mean
+                        What these mean
                       </p>
                       <ul className="space-y-1.5">
                         {data.topTriggeredRules.slice(0, 6).map((r) => (
                           <li key={r.rule} className="flex gap-2 text-xs text-muted-foreground">
                             <span className="mt-px h-1.5 w-1.5 shrink-0 translate-y-[0.2rem] rounded-full bg-muted-foreground/50" />
-                            <span>
-                              <span className="font-medium text-foreground/70">
-                                {String(r.rule || '').replace(/[_:]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                              </span>
-                              {' — '}
-                              {humanizeRule(r.rule)}
-                            </span>
+                            <span>{humanizeRule(r.rule)}</span>
                           </li>
                         ))}
                       </ul>
@@ -322,26 +316,29 @@ export function ReportsPage() {
                   {/* Detail line */}
                   <p className="text-xs text-muted-foreground">
                     {[
-                      ai.failed ? `Failed: ${ai.failed} (Ollama unavailable)` : null,
-                      ai.disabled ? `Skipped: ${ai.disabled} (AI off)` : null,
+                      ai.failed ? `${ai.failed} email${ai.failed !== 1 ? 's' : ''} could not be analyzed (AI was offline)` : null,
+                      ai.disabled ? `${ai.disabled} email${ai.disabled !== 1 ? 's' : ''} skipped (AI is turned off)` : null,
                     ]
                       .filter(Boolean)
-                      .join(' · ') || 'No failures or skipped emails.'}
+                      .join(' · ') || 'All emails were processed without issues.'}
                   </p>
 
                   {/* Mini stat row */}
                   <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/30 p-3 text-center">
                     <div>
                       <p className="text-lg font-semibold tabular-nums">{ai.evaluated ?? 0}</p>
-                      <p className="text-[11px] text-muted-foreground">Analyzed</p>
+                      <p className="text-[11px] font-medium text-muted-foreground">Analyzed</p>
+                      <p className="text-[10px] text-muted-foreground/60">Checked by AI</p>
                     </div>
                     <div>
                       <p className="text-lg font-semibold tabular-nums text-foreground/70">{ai.failed ?? 0}</p>
-                      <p className="text-[11px] text-muted-foreground">Failed</p>
+                      <p className="text-[11px] font-medium text-muted-foreground">Unavailable</p>
+                      <p className="text-[10px] text-muted-foreground/60">AI was offline</p>
                     </div>
                     <div>
                       <p className="text-lg font-semibold tabular-nums text-muted-foreground">{ai.disabled ?? 0}</p>
-                      <p className="text-[11px] text-muted-foreground">Skipped</p>
+                      <p className="text-[11px] font-medium text-muted-foreground">Skipped</p>
+                      <p className="text-[10px] text-muted-foreground/60">AI turned off</p>
                     </div>
                   </div>
                 </CardContent>

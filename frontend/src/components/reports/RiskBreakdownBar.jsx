@@ -7,7 +7,7 @@ const SEGMENTS = [
   { key: 'safe', label: 'Safe', bar: 'bg-risk-safe', text: 'text-risk-safe' },
   { key: 'suspicious', label: 'Suspicious', bar: 'bg-risk-review', text: 'text-risk-review' },
   { key: 'likelyPhishing', label: 'Likely phishing', bar: 'bg-risk-quarantine', text: 'text-risk-quarantine' },
-  { key: 'markedPhishing', label: 'Confirmed', bar: 'bg-risk-phishing', text: 'text-risk-phishing' },
+  { key: 'markedPhishing', label: 'Confirmed phishing', bar: 'bg-risk-phishing', text: 'text-risk-phishing' },
 ];
 
 export function RiskBreakdownBar({ counts = {} }) {

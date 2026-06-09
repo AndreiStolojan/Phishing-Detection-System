@@ -6,7 +6,6 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  RefreshCw,
   MailX,
   ChevronsUpDown,
 } from 'lucide-react';
@@ -102,7 +101,7 @@ function NavItem({ to, label, icon: Icon, sub }) {
 
 export function Sidebar() {
   const { user, logout } = useAuth();
-  const { account, isConnected, syncing, sync } = useMailAccount();
+  const { account, isConnected } = useMailAccount();
 
   return (
     <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:flex">
@@ -121,7 +120,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Gmail account + sync */}
+      {/* Gmail account */}
       <div className="border-t border-border/60 px-3 py-2.5">
         <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
           Gmail
@@ -135,14 +134,6 @@ export function Sidebar() {
             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {account.email}
             </span>
-            <button
-              onClick={sync}
-              disabled={syncing}
-              className="flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-            >
-              <RefreshCw className={cn('h-3 w-3', syncing && 'animate-spin')} />
-              {syncing ? 'Syncing…' : 'Sync'}
-            </button>
           </div>
         ) : (
           <NavLink
