@@ -8,7 +8,7 @@ const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = OLLAMA_MODEL || 'gemma3:4b'
 const DEFAULT_OLLAMA_TIMEOUT_MS = 10000;
 const MAX_EXPLANATION_TIMEOUT_MS = 10000;
-const PROMPT_VERSION = 'explanation-v2';
+const PROMPT_VERSION = 'explanation-v3';
 
 const EMPTY_EXPLANATION = {
     summary: '',
@@ -112,7 +112,8 @@ const buildExplanationInput = ({
 });
 
 const buildExplanationSystemPrompt = () => `
-You write a very short phishing scan explanation for non-technical users.
+You are a cybersecurity analyst who writes a very short phishing-scan explanation for
+non-technical users.
 
 Return ONLY valid JSON. No markdown. No text before or after JSON.
 Write the summary in English.
@@ -184,18 +185,26 @@ const validateExplanationOutput = (rawValue) => {
     };
 };
 
-const buildFailedResult = ({ baseMeta, latencyMs, fallbackUsed, fallbackReason }) => ({
-    explanation: EMPTY_EXPLANATION,
-    meta: {
-        status: 'failed',
-        ...baseMeta,
+const buildFailedResult = ({ baseMeta, latencyMs, fallbackUsed, fallbackReason }) => {
+    console.error('[ollama-explanation] Explanation generation failed', {
+        fallbackReason,
         latencyMs,
         hostFallbackUsed: fallbackUsed,
-        hostFallbackReason: fallbackUsed ? 'local_host_fallback' : null,
-        fallbackReason,
-        evaluatedAt: new Date(),
-    },
-});
+    });
+
+    return {
+        explanation: EMPTY_EXPLANATION,
+        meta: {
+            status: 'failed',
+            ...baseMeta,
+            latencyMs,
+            hostFallbackUsed: fallbackUsed,
+            hostFallbackReason: fallbackUsed ? 'local_host_fallback' : null,
+            fallbackReason,
+            evaluatedAt: new Date(),
+        },
+    };
+};
 
 export const generateNaturalExplanationWithOllama = async ({
     verdict,

@@ -10,8 +10,17 @@ import {
     buildControlledExplanationObject,
 } from './scan-explanation.service.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
+import {
+    AI_SCORE_MAX,
+    AI_SIGNAL_WEIGHTS,
+    RISK_THRESHOLDS,
+    RULE_WEIGHTS,
+    SCORE_MAX,
+} from '../config/scoring.config.js';
 
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v4';
+// Bumped v4 -> v5 with the rebalanced weights. Old scans keep their v4 score
+// until the email is rescanned (no retroactive bulk rescoring).
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v5';
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
@@ -38,24 +47,25 @@ const ARCHIVE_ATTACHMENT_EXTENSIONS = new Set([
     'tar',
 ]);
 
+// Points come from the central config (RULE_WEIGHTS); only the copy lives here.
 const LINK_PATTERN_RULES = {
     ip_address_link: {
-        points: 25,
+        points: RULE_WEIGHTS.ip_address_link,
         details: 'Found URL that uses an IP address host.',
         reason: 'At least one link points to an IP address, which is often risky.',
     },
     embedded_credentials: {
-        points: 20,
+        points: RULE_WEIGHTS.embedded_credentials,
         details: 'Found URL with embedded credentials.',
         reason: 'At least one link contains embedded credentials.',
     },
     punycode_domain: {
-        points: 20,
+        points: RULE_WEIGHTS.punycode_domain,
         details: 'Found URL using punycode domain.',
         reason: 'At least one link uses a punycode domain.',
     },
     very_long_url: {
-        points: 10,
+        points: RULE_WEIGHTS.very_long_url,
         details: 'Found URL longer than expected.',
         reason: 'At least one link is unusually long.',
     },
@@ -82,11 +92,11 @@ const toPublicScan = (scan) => ({
 });
 
 export const mapScoreToVerdict = (score) => {
-    if (score >= 60) {
+    if (score >= RISK_THRESHOLDS.likelyPhishing) {
         return 'likely_phishing';
     }
 
-    if (score >= 30) {
+    if (score >= RISK_THRESHOLDS.suspicious) {
         return 'suspicious';
     }
 
@@ -115,7 +125,7 @@ const calculateRulesForEmail = (email) => {
     ) {
         triggerRule({
             rule: 'reply_to_mismatch',
-            points: 25,
+            points: RULE_WEIGHTS.reply_to_mismatch,
             details: `Reply-To domain (${email.replyToDomain}) differs from sender domain (${email.senderDomain}).`,
             reason: 'Reply-To domain differs from sender domain.',
         });
@@ -124,7 +134,7 @@ const calculateRulesForEmail = (email) => {
     if (email.hasShortenedUrl) {
         triggerRule({
             rule: 'shortened_url_detected',
-            points: 20,
+            points: RULE_WEIGHTS.shortened_url_detected,
             details: 'At least one known URL shortener was found in the email links.',
             reason: 'Email contains shortened URL links.',
         });
@@ -156,14 +166,14 @@ const calculateRulesForEmail = (email) => {
     if (highRiskAttachments.length > 0) {
         triggerRule({
             rule: 'high_risk_attachment_extension',
-            points: 35,
+            points: RULE_WEIGHTS.high_risk_attachment_extension,
             details: `Found high-risk attachment extensions: ${highRiskAttachments.join(', ')}.`,
             reason: 'Email contains high-risk attachment extensions.',
         });
     } else if (archiveAttachments.length > 0) {
         triggerRule({
             rule: 'archive_attachment_extension',
-            points: 12,
+            points: RULE_WEIGHTS.archive_attachment_extension,
             details: `Found archive attachment extensions: ${archiveAttachments.join(', ')}.`,
             reason: 'Email contains archive attachments.',
         });
@@ -174,14 +184,14 @@ const calculateRulesForEmail = (email) => {
     if (linkCount >= 10) {
         triggerRule({
             rule: 'too_many_links_high',
-            points: 25,
+            points: RULE_WEIGHTS.too_many_links_high,
             details: `Email includes ${linkCount} links.`,
             reason: 'Email includes an unusually high number of links.',
         });
     } else if (linkCount >= 6) {
         triggerRule({
             rule: 'too_many_links_medium',
-            points: 15,
+            points: RULE_WEIGHTS.too_many_links_medium,
             details: `Email includes ${linkCount} links.`,
             reason: 'Email includes many links.',
         });
@@ -221,14 +231,14 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.urgencyLevel === 'high') {
         triggerAiRule({
             rule: 'ai_semantic:urgency_high',
-            points: 8,
+            points: AI_SIGNAL_WEIGHTS.urgency_high,
             reason: 'AI semantic: high urgency language detected.',
             details: 'Semantic model flagged urgent pressure language as high.',
         });
     } else if (aiSignals.urgencyLevel === 'medium') {
         triggerAiRule({
             rule: 'ai_semantic:urgency_medium',
-            points: 4,
+            points: AI_SIGNAL_WEIGHTS.urgency_medium,
             reason: 'AI semantic: medium urgency language detected.',
             details: 'Semantic model flagged urgent pressure language as medium.',
         });
@@ -237,7 +247,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.sensitiveDataRequest) {
         triggerAiRule({
             rule: 'ai_semantic:sensitive_data_request',
-            points: 20,
+            points: AI_SIGNAL_WEIGHTS.sensitive_data_request,
             reason: 'AI semantic: request for sensitive data detected.',
             details: 'Semantic model detected password/card/OTP style data request.',
         });
@@ -246,7 +256,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.loginOrActionRequest) {
         triggerAiRule({
             rule: 'ai_semantic:login_or_action_request',
-            points: 8,
+            points: AI_SIGNAL_WEIGHTS.login_or_action_request,
             reason: 'AI semantic: login or rapid action request detected.',
             details: 'Semantic model detected push toward login or immediate user action.',
         });
@@ -255,14 +265,14 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.socialEngineeringLevel === 'high') {
         triggerAiRule({
             rule: 'ai_semantic:social_engineering_high',
-            points: 12,
+            points: AI_SIGNAL_WEIGHTS.social_engineering_high,
             reason: 'AI semantic: high social engineering pressure detected.',
             details: 'Semantic model flagged social engineering patterns as high.',
         });
     } else if (aiSignals.socialEngineeringLevel === 'medium') {
         triggerAiRule({
             rule: 'ai_semantic:social_engineering_medium',
-            points: 6,
+            points: AI_SIGNAL_WEIGHTS.social_engineering_medium,
             reason: 'AI semantic: medium social engineering pressure detected.',
             details: 'Semantic model flagged social engineering patterns as medium.',
         });
@@ -271,14 +281,15 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.brandImpersonationSuspected) {
         triggerAiRule({
             rule: 'ai_semantic:brand_impersonation_suspected',
-            points: 10,
+            points: AI_SIGNAL_WEIGHTS.brand_impersonation_suspected,
             reason: 'AI semantic: possible brand impersonation detected.',
             details: 'Semantic model found likely impersonation of known organization/brand.',
         });
     }
 
-    // AI is a secondary signal: capped so it can escalate risk but never, alone, declare phishing (cap < 60 threshold).
-    aiScore = Math.min(aiScore, 50);
+    // AI is a secondary signal: capped so it can escalate risk but never, alone,
+    // declare phishing (AI_SCORE_MAX < the likely_phishing threshold).
+    aiScore = Math.min(aiScore, AI_SCORE_MAX);
 
     return {
         aiScore,
@@ -536,7 +547,7 @@ export const scanEmailWithRules = async ({
           })
         : buildAiDisabledSignals();
     const aiScoreResult = calculateAiScoreFromSignals(aiSignals);
-    const finalScore = Math.min(100, rulesResult.ruleScore + aiScoreResult.aiScore);
+    const finalScore = Math.min(SCORE_MAX, rulesResult.ruleScore + aiScoreResult.aiScore);
     const finalResult = {
         score: finalScore,
         ruleScore: rulesResult.ruleScore,
