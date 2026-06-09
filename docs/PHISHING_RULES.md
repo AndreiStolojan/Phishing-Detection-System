@@ -43,8 +43,13 @@ Nu folosim reguli doar pentru că sună bine. Folosim reguli care:
 Scorul final este hibrid:
 
 - `ruleScore`: scorul rezultat din regulile clasice de phishing;
-- `aiScore`: punctaj semantic venit din semnalele Ollama, plafonat la maximum `30`;
-- `score`: suma `ruleScore + aiScore`, folosită pentru verdict.
+- `aiScore`: punctaj semantic venit din semnalele Ollama, plafonat la maximum `50`;
+- `score`: suma `ruleScore + aiScore`, plafonată la `100`, folosită pentru verdict.
+
+Toate ponderile, plafonul AI și pragurile sunt definite într-un singur loc:
+`backend/src/config/scoring.config.js`. Motorul (`scan.service.js`) le importă de
+acolo. Vezi `docs/SCORING_WEIGHTS_REVIEW.md` pentru raționamentul rebalansării
+(engine `rules-ai-v4` → `rules-ai-v5`).
 
 Pragurile pot fi ajustate după testare pe mai multe emailuri, dar aceasta este starea reală a codului acum.
 
@@ -52,15 +57,13 @@ Pragurile pot fi ajustate după testare pe mai multe emailuri, dar aceasta este 
 
 | Regulă | Descriere simplă | De ce este relevantă | Scor propus | Exemplu |
 | --- | --- | --- | --- | --- |
-| Limbaj urgent | Emailul insistă pe acțiune imediată | Phishing-ul folosește presiune psihologică | `+10` | `Contul tău va fi suspendat azi` |
-| Cerere de credențiale | Cere parolă, cod sau verificare cont | Este unul dintre cele mai comune semnale | `+25` | `Confirmă parola pentru a evita blocarea` |
-| Link scurtat | Conține link de tip bit.ly sau similar | Ascunde destinația reală | `+20` | `https://bit.ly/...` |
+| Link scurtat | Conține link de tip bit.ly sau similar | Ascunde destinația reală | `+15` | `https://bit.ly/...` |
 | Link cu IP | URL-ul folosește IP în loc de domeniu normal | Poate ascunde destinația reală | `+25` | `http://192.0.2.10/login` |
-| Link cu credențiale în URL | URL-ul conține user/parolă în adresă | Este un pattern riscant și neobișnuit | `+20` | `https://user:pass@example.com` |
+| Link cu credențiale în URL | URL-ul conține user/parolă în adresă | Este un pattern riscant și neobișnuit | `+25` | `https://user:pass@example.com` |
 | Domeniu punycode | Domeniul folosește punycode | Poate indica imitare vizuală de domeniu | `+20` | `xn--...` |
-| URL foarte lung | Linkul este neobișnuit de lung | Poate ascunde parametri sau redirecturi suspecte | `+10` | URL cu mulți parametri |
-| Mismatch Reply-To | Domeniul din `Reply-To` diferă de domeniul expeditorului | Răspunsurile pot fi redirecționate către atacator | `+25` | `from: brand.com`, `reply-to: alt-domain.com` |
-| Multe linkuri | Emailul conține multe linkuri | Uneori încearcă să împingă utilizatorul spre click | `+15` pentru `6-9`, `+25` pentru `10+` | email cu 8-10 linkuri |
+| URL foarte lung | Linkul este neobișnuit de lung | Poate ascunde parametri sau redirecturi suspecte | `+8` | URL cu mulți parametri |
+| Mismatch Reply-To | Domeniul din `Reply-To` diferă de domeniul expeditorului | Răspunsurile pot fi redirecționate către atacator | `+18` | `from: brand.com`, `reply-to: alt-domain.com` |
+| Multe linkuri | Emailul conține multe linkuri | Uneori încearcă să împingă utilizatorul spre click | `+10` pentru `6-9`, `+18` pentru `10+` | email cu 8-10 linkuri |
 | Atașament high-risk | Are atașamente potențial periculoase | Fișierele executabile pot ascunde malware | `+35` | `.exe`, `.scr`, `.js` |
 | Atașament arhivă | Are atașamente arhivă | Arhivele pot ascunde fișiere periculoase | `+12` | `.zip`, `.rar`, `.7z` |
 
