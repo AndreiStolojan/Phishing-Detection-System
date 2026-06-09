@@ -297,7 +297,7 @@ export function DashboardPage() {
           icon={ShieldAlert}
           label="Likely phishing"
           value={counts.quarantine ?? 0}
-          hint="In quarantine"
+          hint="Awaiting your review"
           tone="text-risk-quarantine"
           to="/inbox?riskBucket=quarantine"
         />
@@ -377,7 +377,7 @@ export function DashboardPage() {
             <EmptyState
               icon={ShieldCheck}
               title="All clear"
-              description="No quarantined messages right now."
+              description="No risky messages right now."
               className="mx-5 border-0 py-10"
             />
           ) : (

@@ -190,6 +190,59 @@ const getQuarantinedCount = async ({ userObjectId, from, to }) => {
     return scanQuarantineResult[0]?.count || 0;
 };
 
+const DAILY_RISKY_EMAILS_LIMIT = 5;
+
+// The actual emails from the window that still need the user's attention
+// (suspicious or likely phishing, not yet reviewed). Highest risk first.
+const getRecentRiskyEmails = async ({ userObjectId, from, to }) =>
+    Scan.aggregate([
+        {
+            $match: {
+                userId: userObjectId,
+                verdict: { $in: ['suspicious', 'likely_phishing'] },
+                scannedAt: buildDateRange({ from, to }),
+            },
+        },
+        { $sort: { score: -1, scannedAt: -1 } },
+        {
+            $group: {
+                _id: '$emailId',
+                verdict: { $first: '$verdict' },
+                score: { $first: '$score' },
+            },
+        },
+        {
+            $lookup: {
+                from: 'emails',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'email',
+            },
+        },
+        { $unwind: '$email' },
+        {
+            $match: {
+                'email.userId': userObjectId,
+                $or: [
+                    { 'email.userVerdict': null },
+                    { 'email.userVerdict': { $exists: false } },
+                ],
+            },
+        },
+        { $sort: { score: -1 } },
+        { $limit: DAILY_RISKY_EMAILS_LIMIT },
+        {
+            $project: {
+                _id: 0,
+                verdict: 1,
+                score: 1,
+                subject: '$email.subject',
+                from: '$email.from',
+                providerMessageId: '$email.providerMessageId',
+            },
+        },
+    ]);
+
 export const getDailySummaryForUser = async ({ userId }) => {
     const userObjectId = toUserObjectId(userId);
     const to = new Date();
@@ -202,6 +255,7 @@ export const getDailySummaryForUser = async ({ userId }) => {
         markedPhishing,
         topTriggeredRules,
         ai,
+        riskyEmails,
     ] = await Promise.all([
         Email.countDocuments({
             userId: userObjectId,
@@ -219,6 +273,7 @@ export const getDailySummaryForUser = async ({ userId }) => {
         }),
         getTopTriggeredRules({ userObjectId, from, to }),
         getAiCounts({ userObjectId, from, to }),
+        getRecentRiskyEmails({ userObjectId, from, to }),
     ]);
 
     return {
@@ -234,6 +289,7 @@ export const getDailySummaryForUser = async ({ userId }) => {
             likelyPhishing: verdictCounts.likelyPhishing,
             markedPhishing,
         },
+        riskyEmails,
         topTriggeredRules,
         ai,
         generatedAt: to.toISOString(),
@@ -328,7 +384,7 @@ export const sendMonthlySummaryForUser = async ({ user, query = {} }) => {
             generatedAt: summary.generatedAt,
             error: {
                 code: 'EMAIL_SEND_FAILED',
-                message: 'Emailul de sumar lunar nu a putut fi trimis.',
+                message: 'The monthly summary email could not be sent.',
                 detail: error.message,
             },
         };

@@ -6,6 +6,8 @@ import {
     syncGmailEmailsForUser,
     updateMailAccountSettingsForUser,
 } from '../services/mail-account.service.js';
+import { sendPhishingAlertForNewEmails } from '../services/auto-sync.service.js';
+import User from '../models/user.model.js';
 import { FRONTEND_APP_URL } from '../config/env.js';
 
 const buildFrontendRedirectUrl = ({ params }) => {

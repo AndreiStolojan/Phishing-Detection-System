@@ -21,13 +21,13 @@ import { cn } from '@/lib/utils';
 */
 const RULE_META = {
   reply_to_mismatch: {
-    label: 'Reply-To address mismatch',
-    detail: 'The address you would reply to is different from the sender — a common trick used in phishing.',
+    label: 'Reply goes to a different address',
+    detail: 'If you reply, your message would go to a different address than the sender — a common trick used in phishing.',
     icon: AlertTriangle,
     isAi: false,
   },
   shortened_url_detected: {
-    label: 'Shortened URL detected',
+    label: 'Shortened link detected',
     detail: 'Shortened links hide the real destination and are often used in phishing.',
     icon: Link2,
     isAi: false,

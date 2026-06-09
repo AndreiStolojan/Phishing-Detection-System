@@ -13,11 +13,39 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-06-06`
+- Data ultimei actualizări: `2026-06-09`
 - Faza curentă: `Faza 22 - UI Premium Upgrade` — COMPLETĂ (toate 11 faze)
 - Status general: backend 100% stabil, MVP ~99%. UI premium Apple-grade livrat integral (Fazele 1-11). Build frontend curat, 20/20 teste frontend, 12/12 teste backend. Rămas: verificare vizuală cap-coadă de Andrei (Gmail real) + capturi demo.
 - Progres estimativ MVP: `100%` backend · `97%` produs final
 - Deadline: ~2026-06-17 (draft lucrare)
+
+## Notă sesiune 2026-06-09 - Simplificare limbaj UX (pregătire producție)
+
+Context: Andrei a cerut ca formularea din aplicație să fie intuitivă pentru utilizatori non-tehnici și fără scurgeri de chei brute (ex. "medium", "long_url", "semantic").
+
+Schimbări (doar texte vizibile; cheile interne și clasele CSS `risk-quarantine` rămân neatinse):
+- `Quarantine` → `Likely phishing` peste tot (badge risc, filtru inbox, dashboard, gol-state). Consistent cu restul aplicației. Test `risk.test.jsx` actualizat.
+- Scor: `Score` → `Risk score`, `Rules` → `Security checks`, badge `Rules only/Rules + AI` → `Security checks (+ AI)`.
+- `Reply-To mismatch` → `Reply address differs` / `Reply goes to a different address`.
+- `Email Headers` → `Technical details`; `Re-scan` → `Scan again`; `Your verdict` → `Your decision`.
+- Reports: `Detection funnel` → `Detection overview`; `Top triggered rules` → `Most common warning signs`; tooltip `pts in score` → `adds N to risk score`.
+- Reparat scurgere reală: `humanizeRule` (ReportsPage + `email.template.js`) afișa chei brute (ex. `Suspicious Link Pattern Very Long Url`, `Ai Semantic Urgency High`). Mapări prietenoase complete + fallback fără cheie brută; eliminat subtitlul brut din emailuri.
+- `Analiza semantica AI` → `Analiza AI` în explicația-fallback (RO). Limba RO a explicației rămâne intenționată (prompt Ollama scrie în RO).
+
+Verificat: 20/20 teste frontend, build frontend curat, `node --check` OK pe fișierele backend modificate.
+
+### Continuare 2026-06-09 - Digest zilnic separat, fus orar local, tot textul în engleză
+
+- **Digest zilnic redesenat** (`email.template.js` + `report.service.js`): acum este distinct de cel lunar — focalizat pe ultimele 24h, conduce cu emailurile care au nevoie de atenție (listă reală: subiect, expeditor, nivel de risc), apoi un rând compact de statistici (New · Scanned · Safe · To review). Fără barele/AI% din lunar. `getDailySummaryForUser` returnează acum `riskyEmails` (top 5 suspicious/likely_phishing nerevizuite, după scor).
+- **UX oră digest** (`SettingsPage.jsx`): selectorul afișează ora în fusul local al utilizatorului (ex. `Europe/Bucharest (UTC+3)`) în loc de UTC brut; conversie local↔UTC la salvare. Backendul stochează tot ora UTC.
+- **Tot textul românesc → engleză**, inclusiv prompturile AI:
+  - `ollama-explanation.service.js`: „Write the summary in Romanian" → „...English".
+  - `ollama-semantic.service.js`: summary „in Romanian" → „in English".
+  - `scan-explanation.service.js`: explicația-fallback tradusă integral; funcții redenumite `buildControlled(Explanation|ExplanationObject)` (fără „Romanian"), actualizat caller în `scan.service.js`.
+  - `report.service.js` + `send-email.js`: mesaje de eroare traduse.
+- **Bug latent reparat** (`mail-account.controller.js`): manual-sync folosea `User` și `sendPhishingAlertForNewEmails` fără import → ar fi dat crash la rulare. Adăugat importurile.
+
+Verificat: frontend 20/20 + build curat; backend lint curat + 12/12 teste.
 
 ## Notă sesiune 2026-06-06 - UI Premium Upgrade (Faza 22)
 

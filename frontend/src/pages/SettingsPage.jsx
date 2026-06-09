@@ -51,6 +51,20 @@ import { springSoft } from '@/lib/motion';
 
 const accountId = (account) => account?.id || account?._id;
 
+/*
+  The digest hour is stored in UTC on the backend, but users think in their own
+  local time. We show the picker in the browser's timezone and convert to/from
+  UTC behind the scenes, using the current offset (good enough for a daily job).
+*/
+const TZ_NAME = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const OFFSET_HOURS = Math.round(-new Date().getTimezoneOffset() / 60);
+const utcToLocalHour = (utc) => (((Number(utc) + OFFSET_HOURS) % 24) + 24) % 24;
+const localToUtcHour = (local) => (((Number(local) - OFFSET_HOURS) % 24) + 24) % 24;
+const hourLabel = (h) => `${String(h).padStart(2, '0')}:00`;
+const offsetLabel = OFFSET_HOURS === 0
+  ? 'UTC'
+  : `UTC${OFFSET_HOURS > 0 ? '+' : '−'}${Math.abs(OFFSET_HOURS)}`;
+
 function Section({ icon: Icon, title, description, children, index = 0 }) {
   return (
     <motion.div
@@ -379,7 +393,7 @@ export function SettingsPage() {
             checked={aiEnabled}
             disabled={toggleAi.loading}
             onChange={(next) => toggleAi.run(next).catch((e) => toast.error(e.message || 'Failed to update.'))}
-            caption={!aiEnabled ? 'Without AI, only the built-in detection rules are applied.' : undefined}
+            caption={!aiEnabled ? 'Without AI, only the built-in security checks are used.' : undefined}
           />
           <SettingToggle
             id="alerts-toggle"
@@ -405,19 +419,24 @@ export function SettingsPage() {
                 <Clock className="mt-0.5 h-4.5 w-4.5 shrink-0 text-muted-foreground" />
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium">Delivery time</p>
-                  <p className="text-xs text-muted-foreground">Time of day you receive the digest (UTC).</p>
+                  <p className="text-xs text-muted-foreground">
+                    When you'll get the digest each day, in your local time.
+                  </p>
+                  <p className="text-xs text-muted-foreground/70">
+                    Your timezone: {TZ_NAME} ({offsetLabel})
+                  </p>
                 </div>
               </label>
               <div className="flex items-center gap-2">
                 <select
                   id="digest-hour"
-                  value={digestHour}
-                  onChange={(e) => setDigestHour(Number(e.target.value))}
+                  value={utcToLocalHour(digestHour)}
+                  onChange={(e) => setDigestHour(localToUtcHour(Number(e.target.value)))}
                   className="h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                   {Array.from({ length: 24 }, (_, h) => (
                     <option key={h} value={h}>
-                      {String(h).padStart(2, '0')}:00 UTC
+                      {hourLabel(h)}
                     </option>
                   ))}
                 </select>

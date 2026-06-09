@@ -24,7 +24,7 @@ const buildMissingEmailConfigResult = ({ recipient, period, generatedAt }) => {
         generatedAt,
         error: {
             code: 'EMAIL_CONFIG_MISSING',
-            message: `Configurarea pentru email lipsește: ${missing.join(', ')}.`,
+            message: `Email configuration is missing: ${missing.join(', ')}.`,
             missing,
         },
     };

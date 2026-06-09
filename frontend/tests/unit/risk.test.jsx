@@ -4,7 +4,7 @@ import { getRiskMeta, getVerdictMeta, humanize } from '../../src/lib/risk.js';
 
 describe('getRiskMeta', () => {
   it('maps known risk buckets to labels', () => {
-    expect(getRiskMeta('quarantine').label).toBe('Quarantine');
+    expect(getRiskMeta('quarantine').label).toBe('Likely phishing');
     expect(getRiskMeta('needs_review').label).toBe('Suspicious');
     expect(getRiskMeta('confirmed_phishing').label).toBe('Confirmed phishing');
   });

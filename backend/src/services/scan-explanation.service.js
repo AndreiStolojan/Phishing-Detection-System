@@ -1,10 +1,10 @@
 const verdictToSentence = {
     safe:
-        'Verdictul curent indica un risc scazut pe baza regulilor active. Verifica totusi expeditorul inainte de a trimite date sensibile.',
+        'The current verdict shows a low risk based on the active checks. Still, verify the sender before sending any sensitive information.',
     suspicious:
-        'Verdictul curent indica un email suspect pe baza semnalelor detectate. Evita linkurile si verifica expeditorul printr-un canal sigur.',
+        'The current verdict shows a suspicious email based on the detected signals. Avoid the links and verify the sender through a trusted channel.',
     likely_phishing:
-        'Verdictul curent indica o probabilitate ridicata de phishing pe baza semnalelor detectate. Nu accesa linkurile si nu trimite date sensibile.',
+        'The current verdict shows a high likelihood of phishing based on the detected signals. Do not open the links and do not send any sensitive information.',
 };
 
 const ruleToPhrase = (ruleId) => {
@@ -13,27 +13,27 @@ const ruleToPhrase = (ruleId) => {
     }
 
     if (ruleId === 'reply_to_mismatch') {
-        return 'domeniul Reply-To nu corespunde cu domeniul expeditorului';
+        return 'the Reply-To address does not match the sender';
     }
 
     if (ruleId === 'shortened_url_detected') {
-        return 'emailul contine linkuri scurtate';
+        return 'the email contains shortened links';
     }
 
     if (ruleId.startsWith('suspicious_link_pattern:')) {
-        return 'emailul contine pattern-uri de link suspecte';
+        return 'the email contains suspicious link patterns';
     }
 
     if (ruleId === 'high_risk_attachment_extension') {
-        return 'emailul contine atasamente cu extensii cu risc ridicat';
+        return 'the email contains a high-risk attachment';
     }
 
     if (ruleId === 'archive_attachment_extension') {
-        return 'emailul contine atasamente de tip arhiva';
+        return 'the email contains a compressed archive attachment';
     }
 
     if (ruleId === 'too_many_links_high' || ruleId === 'too_many_links_medium') {
-        return 'emailul are un numar mare de linkuri';
+        return 'the email has an unusually high number of links';
     }
 
     return '';
@@ -50,10 +50,10 @@ const buildRuleSentence = (triggeredRules = []) => {
     }
 
     if (phrases.length === 1) {
-        return `Regulile au semnalat ca ${phrases[0]}.`;
+        return `The security checks flagged that ${phrases[0]}.`;
     }
 
-    return `Regulile au semnalat ca ${phrases[0]} si ${phrases[1]}.`;
+    return `The security checks flagged that ${phrases[0]} and ${phrases[1]}.`;
 };
 
 const buildAiSentence = (aiSignals) => {
@@ -64,33 +64,33 @@ const buildAiSentence = (aiSignals) => {
     const fragments = [];
 
     if (['medium', 'high'].includes(aiSignals.urgencyLevel)) {
-        fragments.push('textul foloseste presiune sau urgenta');
+        fragments.push('the text uses pressure or urgency');
     }
 
     if (aiSignals.sensitiveDataRequest) {
-        fragments.push('mesajul cere date sensibile');
+        fragments.push('the message asks for sensitive information');
     }
 
     if (aiSignals.loginOrActionRequest) {
-        fragments.push('mesajul impinge utilizatorul spre login sau actiune rapida');
+        fragments.push('the message pushes you to sign in or act quickly');
     }
 
     if (['medium', 'high'].includes(aiSignals.socialEngineeringLevel)) {
-        fragments.push('exista indicii de social engineering');
+        fragments.push('there are signs of social engineering');
     }
 
     if (aiSignals.brandImpersonationSuspected) {
-        fragments.push('exista indicii de impersonare de brand');
+        fragments.push('there are signs of brand impersonation');
     }
 
     if (fragments.length === 0) {
-        return 'Analiza semantica AI nu a adaugat semnale de risc puternice.';
+        return 'The AI analysis did not add any strong risk signals.';
     }
 
-    return `Analiza semantica AI indica faptul ca ${fragments.slice(0, 2).join(' si ')}.`;
+    return `The AI analysis indicates that ${fragments.slice(0, 2).join(' and ')}.`;
 };
 
-export const buildControlledRomanianExplanation = ({
+export const buildControlledExplanation = ({
     verdict,
     triggeredRules,
     aiSignals,
@@ -112,10 +112,10 @@ export const buildControlledRomanianExplanation = ({
     return sentences.join(' ').trim();
 };
 
-export const buildControlledRomanianExplanationObject = ({
+export const buildControlledExplanationObject = ({
     verdict,
     triggeredRules,
     aiSignals,
 }) => ({
-    summary: buildControlledRomanianExplanation({ verdict, triggeredRules, aiSignals }),
+    summary: buildControlledExplanation({ verdict, triggeredRules, aiSignals }),
 });
