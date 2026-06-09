@@ -107,8 +107,10 @@ export function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:flex">
       {/* Brand */}
-      <div className="flex items-center gap-2 px-4 py-5">
-        <img src="/logo.png" alt="SecureInbox" className="h-24 w-24 shrink-0 object-contain drop-shadow-sm" />
+      <div className="flex items-center gap-2.5 px-5 py-5">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">
+          <img src="/logo.png" alt="SecureInbox" className="h-full w-full object-contain" />
+        </div>
         <p className="text-[15px] font-semibold tracking-tight">SecureInbox</p>
       </div>
 

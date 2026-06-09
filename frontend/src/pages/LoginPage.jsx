@@ -125,8 +125,10 @@ export function LoginPage() {
             {/* Brand header */}
             <motion.div {...staggerChild} className="mb-6 flex flex-col items-center text-center">
               <div className="relative mb-3">
-                <div className="absolute inset-0 scale-150 rounded-full bg-primary/20 blur-3xl" />
-                <img src="/logo.png" alt="SecureInbox" className="relative h-64 w-64 object-contain drop-shadow-xl" />
+                <div className="absolute inset-0 scale-110 rounded-3xl bg-primary/20 blur-2xl" />
+                <div className="relative h-48 w-48 overflow-hidden rounded-2xl">
+                  <img src="/logo.png" alt="SecureInbox" className="h-full w-full object-contain" />
+                </div>
               </div>
               <h1 className="text-h2 font-bold tracking-tight">
                 {isRegistering ? 'Create your account' : 'Welcome back'}
