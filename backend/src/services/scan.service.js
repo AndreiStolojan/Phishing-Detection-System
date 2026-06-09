@@ -277,6 +277,9 @@ const calculateAiScoreFromSignals = (aiSignals) => {
         });
     }
 
+    // AI is a secondary signal: capped so it can escalate risk but never, alone, declare phishing (cap < 60 threshold).
+    aiScore = Math.min(aiScore, 50);
+
     return {
         aiScore,
         aiReasons,
@@ -533,7 +536,7 @@ export const scanEmailWithRules = async ({
           })
         : buildAiDisabledSignals();
     const aiScoreResult = calculateAiScoreFromSignals(aiSignals);
-    const finalScore = rulesResult.ruleScore + aiScoreResult.aiScore;
+    const finalScore = Math.min(100, rulesResult.ruleScore + aiScoreResult.aiScore);
     const finalResult = {
         score: finalScore,
         ruleScore: rulesResult.ruleScore,

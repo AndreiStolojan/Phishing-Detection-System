@@ -6,6 +6,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  RefreshCw,
   MailX,
   ChevronsUpDown,
 } from 'lucide-react';
@@ -101,15 +102,13 @@ function NavItem({ to, label, icon: Icon, sub }) {
 
 export function Sidebar() {
   const { user, logout } = useAuth();
-  const { account, isConnected } = useMailAccount();
+  const { account, isConnected, syncing, sync } = useMailAccount();
 
   return (
     <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:flex">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl">
-          <img src="/logo.png" alt="SecureInbox" className="h-full w-full object-contain" />
-        </div>
+      <div className="flex items-center gap-2 px-4 py-5">
+        <img src="/logo.png" alt="SecureInbox" className="h-24 w-24 shrink-0 object-contain drop-shadow-sm" />
         <p className="text-[15px] font-semibold tracking-tight">SecureInbox</p>
       </div>
 
@@ -134,6 +133,14 @@ export function Sidebar() {
             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {account.email}
             </span>
+            <button
+              onClick={sync}
+              disabled={syncing}
+              className="flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            >
+              <RefreshCw className={cn('h-3 w-3', syncing && 'animate-spin')} />
+              {syncing ? 'Syncing…' : 'Sync'}
+            </button>
           </div>
         ) : (
           <NavLink

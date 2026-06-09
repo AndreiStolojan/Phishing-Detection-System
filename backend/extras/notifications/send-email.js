@@ -1,6 +1,7 @@
 import { EMAIL_FROM, SUPPORT_EMAIL } from '../../src/config/env.js';
 import {
     monthlyDigestTemplate,
+    dailyDigestTemplate,
     phishingAlertTemplate,
 } from './email.template.js';
 import welcomeTemplate from './email.template.js';
@@ -125,6 +126,47 @@ export const sendMonthlyDigestEmail = async ({ recipient, userName, summary }) =
     }
 
     const { subject, html } = monthlyDigestTemplate({
+        summary,
+        userName: userName || recipient,
+    });
+
+    const transporter = createEmailTransporter();
+    const info = await transporter.sendMail({
+        from: EMAIL_FROM,
+        to: recipient,
+        subject,
+        html,
+    });
+
+    return {
+        sent: true,
+        messageId: info.messageId,
+        recipient,
+        period: summary.period,
+        generatedAt: summary.generatedAt,
+    };
+};
+
+export const sendDailyDigestEmail = async ({ recipient, userName, summary }) => {
+    if (!recipient) {
+        throw new Error('Recipient email is required');
+    }
+
+    if (!summary) {
+        throw new Error('Daily summary is required');
+    }
+
+    const missingConfig = buildMissingEmailConfigResult({
+        recipient,
+        period: summary.period,
+        generatedAt: summary.generatedAt,
+    });
+
+    if (missingConfig) {
+        return missingConfig;
+    }
+
+    const { subject, html } = dailyDigestTemplate({
         summary,
         userName: userName || recipient,
     });

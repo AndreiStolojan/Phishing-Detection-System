@@ -190,6 +190,56 @@ const getQuarantinedCount = async ({ userObjectId, from, to }) => {
     return scanQuarantineResult[0]?.count || 0;
 };
 
+export const getDailySummaryForUser = async ({ userId }) => {
+    const userObjectId = toUserObjectId(userId);
+    const to = new Date();
+    const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+
+    const [
+        syncedEmails,
+        scannedEmails,
+        verdictCounts,
+        markedPhishing,
+        topTriggeredRules,
+        ai,
+    ] = await Promise.all([
+        Email.countDocuments({
+            userId: userObjectId,
+            createdAt: buildDateRange({ from, to }),
+        }),
+        Scan.countDocuments({
+            userId: userObjectId,
+            scannedAt: buildDateRange({ from, to }),
+        }),
+        getVerdictCounts({ userObjectId, from, to }),
+        Email.countDocuments({
+            userId: userObjectId,
+            userVerdict: 'phishing',
+            reviewedAt: buildDateRange({ from, to }),
+        }),
+        getTopTriggeredRules({ userObjectId, from, to }),
+        getAiCounts({ userObjectId, from, to }),
+    ]);
+
+    return {
+        period: {
+            from: from.toISOString(),
+            to: to.toISOString(),
+        },
+        counts: {
+            syncedEmails,
+            scannedEmails,
+            safe: verdictCounts.safe,
+            suspicious: verdictCounts.suspicious,
+            likelyPhishing: verdictCounts.likelyPhishing,
+            markedPhishing,
+        },
+        topTriggeredRules,
+        ai,
+        generatedAt: to.toISOString(),
+    };
+};
+
 export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
     const userObjectId = toUserObjectId(userId);
     const period = parseMonthlySummaryPeriod(query);

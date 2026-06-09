@@ -75,14 +75,14 @@
   --color-ring: #3b9eff;
 
   /* Risk buckets — core semantic palette. Names are STABLE.
-     Severity ramp: review (amber) -> quarantine (rose) -> phishing (brick). */
+     Severity ramp: review (amber) -> quarantine (rose) -> phishing (violet). */
   --color-risk-safe: #34c77b;
   --color-risk-safe-soft: color-mix(in oklab, var(--color-risk-safe) 15%, var(--color-background));
   --color-risk-review: #f0b429;
   --color-risk-review-soft: color-mix(in oklab, var(--color-risk-review) 15%, var(--color-background));
-  --color-risk-quarantine: #EF4444;
+  --color-risk-quarantine: #f5506a;
   --color-risk-quarantine-soft: color-mix(in oklab, var(--color-risk-quarantine) 16%, var(--color-background));
-  --color-risk-phishing: #F97316;
+  --color-risk-phishing: #9b5de5;
   --color-risk-phishing-soft: color-mix(in oklab, var(--color-risk-phishing) 17%, var(--color-background));
   --color-risk-unscanned: #8a96aa;
   --color-risk-unscanned-soft: color-mix(in oklab, var(--color-risk-unscanned) 12%, var(--color-background));

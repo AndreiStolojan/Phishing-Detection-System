@@ -80,14 +80,20 @@ export const updateCurrentUserNotificationSettings = async (authenticatedUserId,
         throw error;
     }
 
+    const current = user.settings?.toObject?.() ?? {};
+
     user.settings = {
-        ...user.settings?.toObject?.(),
-        alertsEnabled: Boolean(payload.alertsEnabled),
+        ...current,
+        ...(Object.hasOwn(payload, 'alertsEnabled') && { alertsEnabled: Boolean(payload.alertsEnabled) }),
+        ...(Object.hasOwn(payload, 'digestEnabled') && { digestEnabled: Boolean(payload.digestEnabled) }),
+        ...(Object.hasOwn(payload, 'digestHour') && { digestHour: Number(payload.digestHour) }),
     };
 
     await user.save();
 
     return {
         alertsEnabled: user.settings.alertsEnabled,
+        digestEnabled: user.settings.digestEnabled,
+        digestHour: user.settings.digestHour,
     };
 };
