@@ -5,6 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import { MailAccountProvider, useMailAccount } from '@/context/MailAccountContext';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
+import { SupportFab } from './SupportFab';
 import { PageTransition } from './PageTransition';
 import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
@@ -55,6 +56,7 @@ export function AppShell() {
       </div>
       <BottomNav />
       <MobileSync />
+      <SupportFab />
     </MailAccountProvider>
   );
 }
