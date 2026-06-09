@@ -36,6 +36,16 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      digestEnabled: {
+        type: Boolean,
+        default: true,
+      },
+      digestHour: {
+        type: Number,
+        default: 8,
+        min: 0,
+        max: 23,
+      },
     },
   },
   { timestamps: true },

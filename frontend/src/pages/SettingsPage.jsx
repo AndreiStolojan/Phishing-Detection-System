@@ -6,6 +6,8 @@ import {
   Mail,
   Sparkles,
   BellRing,
+  CalendarDays,
+  Clock,
   LifeBuoy,
   Loader2,
   Trash2,
@@ -143,6 +145,12 @@ export function SettingsPage() {
     }
   }, [account?.syncMaxResults]);
 
+  useEffect(() => {
+    if (user?.settings?.digestHour != null) {
+      setDigestHour(user.settings.digestHour);
+    }
+  }, [user?.settings?.digestHour]);
+
   // Clean up the timer on unmount
   useEffect(() => {
     return () => {
@@ -152,7 +160,10 @@ export function SettingsPage() {
 
   const aiEnabled = Boolean(user?.settings?.aiEnabled);
   const alertsEnabled = Boolean(user?.settings?.alertsEnabled);
+  const digestEnabled = user?.settings?.digestEnabled !== false;
+  const [digestHour, setDigestHour] = useState(user?.settings?.digestHour ?? 8);
   const syncDirty = Number(maxResults) !== account?.syncMaxResults;
+  const digestHourDirty = digestHour !== (user?.settings?.digestHour ?? 8);
 
   const saveName = useAsyncAction(async () => {
     const updated = await updateMe({ name: name.trim() });
@@ -165,9 +176,19 @@ export function SettingsPage() {
     toast.success(result.aiEnabled ? 'AI explanations enabled.' : 'AI explanations disabled.');
   });
   const toggleAlerts = useAsyncAction(async (next) => {
-    const result = await updateNotificationSettings(next);
+    const result = await updateNotificationSettings({ alertsEnabled: next });
     patchUser({ settings: { ...user?.settings, alertsEnabled: result.alertsEnabled } });
     toast.success(result.alertsEnabled ? 'Phishing alerts enabled.' : 'Phishing alerts disabled.');
+  });
+  const toggleDigest = useAsyncAction(async (next) => {
+    const result = await updateNotificationSettings({ digestEnabled: next });
+    patchUser({ settings: { ...user?.settings, digestEnabled: result.digestEnabled } });
+    toast.success(result.digestEnabled ? 'Daily digest enabled.' : 'Daily digest disabled.');
+  });
+  const saveDigestHour = useAsyncAction(async () => {
+    const result = await updateNotificationSettings({ digestHour });
+    patchUser({ settings: { ...user?.settings, digestHour: result.digestHour } });
+    toast.success('Digest time saved.');
   });
   const saveSync = useAsyncAction(async () => {
     await updateMailAccountSettings(accountId(account), Number(maxResults));
@@ -369,6 +390,49 @@ export function SettingsPage() {
             disabled={toggleAlerts.loading}
             onChange={(next) => toggleAlerts.run(next).catch((e) => toast.error(e.message || 'Failed to update.'))}
           />
+          <SettingToggle
+            id="digest-toggle"
+            icon={CalendarDays}
+            title="Daily security digest"
+            description="Receive a daily email summary of what SecureInbox found in your inbox."
+            checked={digestEnabled}
+            disabled={toggleDigest.loading}
+            onChange={(next) => toggleDigest.run(next).catch((e) => toast.error(e.message || 'Failed to update.'))}
+          />
+          {digestEnabled && (
+            <div className="flex items-center justify-between gap-4 rounded-lg px-2 py-3 pl-9 transition-colors hover:bg-accent/40">
+              <label htmlFor="digest-hour" className="flex cursor-pointer gap-3">
+                <Clock className="mt-0.5 h-4.5 w-4.5 shrink-0 text-muted-foreground" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Delivery time</p>
+                  <p className="text-xs text-muted-foreground">Time of day you receive the digest (UTC).</p>
+                </div>
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  id="digest-hour"
+                  value={digestHour}
+                  onChange={(e) => setDigestHour(Number(e.target.value))}
+                  className="h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>
+                      {String(h).padStart(2, '0')}:00 UTC
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => saveDigestHour.run().catch((e) => toast.error(e.message || 'Failed to save.'))}
+                  disabled={saveDigestHour.loading || !digestHourDirty}
+                >
+                  {saveDigestHour.loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Section>
 

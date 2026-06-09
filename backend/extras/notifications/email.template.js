@@ -167,23 +167,6 @@ const welcomeTemplate = (userName, createdAt) => ({
   }),
 });
 
-const renderMetric = (label, value, hex) => `
-  <td width="50%" style="padding:6px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;">
-      <tr>
-        <td style="padding:14px 16px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td style="padding-right:7px;"><div style="width:8px;height:8px;border-radius:50%;background:${hex};"></div></td>
-              <td style="font-family:${FONT};font-size:12px;color:${C.muted};">${escapeHtml(label)}</td>
-            </tr>
-          </table>
-          <p style="margin:6px 0 0;font-family:${FONT};font-size:24px;font-weight:700;color:${C.fg};">${formatNumber(value)}</p>
-        </td>
-      </tr>
-    </table>
-  </td>`;
-
 const RULE_DESCRIPTIONS = {
   reply_to_mismatch: 'Reply-To address differs from sender domain',
   shortened_url_detected: 'Email contains shortened or redirected URLs',
@@ -259,7 +242,7 @@ const renderBreakdownRow = (label, count, total, color, isLast) => {
     </tr>`;
 };
 
-export const monthlyDigestTemplate = ({ summary, userName }) => {
+export const monthlyDigestTemplate = ({ summary }) => {
   const monthLabel = formatMonth(summary.period.month);
   const counts = summary.counts;
   const ai = summary.ai;
@@ -322,6 +305,83 @@ export const monthlyDigestTemplate = ({ summary, userName }) => {
         <div style="margin-top:20px;">${ctaButton('View your inbox', `${APP_URL}/inbox`)}</div>
 
         ${mutedLine(`Period: ${escapeHtml(summary.period.from)} – ${escapeHtml(summary.period.to)}. Generated ${escapeHtml(formatDate(summary.generatedAt))}.`)}
+      `,
+    }),
+  };
+};
+
+export const dailyDigestTemplate = ({ summary, userName }) => {
+  const counts = summary.counts;
+  const ai = summary.ai;
+  const scanned = counts.scannedEmails;
+  const threats = (counts.suspicious || 0) + (counts.likelyPhishing || 0) + (counts.markedPhishing || 0);
+  const safeRate = scanned > 0 ? Math.round((counts.safe / scanned) * 100) : 0;
+  const heroAccent = threats === 0 ? C.safe : threats <= 2 ? C.review : C.quarantine;
+
+  const fromDate = new Date(summary.period.from);
+  const periodLabel = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Bucharest',
+  }).format(fromDate);
+
+  const aiPct = scanned > 0 ? Math.round(((ai.evaluated || 0) / scanned) * 100) : 0;
+  const aiLine = `AI evaluated <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong> emails (${aiPct}%).`;
+
+  const heroLabel = threats === 0
+    ? 'No threats detected'
+    : `${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} detected`;
+
+  return {
+    subject: threats > 0
+      ? `[SecureInbox] ${threats} threat${threats !== 1 ? 's' : ''} found in your inbox today`
+      : '[SecureInbox] Your inbox is clear today',
+    html: shell({
+      preheader: threats === 0
+        ? `All ${formatNumber(scanned)} scanned emails are safe in the last 24 hours.`
+        : `${threats} threat${threats !== 1 ? 's' : ''} found — ${formatNumber(scanned)} emails scanned in the last 24 hours.`,
+      accent: heroAccent,
+      eyebrow: 'Daily security briefing',
+      title: `Your inbox — last 24 hours`,
+      body: `
+        ${paragraph(`Hi ${escapeHtml(userName || 'there')}, here's what SecureInbox found in your inbox since ${escapeHtml(periodLabel)}.`)}
+
+        <!-- Hero banner -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin:4px 0 20px;">
+          <tr><td style="padding:24px;text-align:center;">
+            <p style="margin:0;font-family:${FONT};font-size:40px;font-weight:700;line-height:1;color:${heroAccent};">${safeRate}%</p>
+            <p style="margin:8px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of scanned messages were safe</p>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${escapeHtml(heroLabel)} &mdash; ${formatNumber(scanned)} email${scanned !== 1 ? 's' : ''} scanned</p>
+          </td></tr>
+        </table>
+
+        <!-- Threat breakdown -->
+        <h2 style="margin:0 0 8px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Breakdown</h2>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;padding:0 16px;margin-bottom:20px;">
+          <tr><td style="padding:0 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              ${renderBreakdownRow('Safe', counts.safe || 0, scanned, C.safe, false)}
+              ${renderBreakdownRow('Suspicious', counts.suspicious || 0, scanned, C.review, false)}
+              ${renderBreakdownRow('Likely phishing', counts.likelyPhishing || 0, scanned, C.quarantine, false)}
+              ${renderBreakdownRow('Confirmed phishing', counts.markedPhishing || 0, scanned, C.phishing, true)}
+            </table>
+          </td></tr>
+        </table>
+
+        ${(summary.topTriggeredRules || []).length > 0 ? `
+        <!-- Top triggered rules -->
+        <h2 style="margin:0 0 10px;font-family:${FONT};font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${C.muted};">Active detection rules</h2>
+        ${renderRules((summary.topTriggeredRules || []).slice(0, 4))}
+        ` : ''}
+
+        ${scanned > 0 ? mutedLine(aiLine) : ''}
+
+        <div style="margin-top:20px;">${ctaButton('Review your inbox', `${APP_URL}/inbox`)}</div>
+
+        ${mutedLine(`Period: ${escapeHtml(summary.period.from.slice(0, 16).replace('T', ' '))} – ${escapeHtml(summary.period.to.slice(0, 16).replace('T', ' '))} UTC. Generated ${escapeHtml(formatDate(summary.generatedAt))}.`)}
       `,
     }),
   };

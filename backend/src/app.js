@@ -1,5 +1,6 @@
-import cors from 'cors';
 import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
 import userRouter from './routes/user.routes.js';
 import authRouter from './routes/auth.routes.js';
 import mailAccountRouter from './routes/mail-account.routes.js';
@@ -11,15 +12,19 @@ import reportRouter from './routes/report.routes.js';
 import contactRouter from './routes/contact.routes.js';
 import sendErrorResponse from './common/http/send-error-response.js';
 import errorMiddleware from './middlewares/error.middleware.js';
-import { FRONTEND_APP_URL } from './config/env.js';
+import arcjetMiddleware from '../extras/security/arcjet.middleware.js';
+import { ARCJET_KEY, FRONTEND_APP_URL } from './config/env.js';
 
 const app = express();
 
+app.use(helmet());
 app.use(cors({ origin: FRONTEND_APP_URL, credentials: true }));
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
-app.use('/api/v1/auth', authRouter);
+const authGuards = ARCJET_KEY ? [arcjetMiddleware] : [];
+app.use('/api/v1/auth', ...authGuards, authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/mail-accounts', mailAccountRouter);
 app.use('/api/v1/emails', emailRouter);
