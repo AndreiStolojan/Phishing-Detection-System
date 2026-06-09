@@ -31,6 +31,14 @@ Context: 5 task-uri pe corectitudinea datelor și dashboard.
 
 Verificare: backend 12/12 (+1 skip DB), frontend 22/22, build frontend curat, lint backend curat.
 
+## Notă sesiune 2026-06-09 - Scoring weights, Ollama quality, progress bars (branch `feat/scoring-ollama-quality`)
+
+- **Task 1 - rebalansare ponderi scoring:** raționament scris întâi în `docs/SCORING_WEIGHTS_REVIEW.md`. Toate ponderile, plafonul AI (`50`), pragurile (`30`/`60`) și `SCORE_MAX` (`100`) mutate într-un singur loc: `backend/src/config/scoring.config.js`. `scan.service.js` le importă; zero valori hardcodate. Reduse semnalele cu fals-pozitiv pe newslettere (reply-to 25→18, shortener 20→15, multe linkuri 25/15→18/10, url lung 10→8), promovat `embedded_credentials` 20→25. Engine `rules-ai-v4` → `rules-ai-v5` (scanările vechi nu se rescorează retroactiv). Invariante verificate în test: niciun semnal singur nu atinge 60; niciun semnal slab nu depășește 30; AI singur nu poate declara phishing.
+- **Task 2 - progress bars proporționale:** bara „AI" din `ScanDetails` umplea contra `max=100`, deci un scor AI maxim (50) apărea pe jumătate. Adăugat `frontend/src/lib/scoring.js` (oglindă a config-ului backend: `SCORE_MAX`, `AI_SCORE_MAX=50`, `RULE_SCORE_MAX`). Barele și inelul de scor (`EmailDetailPage`) primesc `max` din constante, fără hardcodare.
+- **Task 3a - UX erori Ollama:** mesaje specifice per stare (oprit / indisponibil / timeout / răspuns invalid) via `getAiStatus(scan)`; „oprit" e neutru, nu alarmant. Logging server-side în ambele servicii Ollama (`console.error('[ollama-*]', …)`). Scorul pe reguli se afișează mereu, chiar cu Ollama picat. Fără spinner infinit (deja `Promise.allSettled` + `finally`).
+- **Task 3b - calitatea prompturilor:** prompt semantic rescris cu rol de „cybersecurity analyst", context phishing scurt și schemă JSON explicită (semantic-v2); prompt explicație cu rol întărit (explanation-v3). Output semantic neparsabil → tratat ca eșec (`status: failed`), nu valori neutre silențioase.
+- **Teste:** `backend/tests/unit/scoring-config.test.js` (invariante + praguri din config) și `frontend/tests/unit/scoring.test.jsx` (proporționalitate bare + maparea `getAiStatus`). Backend 16/16 (+1 skip), frontend 28/28, build curat, lint curat.
+
 ## Notă sesiune 2026-06-09 - Simplificare limbaj UX (pregătire producție)
 
 Context: Andrei a cerut ca formularea din aplicație să fie intuitivă pentru utilizatori non-tehnici și fără scurgeri de chei brute (ex. "medium", "long_url", "semantic").

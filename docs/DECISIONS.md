@@ -11,6 +11,14 @@ Format recomandat pentru deciziile viitoare:
 - motiv
 - impact
 
+## 2026-06-09 — Configurație unică de scoring + invariante AI/reguli
+
+- **Decizie:** toate ponderile, plafonul AI, pragurile de verdict și `SCORE_MAX` trăiesc într-un singur fișier, `backend/src/config/scoring.config.js`. Frontend-ul oglindește doar maximele necesare barelor în `frontend/src/lib/scoring.js` (Vite nu poate importa ESM din backend între pachete).
+- **Motiv:** ponderile erau hardcodate împrăștiat în `scan.service.js` și o bară de progres folosea max greșit. O sursă unică face rebalansarea sigură și ține codul aliniat cu `docs/PHISHING_RULES.md`.
+- **Invariante impuse prin numere + test:** (1) niciun semnal singur nu atinge pragul „high" (60); (2) niciun semnal slab nu depășește banda „medium" (30) singur; (3) `aiScore` plafonat la `50` < `60`, deci AI singur nu poate declara phishing — are nevoie de coroborare cu regulile. Două reguli „strong" independente pot atinge 60 (coroborare în interiorul stratului determinist).
+- **Backward compat:** engine `rules-ai-v4` → `rules-ai-v5`. Scanările vechi păstrează scorul `v4` până la o rescanare; nu există rescoring retroactiv în masă.
+- **Impact:** scanări noi folosesc ponderile noi (mai puține fals-pozitive pe newslettere). Bara AI se umple corect față de `AI_SCORE_MAX`. Mesaje de eroare Ollama specifice per stare; output AI neparsabil e tratat ca eșec, nu ca valori neutre.
+
 ## 2026-06-09 - Rapoarte: o singură sursă de adevăr pentru synced/scanned + dedup pe email
 
 Decizie: toate cifrele din raport (lunar și digest zilnic) derivă dintr-un singur set de bază — emailurile sincronizate în fereastră (`Email.createdAt`) — cu cel mai recent scan atașat per email prin `$lookup`. `scanned` = subsetul acelor emailuri care au un scan; verdictele, top-rules și AI se calculează tot din scanul cel mai recent al fiecărui email.

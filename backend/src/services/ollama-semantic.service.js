@@ -9,7 +9,7 @@ import {
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'gemma3:4b';
 const DEFAULT_OLLAMA_TIMEOUT_MS = 45000;
-const DEFAULT_PROMPT_VERSION = 'semantic-v1';
+const DEFAULT_PROMPT_VERSION = 'semantic-v2';
 
 const normalizeBoolean = (value, defaultValue = false) => {
     if (typeof value === 'boolean') {
@@ -107,23 +107,31 @@ const buildCandidateBaseUrls = () => {
 };
 
 const buildSemanticSystemPrompt = () => `
-You are an email security semantic signal extractor.
+You are a cybersecurity analyst specializing in phishing detection.
+Your only task is to extract semantic risk signals from one email. You do NOT give a
+final verdict or a score — a separate rule engine combines your signals with other checks.
 
-Return STRICT JSON only. Do not return markdown.
-Do not provide a final phishing verdict.
-Your job is only to extract semantic risk signals from the provided email content.
+Phishing emails typically impersonate a known brand or authority, create urgency or fear,
+request credentials or sensitive data (passwords, OTP codes, card numbers), or pressure the
+reader to click a link or sign in quickly.
 
-Rules:
-- Be conservative. If unclear, choose safer default values.
-- urgencyLevel must be one of: none, low, medium, high.
-- socialEngineeringLevel must be one of: none, low, medium, high.
-- sensitiveDataRequest, loginOrActionRequest, brandImpersonationSuspected must be booleans.
-- language should be a short language code when possible (example: ro, en, fr).
-- summary must be short (max 20 words), factual, and in English.
+Return STRICT JSON only — no markdown, no text before or after the JSON.
+Use exactly these keys:
+{
+  "language": "<short code like en, ro, fr>",
+  "urgencyLevel": "none|low|medium|high",
+  "sensitiveDataRequest": true|false,
+  "loginOrActionRequest": true|false,
+  "socialEngineeringLevel": "none|low|medium|high",
+  "brandImpersonationSuspected": true|false,
+  "summary": "<max 20 words, factual, in English>"
+}
+
+Be conservative: when a signal is unclear, choose the safer (lower or false) value.
 `.trim();
 
 const buildSemanticUserPrompt = (analysisInput) => `
-Analyze this email content and extract semantic signals as JSON.
+Extract the semantic signals for this email as JSON using the required keys.
 
 Email data:
 ${JSON.stringify(analysisInput)}
@@ -293,53 +301,60 @@ export const analyzeEmailSemanticsWithOllama = async ({
             const latencyMs = Date.now() - startedAt;
 
             if (!response.ok) {
+                const error = payload.error || `ollama_http_${response.status}`;
+                console.error('[ollama-semantic] HTTP error from Ollama', {
+                    endpoint: `${candidateBaseUrl}/api/chat`,
+                    httpStatus: response.status,
+                    error,
+                    latencyMs,
+                });
                 return {
                     status: 'failed',
                     ...baseMeta,
                     latencyMs,
                     evaluatedAt: new Date(),
-                    error:
-                        payload.error ||
-                        `ollama_http_${response.status}`,
+                    error,
                     endpoint: `${candidateBaseUrl}/api/chat`,
                 };
             }
 
-            try {
-                const semanticSignals = parseSemanticOutput(payload?.message?.content);
+            const semanticSignals = parseSemanticOutput(payload?.message?.content);
 
+            // Unparseable output: treat as a failure rather than silently using neutral
+            // defaults, so the UI can tell the user AI analysis did not complete.
+            if (semanticSignals.parserFallbackReason === 'invalid_semantic_output') {
+                console.error('[ollama-semantic] Unparseable model output', {
+                    endpoint: `${candidateBaseUrl}/api/chat`,
+                    rawPreview: semanticSignals.rawPreview,
+                    latencyMs,
+                });
                 return {
-                    status: 'evaluated',
+                    status: 'failed',
                     ...baseMeta,
                     latencyMs,
                     evaluatedAt: new Date(),
-                    endpoint: `${candidateBaseUrl}/api/chat`,
-                    ...semanticSignals,
-                };
-            } catch (parsingError) {
-                return {
-                    status: 'evaluated',
-                    ...baseMeta,
-                    latencyMs,
-                    evaluatedAt: new Date(),
-                    endpoint: `${candidateBaseUrl}/api/chat`,
-                    language: '',
-                    urgencyLevel: 'none',
-                    sensitiveDataRequest: false,
-                    loginOrActionRequest: false,
-                    socialEngineeringLevel: 'none',
-                    brandImpersonationSuspected: false,
-                    summary: '',
-                    parserFallback: true,
-                    parserFallbackReason: 'parser_exception',
                     error: 'ollama_invalid_output',
-                    errorDetail: String(parsingError?.message || 'invalid semantic output'),
+                    endpoint: `${candidateBaseUrl}/api/chat`,
                 };
             }
+
+            return {
+                status: 'evaluated',
+                ...baseMeta,
+                latencyMs,
+                evaluatedAt: new Date(),
+                endpoint: `${candidateBaseUrl}/api/chat`,
+                ...semanticSignals,
+            };
         } catch (error) {
             const latencyMs = Date.now() - startedAt;
 
             if (error.name === 'AbortError') {
+                console.error('[ollama-semantic] Request timed out', {
+                    endpoint: `${candidateBaseUrl}/api/chat`,
+                    timeoutMs: ollamaTimeoutMs,
+                    latencyMs,
+                });
                 return {
                     status: 'failed',
                     ...baseMeta,
@@ -350,6 +365,11 @@ export const analyzeEmailSemanticsWithOllama = async ({
                 };
             }
 
+            console.error('[ollama-semantic] Ollama unreachable', {
+                endpoint: `${candidateBaseUrl}/api/chat`,
+                errorDetail: String(error?.message || 'network_error'),
+                latencyMs,
+            });
             lastNetworkError = {
                 status: 'failed',
                 ...baseMeta,

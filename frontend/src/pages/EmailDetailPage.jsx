@@ -33,6 +33,7 @@ import { getLatestScan, scanEmail } from '@/api/scansApi';
 import { bustCacheByPrefix } from '@/hooks/useApi';
 import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
 import { getRiskMeta } from '@/lib/risk';
+import { SCORE_MAX } from '@/lib/scoring';
 import { formatDateTime } from '@/utils/formatDate';
 import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
@@ -43,7 +44,7 @@ function ScoreRing({ score, color, children }) {
   const size = 52;
   const r = 23;
   const circ = 2 * Math.PI * r;
-  const pct = Math.min((score ?? 0) / 100, 1);
+  const pct = Math.min((score ?? 0) / SCORE_MAX, 1);
   const offset = circ * (1 - pct);
 
   return (
@@ -433,7 +434,7 @@ export function EmailDetailPage() {
                 <span className={cn('text-sm font-semibold', tone.text)}>{label}</span>
                 {scanScore != null && (
                   <span className={cn('text-xs tabular-nums opacity-70', tone.text)}>
-                    {scanScore}/100
+                    {scanScore}/{SCORE_MAX}
                   </span>
                 )}
                 {sourceLabel && (
