@@ -91,15 +91,15 @@ const WARN_BUCKETS = new Set(['quarantine', 'confirmed_phishing', 'needs_review'
 const WARN_COPY = {
   quarantine: {
     heading: 'Likely phishing — proceed with caution',
-    body: 'Do not click links, open attachments, or enter credentials. Review the signals on the right before taking any action.',
+    body: 'Do not click links, open attachments, or type in your password or personal details. Review the security signals before taking any action.',
   },
   confirmed_phishing: {
     heading: 'Confirmed phishing',
     body: 'You marked this email as phishing. Do not interact with any links or attachments.',
   },
   needs_review: {
-    heading: 'Suspicious signals detected',
-    body: 'The scan found unusual patterns. Review the signals carefully before clicking anything.',
+    heading: 'Unusual patterns detected',
+    body: 'This email has suspicious patterns. Be careful before clicking links or downloading anything.',
   },
 };
 
@@ -383,9 +383,9 @@ export function EmailDetailPage() {
   const VerdictIcon = isSafe ? CheckCircle2 : tone.icon;
   const sourceLabel =
     email.verdictSource === 'user'
-      ? 'Manual review'
+      ? 'Reviewed by you'
       : email.verdictSource === 'scan'
-      ? 'Auto scan'
+      ? 'Automatic scan'
       : null;
   const SourceIcon = email.verdictSource === 'user' ? UserCheck : ScanLine;
   const scanScore = scan?.score ?? email?.latestScan?.score ?? null;

@@ -375,11 +375,11 @@ export function SettingsPage() {
             id="ai-toggle"
             icon={Sparkles}
             title="AI explanations"
-            description="Use the local AI model for semantic signals and plain-language explanations."
+            description="Enable AI-powered analysis for deeper insights and plain-language explanations."
             checked={aiEnabled}
             disabled={toggleAi.loading}
             onChange={(next) => toggleAi.run(next).catch((e) => toast.error(e.message || 'Failed to update.'))}
-            caption={!aiEnabled ? 'Without AI, only rule-based signals are used.' : undefined}
+            caption={!aiEnabled ? 'Without AI, only the built-in detection rules are applied.' : undefined}
           />
           <SettingToggle
             id="alerts-toggle"
