@@ -1,7 +1,8 @@
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertCircle, Loader2, ShieldCheck, Mail } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -59,6 +60,36 @@ export function EmptyState({ icon: Icon, title, description, action, className }
       )}
       {action}
     </div>
+  );
+}
+
+/*
+  Shown on full pages (Dashboard, Reports) when no Gmail account is connected.
+  Without a connected account there is nothing to display, so these pages return
+  this prompt instead of any data, counts, or charts.
+*/
+export function ConnectGmailState() {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center gap-4 py-14 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+          <ShieldCheck className="h-7 w-7" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-h3 font-semibold">Connect your Gmail to get started</h3>
+          <p className="max-w-md text-sm text-muted-foreground">
+            SecureInbox syncs your inbox, scans every message for phishing signals, and keeps a
+            security overlay on top — no need to open Gmail.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/settings">
+            <Mail className="h-4 w-4" />
+            Connect Gmail
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

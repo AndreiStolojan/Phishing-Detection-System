@@ -11,7 +11,7 @@ import {
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
-import { ReportsSkeleton, ErrorState } from '@/components/common/states';
+import { ReportsSkeleton, ErrorState, ConnectGmailState } from '@/components/common/states';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { DetectionFunnel } from '@/components/reports/DetectionFunnel';
 import { RiskBreakdownBar } from '@/components/reports/RiskBreakdownBar';
 import { useApi } from '@/hooks/useApi';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { useMailAccount } from '@/context/MailAccountContext';
 import { getMonthlySummary, sendMonthlySummary } from '@/api/reportsApi';
 import { cn } from '@/lib/utils';
 import { springSoft } from '@/lib/motion';
@@ -84,6 +85,7 @@ function humanizeRule(rule) {
 }
 
 export function ReportsPage() {
+  const { isConnected } = useMailAccount();
   const [month, setMonth] = useState(currentMonth());
   const [sentTo, setSentTo] = useState(null);
   const { data, loading, error, reload } = useApi(
@@ -117,6 +119,8 @@ export function ReportsPage() {
   const safeRate = scanned > 0 ? Math.round((safe / scanned) * 100) : null;
   const aiAnalyzedPct =
     scanned > 0 ? Math.round(((ai.evaluated ?? 0) / scanned) * 100) : null;
+
+  if (!isConnected) return <ConnectGmailState />;
 
   return (
     <div className="space-y-4">
