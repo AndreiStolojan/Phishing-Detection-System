@@ -10,17 +10,19 @@ import {
     buildControlledExplanationObject,
 } from './scan-explanation.service.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
+import { verifySenderBrand } from './brand-verification.service.js';
 import {
     AI_SCORE_MAX,
     AI_SIGNAL_WEIGHTS,
     RISK_THRESHOLDS,
     RULE_WEIGHTS,
     SCORE_MAX,
+    applyVerifiedBrandModifier,
 } from '../config/scoring.config.js';
 
-// Bumped v4 -> v5 with the rebalanced weights. Old scans keep their v4 score
-// until the email is rescanned (no retroactive bulk rescoring).
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v5';
+// Bumped v5 -> v6 with the verified-brand context modifier layer. Old scans keep
+// their v5 score until the email is rescanned (no retroactive bulk rescoring).
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v6';
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
@@ -86,6 +88,8 @@ const toPublicScan = (scan) => ({
     aiSignals: scan.aiSignals,
     aiExplanation: scan.aiExplanation,
     aiExplanationMeta: scan.aiExplanationMeta,
+    senderVerifiedBrand: scan.senderVerifiedBrand,
+    verifiedBrandName: scan.verifiedBrandName,
     scannedAt: scan.scannedAt,
     createdAt: scan.createdAt,
     updatedAt: scan.updatedAt,
@@ -103,17 +107,31 @@ export const mapScoreToVerdict = (score) => {
     return 'safe';
 };
 
-const calculateRulesForEmail = (email) => {
+export const calculateRulesForEmail = (email, brandContext = {}) => {
     let score = 0;
     const reasons = [];
     const triggeredRules = [];
 
-    const triggerRule = ({ rule, points, details, reason }) => {
-        score += points;
+    // modifierKey defaults to the rule id. For the rules that the verified-brand layer
+    // discounts (reply_to_mismatch, too_many_links_*), the rule id already equals the
+    // modifier key, so the default is correct; the suspicious_link_pattern:* rules are
+    // not in the modifier table and therefore keep full weight.
+    const triggerRule = ({ rule, modifierKey, points, details, reason }) => {
+        const effectivePoints = applyVerifiedBrandModifier(
+            modifierKey || rule,
+            points,
+            brandContext
+        );
+
+        if (effectivePoints <= 0) {
+            return;
+        }
+
+        score += effectivePoints;
         reasons.push(reason);
         triggeredRules.push({
             rule,
-            points,
+            points: effectivePoints,
             details,
         });
     };
@@ -205,17 +223,27 @@ const calculateRulesForEmail = (email) => {
     };
 };
 
-const calculateAiScoreFromSignals = (aiSignals) => {
+export const calculateAiScoreFromSignals = (aiSignals, brandContext = {}) => {
     let aiScore = 0;
     const aiTriggeredRules = [];
     const aiReasons = [];
 
-    const triggerAiRule = ({ rule, points, reason, details }) => {
-        aiScore += points;
+    // modifierKey is the verified-brand modifier table key (without the ai_semantic:
+    // prefix). When senderVerifiedBrand is true the points are discounted; a signal
+    // discounted to 0 (e.g. brand_impersonation_suspected) is dropped entirely so it
+    // neither scores nor shows up as a triggered warning.
+    const triggerAiRule = ({ rule, modifierKey, points, reason, details }) => {
+        const effectivePoints = applyVerifiedBrandModifier(modifierKey, points, brandContext);
+
+        if (effectivePoints <= 0) {
+            return;
+        }
+
+        aiScore += effectivePoints;
         aiReasons.push(reason);
         aiTriggeredRules.push({
             rule,
-            points,
+            points: effectivePoints,
             details,
         });
     };
@@ -231,6 +259,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.urgencyLevel === 'high') {
         triggerAiRule({
             rule: 'ai_semantic:urgency_high',
+            modifierKey: 'urgency_high',
             points: AI_SIGNAL_WEIGHTS.urgency_high,
             reason: 'AI semantic: high urgency language detected.',
             details: 'Semantic model flagged urgent pressure language as high.',
@@ -238,6 +267,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     } else if (aiSignals.urgencyLevel === 'medium') {
         triggerAiRule({
             rule: 'ai_semantic:urgency_medium',
+            modifierKey: 'urgency_medium',
             points: AI_SIGNAL_WEIGHTS.urgency_medium,
             reason: 'AI semantic: medium urgency language detected.',
             details: 'Semantic model flagged urgent pressure language as medium.',
@@ -247,6 +277,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.sensitiveDataRequest) {
         triggerAiRule({
             rule: 'ai_semantic:sensitive_data_request',
+            modifierKey: 'sensitive_data_request',
             points: AI_SIGNAL_WEIGHTS.sensitive_data_request,
             reason: 'AI semantic: request for sensitive data detected.',
             details: 'Semantic model detected password/card/OTP style data request.',
@@ -256,6 +287,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.loginOrActionRequest) {
         triggerAiRule({
             rule: 'ai_semantic:login_or_action_request',
+            modifierKey: 'login_or_action_request',
             points: AI_SIGNAL_WEIGHTS.login_or_action_request,
             reason: 'AI semantic: login or rapid action request detected.',
             details: 'Semantic model detected push toward login or immediate user action.',
@@ -265,6 +297,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.socialEngineeringLevel === 'high') {
         triggerAiRule({
             rule: 'ai_semantic:social_engineering_high',
+            modifierKey: 'social_engineering_high',
             points: AI_SIGNAL_WEIGHTS.social_engineering_high,
             reason: 'AI semantic: high social engineering pressure detected.',
             details: 'Semantic model flagged social engineering patterns as high.',
@@ -272,6 +305,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     } else if (aiSignals.socialEngineeringLevel === 'medium') {
         triggerAiRule({
             rule: 'ai_semantic:social_engineering_medium',
+            modifierKey: 'social_engineering_medium',
             points: AI_SIGNAL_WEIGHTS.social_engineering_medium,
             reason: 'AI semantic: medium social engineering pressure detected.',
             details: 'Semantic model flagged social engineering patterns as medium.',
@@ -281,6 +315,7 @@ const calculateAiScoreFromSignals = (aiSignals) => {
     if (aiSignals.brandImpersonationSuspected) {
         triggerAiRule({
             rule: 'ai_semantic:brand_impersonation_suspected',
+            modifierKey: 'brand_impersonation_suspected',
             points: AI_SIGNAL_WEIGHTS.brand_impersonation_suspected,
             reason: 'AI semantic: possible brand impersonation detected.',
             details: 'Semantic model found likely impersonation of known organization/brand.',
@@ -342,12 +377,16 @@ const buildFallbackExplanationResult = ({
     verdict,
     triggeredRules,
     aiSignals,
+    senderVerifiedBrand,
+    verifiedBrandName,
     fallbackReason,
 }) => ({
     explanation: buildControlledExplanationObject({
         verdict,
         triggeredRules,
         aiSignals,
+        senderVerifiedBrand,
+        verifiedBrandName,
     }),
     meta: {
         status: 'fallback',
@@ -455,6 +494,8 @@ const upsertCurrentScanForEmail = async ({
             verdict: result.verdict,
             reasons: result.reasons,
             triggeredRules: result.triggeredRules,
+            senderVerifiedBrand: result.senderVerifiedBrand,
+            verifiedBrandName: result.verifiedBrandName,
             scanSource,
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
             aiSignals,
@@ -518,7 +559,8 @@ export const scanEmailWithRules = async ({
     skipIfCurrentEngineExists = false,
 }) => {
     const email = await findOwnedEmail({ emailId, userId });
-    const aiInput = buildAiAnalysisInput(email);
+    const brandContext = verifySenderBrand({ senderDomain: email.senderDomain });
+    const aiInput = buildAiAnalysisInput(email, brandContext);
     const aiEnabled = await getUserAiEnabled(userId);
     const currentScan = await getCurrentScanForEmail({ userId, emailId: email._id });
 
@@ -539,14 +581,15 @@ export const scanEmailWithRules = async ({
         };
     }
 
-    const rulesResult = calculateRulesForEmail(email);
+    const rulesResult = calculateRulesForEmail(email, brandContext);
     const aiSignals = aiEnabled
         ? await analyzeEmailSemanticsWithOllama({
               analysisInput: aiInput,
               enabled: true,
+              brandContext,
           })
         : buildAiDisabledSignals();
-    const aiScoreResult = calculateAiScoreFromSignals(aiSignals);
+    const aiScoreResult = calculateAiScoreFromSignals(aiSignals, brandContext);
     const finalScore = Math.min(SCORE_MAX, rulesResult.ruleScore + aiScoreResult.aiScore);
     const finalResult = {
         score: finalScore,
@@ -558,6 +601,8 @@ export const scanEmailWithRules = async ({
             ...rulesResult.triggeredRules,
             ...aiScoreResult.aiTriggeredRules,
         ],
+        senderVerifiedBrand: Boolean(brandContext.senderVerifiedBrand),
+        verifiedBrandName: brandContext.brandName || null,
     };
     const shouldGenerateNaturalExplanation = aiEnabled;
     const explanationResult = shouldGenerateNaturalExplanation
@@ -573,6 +618,8 @@ export const scanEmailWithRules = async ({
               verdict: finalResult.verdict,
               triggeredRules: finalResult.triggeredRules,
               aiSignals,
+              senderVerifiedBrand: finalResult.senderVerifiedBrand,
+              verifiedBrandName: finalResult.verifiedBrandName,
               fallbackReason: 'ai_disabled',
           });
     const finalExplanationResult =
@@ -581,6 +628,8 @@ export const scanEmailWithRules = async ({
                   verdict: finalResult.verdict,
                   triggeredRules: finalResult.triggeredRules,
                   aiSignals,
+                  senderVerifiedBrand: finalResult.senderVerifiedBrand,
+                  verifiedBrandName: finalResult.verifiedBrandName,
                   fallbackReason: explanationResult.meta.fallbackReason || 'ollama_failed',
               })
             : explanationResult.meta.status === 'generated'

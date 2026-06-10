@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Sparkles, Gauge, Info, Bot, Shield } from 'lucide-react';
+import { Sparkles, Gauge, Info, Bot, Shield, ShieldCheck } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThreatSignals } from '@/components/security/ThreatSignals';
@@ -61,6 +61,19 @@ export function ScanDetails({ scan }) {
 
   return (
     <div className="space-y-4">
+      {/* Verified-brand banner — the sender is on an official brand domain, so
+          brand-typical signals were intentionally weighted down. */}
+      {scan.senderVerifiedBrand && (
+        <div className="flex items-start gap-2 rounded-lg border border-risk-safe/30 bg-risk-safe-soft px-3 py-2.5 text-sm text-risk-safe">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Verified {scan.verifiedBrandName || 'brand'} sender — this email comes from an
+            official domain, so brand-typical signals (urgency, links, sign-in prompts) were
+            weighted down.
+          </span>
+        </div>
+      )}
+
       {/* AI / rule-based explanation — primary panel */}
       {summary && (
         <Card className={ollamaUnavailable ? 'border-border' : 'border-primary/25 bg-primary/[0.06]'}>

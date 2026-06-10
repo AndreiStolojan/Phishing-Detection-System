@@ -90,14 +90,34 @@ const buildAiSentence = (aiSignals) => {
     return `The AI analysis indicates that ${fragments.slice(0, 2).join(' and ')}.`;
 };
 
+const buildVerifiedBrandSentence = (senderVerifiedBrand, verifiedBrandName) => {
+    if (!senderVerifiedBrand) {
+        return '';
+    }
+
+    const brandLabel = verifiedBrandName ? ` of ${verifiedBrandName}` : '';
+
+    return `This email comes from a verified official domain${brandLabel}, so brand-typical signals (urgency, links, sign-in prompts) were weighted down.`;
+};
+
 export const buildControlledExplanation = ({
     verdict,
     triggeredRules,
     aiSignals,
+    senderVerifiedBrand = false,
+    verifiedBrandName = null,
 }) => {
     const sentences = [];
 
     sentences.push(verdictToSentence[verdict] || verdictToSentence.safe);
+
+    const verifiedBrandSentence = buildVerifiedBrandSentence(
+        senderVerifiedBrand,
+        verifiedBrandName
+    );
+    if (verifiedBrandSentence) {
+        sentences.push(verifiedBrandSentence);
+    }
 
     const ruleSentence = buildRuleSentence(triggeredRules);
     if (ruleSentence) {
@@ -116,6 +136,14 @@ export const buildControlledExplanationObject = ({
     verdict,
     triggeredRules,
     aiSignals,
+    senderVerifiedBrand = false,
+    verifiedBrandName = null,
 }) => ({
-    summary: buildControlledExplanation({ verdict, triggeredRules, aiSignals }),
+    summary: buildControlledExplanation({
+        verdict,
+        triggeredRules,
+        aiSignals,
+        senderVerifiedBrand,
+        verifiedBrandName,
+    }),
 });
