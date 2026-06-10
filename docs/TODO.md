@@ -194,6 +194,9 @@ Milestone: scor și motive pentru fiecare email
 - [x] Stabilizare integrare Ollama local: fallback host local și erori AI diferențiate pentru debugging
 - [x] Introducere scor hibrid: `ruleScore + aiScore` cu limită superioară pentru componenta AI
 - [x] Respectare setare AI per utilizator: când AI este oprit nu se apelează Ollama, iar când este pornit scanările făcute fără AI pot fi completate prin rescanare eligibilă
+- [x] **Reducere fals-pozitive (2026-06-10, `fix/false-positive-reduction`):** verificare brand pe domeniul expeditorului (`brand-domains.config.js` + `brand-verification.service.js`, potrivire pe sufix, mailbox de consumator excluse), strat de modificatori contextuali la `senderVerifiedBrand` (`VERIFIED_BRAND_MODIFIERS`), prompt Ollama dedicat brandului verificat, badge „Verified sender". Engine `v5→v6`. Vezi `docs/FALSE_POSITIVE_REDUCTION.md`.
+- [ ] (După MVP) Regulă deterministă de impersonare display-name vs domeniu (numele afișat pretinde brandul B, dar domeniul ∉ domeniilor oficiale ale lui B) — partea de precizie/recall, complementară reducerii de fals-pozitive.
+- [ ] (După MVP) Autentificare reală a expeditorului prin SPF/DKIM/DMARC pentru a întări verificarea de brand.
 
 Dependențe: Faza 7
 

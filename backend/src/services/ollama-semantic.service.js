@@ -9,7 +9,9 @@ import {
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'gemma3:4b';
 const DEFAULT_OLLAMA_TIMEOUT_MS = 45000;
-const DEFAULT_PROMPT_VERSION = 'semantic-v2';
+// Bumped v2 -> v3: the prompt now receives the sender domain and a brand-verification
+// context, and uses a dedicated variant for verified-brand senders.
+const DEFAULT_PROMPT_VERSION = 'semantic-v3';
 
 const normalizeBoolean = (value, defaultValue = false) => {
     if (typeof value === 'boolean') {
@@ -106,15 +108,9 @@ const buildCandidateBaseUrls = () => {
     return [...new Set(candidateUrls)];
 };
 
-const buildSemanticSystemPrompt = () => `
-You are a cybersecurity analyst specializing in phishing detection.
-Your only task is to extract semantic risk signals from one email. You do NOT give a
-final verdict or a score — a separate rule engine combines your signals with other checks.
-
-Phishing emails typically impersonate a known brand or authority, create urgency or fear,
-request credentials or sensitive data (passwords, OTP codes, card numbers), or pressure the
-reader to click a link or sign in quickly.
-
+// The strict JSON contract is identical for both prompt variants, so the downstream
+// parser is unchanged whether or not the sender is a verified brand.
+const SEMANTIC_JSON_CONTRACT = `
 Return STRICT JSON only — no markdown, no text before or after the JSON.
 Use exactly these keys:
 {
@@ -127,8 +123,44 @@ Use exactly these keys:
   "summary": "<max 20 words, factual, in English>"
 }
 
-Be conservative: when a signal is unclear, choose the safer (lower or false) value.
+Be conservative: when a signal is unclear, choose the safer (lower or false) value.`;
+
+const buildSemanticSystemPrompt = (brandContext = {}) => {
+    if (brandContext.senderVerifiedBrand && brandContext.brandName) {
+        const officialDomainsText = (brandContext.officialDomains || []).join(', ');
+
+        return `
+You are a cybersecurity analyst specializing in phishing detection.
+Your only task is to extract semantic risk signals from one email. You do NOT give a
+final verdict or a score — a separate rule engine combines your signals with other checks.
+
+This email's sender domain (${brandContext.senderDomain || 'unknown'}) has been verified as an
+OFFICIAL domain of ${brandContext.brandName}${officialDomainsText ? ` (official domains: ${officialDomainsText})` : ''}.
+This is a legitimate sender, NOT an impersonation. Always set "brandImpersonationSuspected" to false.
+
+Because the sender is legitimate, focus your analysis on whether the email still contains
+OTHER phishing indicators despite the trusted sender:
+- links that point to domains OTHER than ${brandContext.brandName}'s official domains;
+- requests for passwords, OTP codes, card numbers, or other sensitive data;
+- pressure to sign in or act immediately;
+- content inconsistent with the kind of email this brand normally sends.
+${SEMANTIC_JSON_CONTRACT}
 `.trim();
+    }
+
+    return `
+You are a cybersecurity analyst specializing in phishing detection.
+Your only task is to extract semantic risk signals from one email. You do NOT give a
+final verdict or a score — a separate rule engine combines your signals with other checks.
+
+Phishing emails typically impersonate a known brand or authority, create urgency or fear,
+request credentials or sensitive data (passwords, OTP codes, card numbers), or pressure the
+reader to click a link or sign in quickly. The email's real sender domain is provided in the
+data as "senderDomain"; use it to judge whether any brand the email claims to be matches the
+actual sender, and set "brandImpersonationSuspected" accordingly.
+${SEMANTIC_JSON_CONTRACT}
+`.trim();
+};
 
 const buildSemanticUserPrompt = (analysisInput) => `
 Extract the semantic signals for this email as JSON using the required keys.
@@ -233,6 +265,7 @@ const parseSemanticOutput = (rawValue) => {
 export const analyzeEmailSemanticsWithOllama = async ({
     analysisInput,
     enabled,
+    brandContext = {},
     disabledReason = 'env_disabled',
 } = {}) => {
     const now = new Date();
@@ -271,7 +304,7 @@ export const analyzeEmailSemanticsWithOllama = async ({
         messages: [
             {
                 role: 'system',
-                content: buildSemanticSystemPrompt(),
+                content: buildSemanticSystemPrompt(brandContext),
             },
             {
                 role: 'user',

@@ -122,12 +122,21 @@ Atașamentele de tip executabil sau arhivă trebuie tratate cu atenție. Dacă e
 
 ### Impersonare de brand
 
-Se poate folosi o listă mică de branduri comune țintite des:
+Singurul semnal de impersonare este boolean-ul semantic Ollama `brandImpersonationSuspected`
+(+10 în `aiScore`). Începând cu engine `rules-ai-v6`, acest semnal este **verificat pe
+domeniu**:
 
-- bănci;
-- servicii de curierat;
-- platforme mari;
-- instituții cunoscute.
+- `backend/src/config/brand-domains.config.js` ține o listă (ușor de extins) de domenii
+  oficiale, controlate de brand (PayPal, Google, Amazon, Microsoft, Apple, Netflix, Meta,
+  LinkedIn, curieri). Potrivirea e pe sufix: `mail.paypal.com` = `paypal.com`, dar
+  `evil-paypal.com` și `paypal.com.evil.com` NU se potrivesc.
+- Domeniile de mailbox de consumator (`gmail.com`, `outlook.com`, `icloud.com`…) sunt
+  excluse deliberat — oricine poate avea o adresă acolo, deci nu sunt semnal de încredere.
+- Dacă expeditorul vine de pe un domeniu oficial → `senderVerifiedBrand = true`,
+  impersonarea e suprimată (×0) și semnalele tipice de brand sunt reduse (vezi mai jos).
+- Dacă nu se potrivește → logica veche rulează ca înainte (LLM-ul decide impersonarea).
+
+Detalii și raționament complet: `docs/FALSE_POSITIVE_REDUCTION.md`.
 
 ## Reguli pentru false positives
 
@@ -139,6 +148,14 @@ False positive înseamnă că un email legitim este marcat ca suspect. Pentru a 
 - emailurile de tip newsletter nu trebuie penalizate prea tare doar pentru multe linkuri;
 - limbajul urgent trebuie tratat cu grijă;
 - linkurile scurtate trebuie interpretate împreună cu alte semnale.
+
+**Strat de context pentru brand verificat (`rules-ai-v6`):** când `senderVerifiedBrand = true`,
+un strat de multiplicatori (`VERIFIED_BRAND_MODIFIERS` în `scoring.config.js`) reduce semnalele
+care sunt normale pentru mailul de brand legitim: impersonare ×0, CTA „sign in" ×0.3, multe
+linkuri ×0.4, urgență/social engineering ×0.5, `reply_to_mismatch` ×0.5. Rămân la greutate
+plină semnalele de payload (cerere de date sensibile, atașamente, IP-link, credențiale în URL),
+pentru că sunt periculoase indiferent de expeditor. Ponderile de bază nu se modifică — doar se
+multiplică la declanșare.
 
 ## Format recomandat pentru motivele scanării
 

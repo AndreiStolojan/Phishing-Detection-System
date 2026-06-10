@@ -11,6 +11,16 @@ Format recomandat pentru deciziile viitoare:
 - motiv
 - impact
 
+## 2026-06-10 — Verificare brand pe domeniul expeditorului + strat de modificatori contextuali (reducere fals-pozitive)
+
+- **Decizie:** introducem verificarea brandului pe baza domeniului real al expeditorului. Dacă `senderDomain` aparține unui domeniu oficial, controlat de brand (`backend/src/config/brand-domains.config.js`, potrivire pe sufix → `mail.paypal.com` = `paypal.com`), atunci `senderVerifiedBrand = true`: impersonarea de brand e suprimată (×0) și semnalele tipice de brand (urgență, multe linkuri, CTA „sign in", `reply_to_mismatch`) sunt reduse printr-un strat de multiplicatori contextuali (`VERIFIED_BRAND_MODIFIERS` + `applyVerifiedBrandModifier` în `scoring.config.js`). Promptul Ollama primește domeniul și, când e verificat, instrucțiunea explicită „nu marca impersonare; caută alte semnale".
+- **Motiv:** singurul semnal de impersonare era boolean-ul LLM `brandImpersonationSuspected` (+10), care nu compara niciodată domeniul expeditorului cu brandul → emailuri legitime de la `paypal.com`/`amazon.com` etc. acumulau puncte reale (impersonare + urgență + CTA + linkuri) și ajungeau „suspicious". Vezi `docs/FALSE_POSITIVE_REDUCTION.md`.
+- **Decizie-cheie de securitate:** domeniile de mailbox de consumator (`gmail.com`, `outlook.com`, `live.com`, `icloud.com`…) sunt EXCLUSE deliberat din verificare (`CONSUMER_MAILBOX_DOMAINS`) — oricine poate avea o adresă acolo, deci nu sunt semnal de încredere. Altfel un atacator ar trimite phishing de pe un Gmail și ar primi reducerea de scor.
+- **Ponderi de bază neatinse:** `RULE_WEIGHTS`/`AI_SIGNAL_WEIGHTS` rămân exact ca în v5. Modificatorii sunt multiplicatori aplicați la declanșare, nu ponderi noi. `sensitive_data_request`, atașamentele, IP-link, credențiale în URL rămân la greutate plină chiar și pentru brand verificat (acoperă conturi compromise).
+- **Praguri:** NESCHIMBATE (30/60). Cauza fals-pozitivelor era acumularea de puncte, nu pragul; relaxarea pragului ar fi scăzut recall-ul pe phishing real.
+- **Backward compat:** engine `rules-ai-v5` → `rules-ai-v6`, prompt `semantic-v2` → `semantic-v3`. Scanările vechi păstrează scorul până la rescanare.
+- **Impact:** scanări noi de la branduri verificate au mult mai puține fals-pozitive (ex.: extras PayPal 36→10 puncte, „suspicious"→„safe"). Badge „Verified sender" în UI. Câmpuri noi pe `Scan`: `senderVerifiedBrand`, `verifiedBrandName`.
+
 ## 2026-06-09 — Configurație unică de scoring + invariante AI/reguli
 
 - **Decizie:** toate ponderile, plafonul AI, pragurile de verdict și `SCORE_MAX` trăiesc într-un singur fișier, `backend/src/config/scoring.config.js`. Frontend-ul oglindește doar maximele necesare barelor în `frontend/src/lib/scoring.js` (Vite nu poate importa ESM din backend între pachete).

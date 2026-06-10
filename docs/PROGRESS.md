@@ -13,11 +13,22 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-06-09`
-- Faza curentă: `Faza 22 - UI Premium Upgrade` — COMPLETĂ (toate 11 faze)
+- Data ultimei actualizări: `2026-06-10`
+- Faza curentă: `Faza 22 - UI Premium Upgrade` — COMPLETĂ (toate 11 faze) · hotfix `fix/false-positive-reduction` (verificare brand)
 - Status general: backend 100% stabil, MVP ~99%. UI premium Apple-grade livrat integral (Fazele 1-11). Build frontend curat, 20/20 teste frontend, 12/12 teste backend. Rămas: verificare vizuală cap-coadă de Andrei (Gmail real) + capturi demo.
 - Progres estimativ MVP: `100%` backend · `97%` produs final
 - Deadline: ~2026-06-17 (draft lucrare)
+
+## Notă sesiune 2026-06-10 - Reducere fals-pozitive: verificare brand + modificatori contextuali (branch `fix/false-positive-reduction`)
+
+Context: emailuri legitime de la branduri mari erau marcate „suspicious". Cauza: singurul semnal de impersonare (`brandImpersonationSuspected`, +10) nu compara niciodată domeniul real al expeditorului cu brandul, iar peste el se adunau urgență + CTA + multe linkuri.
+
+- **Verificare brand pe domeniu:** nou `config/brand-domains.config.js` (domenii oficiale, controlate de brand; potrivire pe sufix) + `services/brand-verification.service.js`. Domeniile de mailbox de consumator (gmail/outlook/icloud…) sunt EXCLUSE deliberat (altfel atacatorul trimite de pe Gmail și primește reducerea).
+- **Strat de modificatori contextuali** (`VERIFIED_BRAND_MODIFIERS` + `applyVerifiedBrandModifier` în `scoring.config.js`): la `senderVerifiedBrand=true`, impersonare ×0, CTA ×0.3, multe linkuri ×0.4, urgență/social-eng ×0.5, reply-to-mismatch ×0.5. Payload-ul (date sensibile, atașamente, IP-link, credențiale) rămâne plin. Ponderile de bază NU se ating.
+- **Prompt Ollama:** variantă dedicată pentru brand verificat (nu marca impersonare, caută alte semnale); pentru neverificat, primește domeniul ca să raționeze. Aceleași chei JSON. `semantic-v2`→`semantic-v3`.
+- **Praguri:** neschimbate (30/60) — cauza era acumularea de puncte, nu pragul.
+- **Persistență + UI:** câmpuri noi pe `Scan` (`senderVerifiedBrand`, `verifiedBrandName`), expuse în API, badge „Verified sender" în `ScanDetails`. Engine `rules-ai-v5`→`rules-ai-v6`.
+- **Teste:** nou `brand-verification.test.js` (13 teste: potrivire sufix, lookalike, suffix-spoof, mailbox de consumator excluse, multiplicatori). Backend 29/29 (+1 skip DB), lint curat, build frontend curat. Raționament complet: `docs/FALSE_POSITIVE_REDUCTION.md`.
 
 ## Notă sesiune 2026-06-09 - Integritate date, scop dashboard 30 zile, culori consistente (branch `feat/data-integrity-dashboard`)
 

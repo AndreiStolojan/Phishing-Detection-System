@@ -62,3 +62,77 @@ export const AI_SCORE_MAX = 50;
  * score, so the bar is drawn against SCORE_MAX. Exposed here so the UI never hardcodes it.
  */
 export const RULE_SCORE_MAX = SCORE_MAX;
+
+/*
+ * ── Verified-brand context modifier layer ──────────────────────────────────────
+ *
+ * These are CONTEXT MULTIPLIERS, not new base weights. They are applied on top of
+ * the base weights above ONLY when sender-brand verification succeeds
+ * (senderVerifiedBrand === true — see brand-verification.service.js). The base
+ * weights in RULE_WEIGHTS / AI_SIGNAL_WEIGHTS are never mutated; the engine reads
+ * the base weight and multiplies it through applyVerifiedBrandModifier() at the
+ * moment a rule fires.
+ *
+ * Reasoning: when an email genuinely comes from a brand's own domain, the signals
+ * that look phishy in the abstract (urgency, lots of links, a "Sign in" button,
+ * replies routed to a support/ESP domain) are exactly what real transactional and
+ * marketing mail looks like. They are much weaker evidence here, so we discount
+ * them. A multiplier keyed per signal keeps the discount auditable and in one place.
+ *
+ *   key                         multiplier  effect on a verified-brand email
+ *   ─────────────────────────── ──────────  ─────────────────────────────────────
+ *   brand_impersonation_suspected  0.0   suppressed — it came from the real brand
+ *   login_or_action_request        0.3   CTA buttons are standard in brand mail
+ *   too_many_links_high            0.4   brand newsletters are link-heavy by design
+ *   too_many_links_medium          0.4   same
+ *   urgency_high                   0.5   real companies do send account/security alerts
+ *   urgency_medium                 0.5   same
+ *   social_engineering_high        0.5   overlaps with the "account alert" framing above
+ *   social_engineering_medium      0.5   same
+ *   reply_to_mismatch              0.5   verified brands commonly split send/reply domains
+ *
+ * Signals intentionally LEFT AT FULL WEIGHT for verified brands (NOT listed here):
+ *   - sensitive_data_request — a real brand never asks for your password/OTP/card by
+ *     email; this stays a top signal even from a "verified" sender (covers compromised
+ *     accounts and any spoofing the domain check can't catch).
+ *   - shortened_url_detected — brand-controlled mail rarely needs a bit.ly wrapper.
+ *   - ip_address_link, embedded_credentials, punycode_domain, very_long_url,
+ *     high_risk_attachment_extension, archive_attachment_extension — payload/transport
+ *     signals that are abnormal regardless of who claims to be sending.
+ *
+ * There is no HTML-heavy / image-ratio rule or generic-greeting rule in this engine,
+ * so the task's rows for those have no weight to modify (documented, not invented —
+ * adding such a penalty would only create NEW false positives for unverified mail).
+ */
+export const VERIFIED_BRAND_MODIFIERS = {
+    brand_impersonation_suspected: 0,
+    login_or_action_request: 0.3,
+    too_many_links_high: 0.4,
+    too_many_links_medium: 0.4,
+    urgency_high: 0.5,
+    urgency_medium: 0.5,
+    social_engineering_high: 0.5,
+    social_engineering_medium: 0.5,
+    reply_to_mismatch: 0.5,
+};
+
+/*
+ * Apply the verified-brand context modifier to a base weight.
+ *   - Not a verified-brand email → base points unchanged.
+ *   - Verified, signal not in the modifier table → base points unchanged (full weight).
+ *   - Verified, signal in the table → rounded, discounted points (0 = suppressed).
+ * Base weights are read-only here; this only scales the points a rule contributes.
+ */
+export const applyVerifiedBrandModifier = (signalKey, basePoints, { senderVerifiedBrand } = {}) => {
+    if (!senderVerifiedBrand) {
+        return basePoints;
+    }
+
+    const multiplier = VERIFIED_BRAND_MODIFIERS[signalKey];
+
+    if (multiplier === undefined) {
+        return basePoints;
+    }
+
+    return Math.round(basePoints * multiplier);
+};
