@@ -298,10 +298,12 @@ export function EmailDetailPage() {
   const [error, setError] = useState(null);
   const [showAllLinks, setShowAllLinks] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  const [rescanError, setRescanError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setRescanError(null);
     try {
       const detail = await getEmail(paramId);
       setEmail(detail);
@@ -350,13 +352,21 @@ export function EmailDetailPage() {
 
   const handleRescan = async () => {
     setRescanning(true);
+    setRescanError(null);
     try {
-      await scanEmail(emailId(email));
-      await load();
+      // POST returns the freshly computed scan; refetch only this email to pick
+      // up the recomputed verdict/badge. We do NOT reload the raw body or the
+      // inbox list — just this email's verdict + scan state.
+      const freshScan = await scanEmail(emailId(email));
+      const freshEmail = await getEmail(paramId);
+      setScan(freshScan);
+      setEmail((prev) => ({ ...prev, ...freshEmail }));
       bustCacheByPrefix('inbox-', 'dash-', 'risky-');
       toast.success('Scan complete');
     } catch (err) {
-      toast.error(err.message || 'Scan failed.');
+      // Leave the previous verdict/scan untouched and surface the failure
+      // inline next to the button instead of as a page-level alert.
+      setRescanError(err.message || 'Scan failed. Your previous result is unchanged.');
     } finally {
       setRescanning(false);
     }
@@ -471,6 +481,17 @@ export function EmailDetailPage() {
               {rescanning ? 'Scanning…' : 'Scan again'}
             </Button>
           </div>
+
+          {/* Inline rescan error — never a page-level alert; previous result stays. */}
+          {rescanError && (
+            <p
+              role="alert"
+              className="mt-3 flex items-start gap-2 rounded-md border border-risk-quarantine/30 bg-risk-quarantine-soft px-3 py-2 text-xs text-risk-quarantine"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{rescanError}</span>
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -547,18 +568,23 @@ export function EmailDetailPage() {
           )}
         </div>
 
-        {/* Security panel */}
-        <div className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Your decision</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ReviewActions email={email} onReviewed={handleReviewed} />
-            </CardContent>
-          </Card>
+        {/* Security panel — outer container clips + owns the stacking context;
+            the inner area is the only thing that scrolls, so its scrollbar can
+            never bleed over the message column. On mobile this is a normal
+            full-width stacked block (no sticky / no overflow). */}
+        <div className="min-w-0 lg:sticky lg:top-4 lg:self-start lg:isolate lg:max-h-[calc(100vh-2rem)] lg:overflow-hidden lg:pl-2">
+          <div className="space-y-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-2 lg:[scrollbar-gutter:stable]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Your decision</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ReviewActions email={email} onReviewed={handleReviewed} />
+              </CardContent>
+            </Card>
 
-          {scan && <ScanDetails scan={scan} />}
+            {scan && <ScanDetails scan={scan} />}
+          </div>
         </div>
       </div>
     </div>
