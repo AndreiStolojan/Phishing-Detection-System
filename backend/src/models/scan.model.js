@@ -66,6 +66,18 @@ const scanSchema = new mongoose.Schema(
             type: [triggeredRuleSchema],
             default: [],
         },
+        // True when the email came from an official, brand-controlled sending domain
+        // (see brand-verification.service.js). Drives the verified-brand context
+        // modifier layer and the "verified sender" UI badge.
+        senderVerifiedBrand: {
+            type: Boolean,
+            default: false,
+        },
+        verifiedBrandName: {
+            type: String,
+            default: null,
+            trim: true,
+        },
         scanSource: {
             type: String,
             enum: ['manual', 'sync'],

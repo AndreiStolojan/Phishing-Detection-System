@@ -11,7 +11,7 @@ const MAX_AI_LINK_CHARS = 120;
 const truncateText = (textValue, maxChars) =>
     textValue.length <= maxChars ? textValue : textValue.slice(0, maxChars);
 
-export const buildAiAnalysisInput = (email) => {
+export const buildAiAnalysisInput = (email, brandContext = {}) => {
     const textBody = normalizeWhitespace(email.textBody || '');
     const htmlFallback = normalizeWhitespace(stripHtmlTags(email.htmlBody || ''));
     const rawAnalysisBody = textBody || htmlFallback || email.snippet || '';
@@ -27,6 +27,14 @@ export const buildAiAnalysisInput = (email) => {
         subject: truncateText(email.subject || '', MAX_AI_SUBJECT_CHARS),
         from: truncateText(email.from || '', MAX_AI_HEADER_CHARS),
         replyTo: truncateText(email.replyTo || '', MAX_AI_HEADER_CHARS),
+        senderDomain: email.senderDomain || '',
+        // Brand verification context, always present so the prompt can reason about the
+        // sender's real domain. brandName/officialDomains are only set when verified.
+        senderVerifiedBrand: Boolean(brandContext.senderVerifiedBrand),
+        brandName: brandContext.brandName || null,
+        officialDomains: brandContext.senderVerifiedBrand
+            ? brandContext.officialDomains || []
+            : [],
         body: analysisBody,
         links: limitedLinks,
         metadata: {
