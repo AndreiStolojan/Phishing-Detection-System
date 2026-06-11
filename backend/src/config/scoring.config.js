@@ -136,3 +136,68 @@ export const applyVerifiedBrandModifier = (signalKey, basePoints, { senderVerifi
 
     return Math.round(basePoints * multiplier);
 };
+
+/*
+ * ── User sender-list layer (allowlist / blocklist) ─────────────────────────────
+ *
+ * Unlike every weight above, these encode an EXPLICIT USER DECISION, not a
+ * heuristic. That is why the blocklist weight lives outside RULE_WEIGHTS: the
+ * invariant "no single signal reaches HIGH_RISK alone" applies to detection
+ * heuristics, which can be wrong; a user saying "block this sender" is not a
+ * heuristic and is allowed to decide the verdict by itself.
+ *
+ * Blocklist — hard floor. The rule contributes exactly the likely_phishing
+ * threshold, so a blocklisted sender/domain is GUARANTEED that verdict by
+ * construction (tying it to RISK_THRESHOLDS keeps the guarantee if thresholds
+ * ever move). Real signals still add on top, so the score remains informative.
+ *
+ * Allowlist — strong discount, NOT a hard "safe". The user trusts the sender,
+ * so contextual signals (urgency, link counts, CTAs, reply-to splits) are muted.
+ * Payload signals that indicate a compromised or spoofed trusted account keep
+ * full weight:
+ *   - sensitive_data_request (a trusted sender still never asks for passwords/OTP)
+ *   - high_risk_attachment_extension, ip_address_link, embedded_credentials,
+ *     punycode_domain — abnormal transport/payload regardless of trust.
+ * This is deliberately STRONGER than the verified-brand layer (user intent beats
+ * domain reputation) but never weaker than it: the engine takes the minimum
+ * multiplier when both apply.
+ */
+export const USER_BLOCKLIST_RULE_POINTS = RISK_THRESHOLDS.likelyPhishing;
+
+export const USER_ALLOWLIST_MODIFIERS = {
+    reply_to_mismatch: 0,
+    too_many_links_high: 0,
+    too_many_links_medium: 0,
+    very_long_url: 0,
+    shortened_url_detected: 0,
+    archive_attachment_extension: 0.5,
+    urgency_high: 0,
+    urgency_medium: 0,
+    login_or_action_request: 0,
+    social_engineering_high: 0.5,
+    social_engineering_medium: 0.5,
+    brand_impersonation_suspected: 0,
+};
+
+/*
+ * Combined context modifier: applies the verified-brand and user-allowlist layers
+ * together by taking the minimum multiplier (discounts never stack multiplicatively,
+ * and a layer can only lower a weight, never raise it).
+ */
+export const applyScoreContextModifiers = (signalKey, basePoints, context = {}) => {
+    let multiplier = 1;
+
+    if (context.senderVerifiedBrand && VERIFIED_BRAND_MODIFIERS[signalKey] !== undefined) {
+        multiplier = Math.min(multiplier, VERIFIED_BRAND_MODIFIERS[signalKey]);
+    }
+
+    if (context.senderAllowlisted && USER_ALLOWLIST_MODIFIERS[signalKey] !== undefined) {
+        multiplier = Math.min(multiplier, USER_ALLOWLIST_MODIFIERS[signalKey]);
+    }
+
+    if (multiplier === 1) {
+        return basePoints;
+    }
+
+    return Math.round(basePoints * multiplier);
+};

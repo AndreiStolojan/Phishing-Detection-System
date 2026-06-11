@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 
 import { MailAccountProvider } from '@/context/MailAccountContext';
+import { TimeRangeProvider } from '@/context/TimeRangeContext';
 import { Sidebar } from './Sidebar';
 import { MobileTopbar, MobileDrawer } from './MobileNav';
 import { PageTransition } from './PageTransition';
@@ -18,22 +19,25 @@ export function AppShell() {
 
   return (
     <MailAccountProvider>
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <MobileTopbar onMenu={() => setNavOpen(true)} />
-          <main className="flex min-w-0 flex-1 flex-col px-5 py-6 md:py-8">
-            <div className="mx-auto w-full max-w-6xl space-y-6">
-              <AnimatePresence mode="wait" initial={false}>
-                <PageTransition key={location.pathname}>
-                  <Outlet />
-                </PageTransition>
-              </AnimatePresence>
-            </div>
-          </main>
+      <TimeRangeProvider>
+        <div className="flex min-h-screen bg-background">
+          <Sidebar />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <MobileTopbar onMenu={() => setNavOpen(true)} />
+            {/* px-5 = the exact 20px mobile gutters; desktop spans full width. */}
+            <main className="flex min-w-0 flex-1 flex-col px-5 py-6 md:py-8">
+              <div className="w-full space-y-6">
+                <AnimatePresence mode="wait" initial={false}>
+                  <PageTransition key={location.pathname}>
+                    <Outlet />
+                  </PageTransition>
+                </AnimatePresence>
+              </div>
+            </main>
+          </div>
         </div>
-      </div>
-      <MobileDrawer open={navOpen} onClose={() => setNavOpen(false)} />
+        <MobileDrawer open={navOpen} onClose={() => setNavOpen(false)} />
+      </TimeRangeProvider>
     </MailAccountProvider>
   );
 }

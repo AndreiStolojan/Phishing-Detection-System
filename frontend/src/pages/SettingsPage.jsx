@@ -13,7 +13,11 @@ import {
   Link2,
   ChevronUp,
   ChevronDown,
+  ListChecks,
+  ArrowRight,
 } from 'lucide-react';
+
+import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -483,6 +487,21 @@ export function SettingsPage() {
           </AlertDialog>
         </div>
       </Section>
+
+        {/* Pointer to the dedicated Trusted & Blocked page */}
+        <Section
+          icon={ListChecks}
+          title="Trusted & blocked senders"
+          description="Your always-trust / always-block rules now live on their own page."
+          index={3}
+        >
+          <Button asChild size="sm" variant="outline">
+            <Link to="/sender-lists">
+              Manage rules
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </Section>
         </div>
       </div>
     </div>

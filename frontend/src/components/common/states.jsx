@@ -122,41 +122,6 @@ export function InboxSkeleton({ rows = 8 }) {
   );
 }
 
-export function ReportsSkeleton() {
-  return (
-    <div className="grid gap-4 lg:grid-cols-5">
-      <div className="space-y-3 lg:col-span-2">
-        {Array.from({ length: 3 }).map((_, r) => (
-          <div key={r} className="grid grid-cols-2 gap-3">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Card key={i}>
-                <div className="space-y-2 p-5">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-8 w-12" />
-                </div>
-              </Card>
-            ))}
-          </div>
-        ))}
-      </div>
-      <div className="space-y-4 lg:col-span-3">
-        <Card className="p-6">
-          <Skeleton className="mb-4 h-4 w-40" />
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-5 w-full rounded" />
-            ))}
-          </div>
-        </Card>
-        <Card className="p-6">
-          <Skeleton className="mb-4 h-4 w-28" />
-          <Skeleton className="h-16 w-full rounded-lg" />
-        </Card>
-      </div>
-    </div>
-  );
-}
-
 export function DashboardSkeleton() {
   return (
     <>
@@ -186,7 +151,7 @@ export function DashboardSkeleton() {
       </div>
 
       {/* Donut + attention */}
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-2 p-6">
           <Skeleton className="mb-4 h-4 w-28" />
           <Skeleton className="mx-auto h-52 w-52 rounded-full" />

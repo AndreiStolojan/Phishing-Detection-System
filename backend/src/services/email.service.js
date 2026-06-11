@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import createError from '../common/errors/create-error.js';
+import { parseDateRangeQuery } from '../common/utils/date-range.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
 import { buildEmailStateForUser } from './email-state.service.js';
@@ -187,6 +188,7 @@ const parseEmailListQuery = (query = {}) => {
         typeof query.riskBucket === 'string' ? query.riskBucket.trim() : '';
     const mailAccountId =
         typeof query.mailAccountId === 'string' ? query.mailAccountId.trim() : '';
+    const range = parseDateRangeQuery(query);
 
     if (verdict && !ALLOWED_VERDICTS.has(verdict)) {
         throw createError(
@@ -224,16 +226,21 @@ const parseEmailListQuery = (query = {}) => {
         verdict,
         riskBucket,
         mailAccountId,
+        range,
     };
 };
 
-const buildEmailListBaseMatch = ({ userId, q, mailAccountId }) => {
+const buildEmailListBaseMatch = ({ userId, q, mailAccountId, range }) => {
     const match = {
         userId: new mongoose.Types.ObjectId(String(userId)),
     };
 
     if (mailAccountId) {
         match.mailAccountId = new mongoose.Types.ObjectId(mailAccountId);
+    }
+
+    if (range) {
+        match.receivedAt = { $gte: range.from, $lt: range.to };
     }
 
     if (q) {
@@ -435,13 +442,14 @@ const findLatestScanForOwnedEmail = async ({ userId, emailId }) => {
 };
 
 export const getEmailsForUser = async ({ userId, query }) => {
-    const { page, limit, q, verdict, riskBucket, mailAccountId } =
+    const { page, limit, q, verdict, riskBucket, mailAccountId, range } =
         parseEmailListQuery(query);
     const skip = (page - 1) * limit;
     const baseMatch = buildEmailListBaseMatch({
         userId,
         q,
         mailAccountId,
+        range,
     });
     const latestScanStages = buildLatestScanLookupStages();
     const emailStateStages = buildEmailStateStages();
@@ -548,13 +556,19 @@ export const getEmailRawByIdForUser = async ({ userId, emailId }) => {
     return toEmailRaw(email);
 };
 
-export const getTrendForUser = async ({ userId, days = 30 }) => {
+export const getTrendForUser = async ({ userId, days = 30, from, to } = {}) => {
     const userObjectId = new mongoose.Types.ObjectId(String(userId));
+    // Absolute from/to range (global time filter) wins over the rolling-days
+    // default. Buckets stay daily either way; short ranges just have few points.
+    const range = parseDateRangeQuery({ from, to });
     const since = new Date();
     since.setDate(since.getDate() - days);
+    const receivedAtMatch = range
+        ? { $gte: range.from, $lt: range.to }
+        : { $gte: since };
 
     const results = await Email.aggregate([
-        { $match: { userId: userObjectId, receivedAt: { $gte: since } } },
+        { $match: { userId: userObjectId, receivedAt: receivedAtMatch } },
         ...buildLatestScanLookupStages(),
         ...buildEmailStateStages(),
         {
@@ -580,31 +594,111 @@ export const getTrendForUser = async ({ userId, days = 30 }) => {
         }
     }
 
+    // Zero-fill one entry per day covered by the window, so the chart's x-axis
+    // is continuous. Day buckets follow the same UTC dates the $dateToString
+    // grouping above produces.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const windowEnd = range ? new Date(range.to.getTime() - 1) : new Date();
+    const firstDay = range
+        ? Date.UTC(
+            range.from.getUTCFullYear(),
+            range.from.getUTCMonth(),
+            range.from.getUTCDate()
+        )
+        : Date.UTC(
+            windowEnd.getUTCFullYear(),
+            windowEnd.getUTCMonth(),
+            windowEnd.getUTCDate()
+        ) - (days - 1) * DAY_MS;
+    const lastDay = Date.UTC(
+        windowEnd.getUTCFullYear(),
+        windowEnd.getUTCMonth(),
+        windowEnd.getUTCDate()
+    );
+
     const trend = [];
-    for (let i = days - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+    for (let dayMs = firstDay; dayMs <= lastDay; dayMs += DAY_MS) {
+        const dateStr = new Date(dayMs).toISOString().split('T')[0];
         trend.push(map[dateStr] || { date: dateStr, safe: 0, needs_review: 0, quarantine: 0, confirmed_phishing: 0 });
     }
 
     return trend;
 };
 
+/*
+ * "Who is targeting me" — the sender domains behind the risky emails of the last
+ * N days, with the effective (review-aware) bucket split per domain. Powers the
+ * dashboard's Top risky senders card.
+ */
+export const getTopRiskySendersForUser = async ({ userId, days = 30, limit = 5, from, to } = {}) => {
+    const userObjectId = new mongoose.Types.ObjectId(String(userId));
+    const range = parseDateRangeQuery({ from, to });
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const receivedAtMatch = range
+        ? { $gte: range.from, $lt: range.to }
+        : { $gte: since };
+
+    const results = await Email.aggregate([
+        { $match: { userId: userObjectId, receivedAt: receivedAtMatch } },
+        ...buildLatestScanLookupStages(),
+        ...buildEmailStateStages(),
+        {
+            $match: {
+                riskBucket: { $in: ['needs_review', 'quarantine', 'confirmed_phishing'] },
+                senderDomain: { $nin: [null, ''] },
+            },
+        },
+        {
+            $group: {
+                _id: '$senderDomain',
+                total: { $sum: 1 },
+                needsReview: {
+                    $sum: { $cond: [{ $eq: ['$riskBucket', 'needs_review'] }, 1, 0] },
+                },
+                quarantine: {
+                    $sum: { $cond: [{ $eq: ['$riskBucket', 'quarantine'] }, 1, 0] },
+                },
+                confirmedPhishing: {
+                    $sum: { $cond: [{ $eq: ['$riskBucket', 'confirmed_phishing'] }, 1, 0] },
+                },
+                lastSeenAt: { $max: '$receivedAt' },
+            },
+        },
+        { $sort: { total: -1, lastSeenAt: -1, _id: 1 } },
+        { $limit: limit },
+        {
+            $project: {
+                _id: 0,
+                domain: '$_id',
+                total: 1,
+                needsReview: 1,
+                quarantine: 1,
+                confirmedPhishing: 1,
+                lastSeenAt: 1,
+            },
+        },
+    ]);
+
+    return results;
+};
+
 // Live counts of emails per current risk bucket (same derivation the list uses),
 // so dashboard/inbox category counts always match the list and update on review.
 //
-// `days` optionally scopes the counts to a rolling window of the last N days
-// (by email `receivedAt`). The dashboard passes days=30 so its stats reflect
-// only the last 30 days; the inbox omits it so its chip counts match the
-// all-time list. When `days` is absent or invalid, all emails are counted.
-export const getRiskBucketCountsForUser = async ({ userId, days } = {}) => {
+// `from`/`to` (the global time filter) scope the counts to an absolute window
+// on `receivedAt`; they take precedence over the legacy `days` rolling window.
+// When neither is given, all emails are counted.
+export const getRiskBucketCountsForUser = async ({ userId, days, from, to } = {}) => {
     const userObjectId = new mongoose.Types.ObjectId(String(userId));
 
     const match = { userId: userObjectId };
+    const range = parseDateRangeQuery({ from, to });
     const windowDays = Number.parseInt(days, 10);
 
-    if (Number.isInteger(windowDays) && windowDays > 0) {
+    if (range) {
+        match.receivedAt = { $gte: range.from, $lt: range.to };
+    } else if (Number.isInteger(windowDays) && windowDays > 0) {
         const since = new Date();
         since.setDate(since.getDate() - windowDays);
         match.receivedAt = { $gte: since };

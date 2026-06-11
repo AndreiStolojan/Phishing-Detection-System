@@ -78,6 +78,32 @@ const scanSchema = new mongoose.Schema(
             default: null,
             trim: true,
         },
+        // Set when the sender matched the user's allowlist/blocklist at scan time
+        // (see sender-list.service.js). Records WHICH entry decided the outcome.
+        senderListMatch: {
+            type: new mongoose.Schema(
+                {
+                    listType: {
+                        type: String,
+                        enum: ['allow', 'block'],
+                        required: true,
+                    },
+                    kind: {
+                        type: String,
+                        enum: ['sender', 'domain'],
+                        required: true,
+                    },
+                    value: {
+                        type: String,
+                        required: true,
+                        trim: true,
+                        lowercase: true,
+                    },
+                },
+                { _id: false }
+            ),
+            default: null,
+        },
         scanSource: {
             type: String,
             enum: ['manual', 'sync'],

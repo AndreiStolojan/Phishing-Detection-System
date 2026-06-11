@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Sparkles, Gauge, Info, Bot, Shield, ShieldCheck } from 'lucide-react';
+import { Sparkles, Gauge, Info, Bot, Shield, ShieldCheck, ShieldOff } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThreatSignals } from '@/components/security/ThreatSignals';
@@ -59,8 +59,33 @@ export function ScanDetails({ scan }) {
   const ai = getAiStatus(scan);
   const ollamaUnavailable = ai.state !== 'ok';
 
+  const listMatch = scan.senderListMatch;
+  const listTarget = listMatch?.kind === 'domain' ? 'domain' : 'sender';
+
   return (
     <div className="space-y-4">
+      {/* User list banner — the user explicitly trusted or blocked this sender/domain,
+          and that decision was applied by this scan. */}
+      {listMatch?.listType === 'block' && (
+        <div className="flex items-start gap-2 rounded-lg border border-risk-quarantine/30 bg-risk-quarantine-soft px-3 py-2.5 text-sm text-risk-quarantine">
+          <ShieldOff className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            You blocked this {listTarget} ({listMatch.value}), so the email is always treated
+            as likely phishing.
+          </span>
+        </div>
+      )}
+      {listMatch?.listType === 'allow' && (
+        <div className="flex items-start gap-2 rounded-lg border border-risk-safe/30 bg-risk-safe-soft px-3 py-2.5 text-sm text-risk-safe">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            This {listTarget} ({listMatch.value}) is on your trusted list — contextual signals
+            were weighted down. Critical signals (password requests, dangerous attachments)
+            still count in full.
+          </span>
+        </div>
+      )}
+
       {/* Verified-brand banner — the sender is on an official brand domain, so
           brand-typical signals were intentionally weighted down. */}
       {scan.senderVerifiedBrand && (

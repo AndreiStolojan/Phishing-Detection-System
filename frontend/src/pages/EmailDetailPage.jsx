@@ -15,6 +15,8 @@ import {
   Copy,
   Check,
   ShieldAlert,
+  ShieldCheck,
+  ShieldOff,
   AlertTriangle,
   Terminal,
 } from 'lucide-react';
@@ -27,11 +29,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScanDetails } from '@/components/security/ScanDetails';
 import { ReviewActions } from '@/components/security/ReviewActions';
+import { SenderListActions } from '@/components/security/SenderListActions';
 import { EmailBody } from '@/components/inbox/EmailBody';
 import { getEmail, getEmailRaw } from '@/api/emailsApi';
 import { getLatestScan, scanEmail } from '@/api/scansApi';
-import { bustCacheByPrefix } from '@/hooks/useApi';
+import { getSenderLists } from '@/api/senderListsApi';
+import { useApi, bustCache, bustCacheByPrefix } from '@/hooks/useApi';
 import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
+import { findListEntries } from '@/lib/senderLists';
 import { getRiskMeta } from '@/lib/risk';
 import { SCORE_MAX } from '@/lib/scoring';
 import { formatDateTime } from '@/utils/formatDate';
@@ -133,8 +138,28 @@ function WarningBanner({ riskBucket, tone }) {
 
 /* ─── Sender trust signals ───────────────────────────────────────────────── */
 
-function SenderSignals({ email }) {
+function SenderSignals({ email, listEntry }) {
   const chips = [];
+
+  if (listEntry) {
+    const trusted = listEntry.listType === 'allow';
+    const ListIcon = trusted ? ShieldCheck : ShieldOff;
+    chips.push(
+      <span
+        key="list"
+        className={cn(
+          'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+          trusted
+            ? 'border-risk-safe/30 bg-risk-safe-soft text-risk-safe'
+            : 'border-risk-quarantine/30 bg-risk-quarantine-soft text-risk-quarantine'
+        )}
+        title={`${listEntry.kind === 'domain' ? 'Domain' : 'Sender'} ${listEntry.value} is on your ${trusted ? 'trusted' : 'blocked'} list`}
+      >
+        <ListIcon className="h-3 w-3" />
+        {trusted ? 'On your trusted list' : 'On your blocked list'}
+      </span>
+    );
+  }
 
   if (email.isFirstTimeSender) {
     chips.push(
@@ -299,6 +324,7 @@ export function EmailDetailPage() {
   const [showAllLinks, setShowAllLinks] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [rescanError, setRescanError] = useState(null);
+  const senderLists = useApi(getSenderLists, [], 'sender-lists');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -401,6 +427,21 @@ export function EmailDetailPage() {
   const SourceIcon = email.verdictSource === 'user' ? UserCheck : ScanLine;
   const scanScore = scan?.score ?? email?.latestScan?.score ?? null;
 
+  const { senderEntry, domainEntry, match: listEntry } = findListEntries(
+    senderLists.data?.entries,
+    senderAddress,
+    email.senderDomain
+  );
+
+  const handleListChanged = (message) => {
+    bustCache('sender-lists');
+    senderLists.reload();
+    toast.success(message, {
+      description: 'Applies the next time this email is scanned.',
+      action: { label: 'Scan again', onClick: handleRescan },
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* Nav bar */}
@@ -471,15 +512,24 @@ export function EmailDetailPage() {
                 <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
               )}
 
-              {/* Sender trust signals: first-time sender + reply-to mismatch */}
-              <SenderSignals email={email} />
+              {/* Sender trust signals: list status + first-time sender + reply-to mismatch */}
+              <SenderSignals email={email} listEntry={listEntry} />
             </div>
 
-            <Button variant="outline" size="sm" className="shrink-0"
-              disabled={rescanning} onClick={handleRescan}>
-              {rescanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
-              {rescanning ? 'Scanning…' : 'Scan again'}
-            </Button>
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <SenderListActions
+                senderAddress={senderAddress}
+                senderDomain={email.senderDomain}
+                senderEntry={senderEntry}
+                domainEntry={domainEntry}
+                onChanged={handleListChanged}
+              />
+              <Button variant="outline" size="sm"
+                disabled={rescanning} onClick={handleRescan}>
+                {rescanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
+                {rescanning ? 'Scanning…' : 'Scan again'}
+              </Button>
+            </div>
           </div>
 
           {/* Inline rescan error — never a page-level alert; previous result stays. */}

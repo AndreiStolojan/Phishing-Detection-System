@@ -20,6 +20,12 @@ import { cn } from '@/lib/utils';
   Each entry: { label, detail, icon, isAi }
 */
 const RULE_META = {
+  user_blocklist_match: {
+    label: 'Sender blocked by you',
+    detail: 'You added this sender or its domain to your blocked list, so the email is always treated as likely phishing.',
+    icon: ShieldAlert,
+    isAi: false,
+  },
   reply_to_mismatch: {
     label: 'Reply goes to a different address',
     detail: 'If you reply, your message would go to a different address than the sender — a common trick used in phishing.',

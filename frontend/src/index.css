@@ -75,14 +75,19 @@
   --color-ring: #3b9eff;
 
   /* Risk buckets — core semantic palette. Names are STABLE.
-     Severity ramp: review (amber) -> quarantine (rose) -> phishing (violet). */
-  --color-risk-safe: #34c77b;
+     Severity ramp: review (amber) -> quarantine (rose) -> phishing (violet).
+     Hues tuned for luminosity on the near-black background so charts and
+     badges pop without losing their semantic meaning (2026-06-10).
+     Every value passes WCAG 2.1 AA (4.5:1 as text) against the background,
+     the card AND its own -soft badge surface — verified 2026-06-11; phishing
+     was lightened from #a855f7, which failed on its soft badge (4.21:1). */
+  --color-risk-safe: #3ddc97;
   --color-risk-safe-soft: color-mix(in oklab, var(--color-risk-safe) 15%, var(--color-background));
-  --color-risk-review: #f0b429;
+  --color-risk-review: #fbbf24;
   --color-risk-review-soft: color-mix(in oklab, var(--color-risk-review) 15%, var(--color-background));
-  --color-risk-quarantine: #f5506a;
+  --color-risk-quarantine: #fb637e;
   --color-risk-quarantine-soft: color-mix(in oklab, var(--color-risk-quarantine) 16%, var(--color-background));
-  --color-risk-phishing: #9b5de5;
+  --color-risk-phishing: #b873f9;
   --color-risk-phishing-soft: color-mix(in oklab, var(--color-risk-phishing) 17%, var(--color-background));
   --color-risk-unscanned: #8a96aa;
   --color-risk-unscanned-soft: color-mix(in oklab, var(--color-risk-unscanned) 12%, var(--color-background));
