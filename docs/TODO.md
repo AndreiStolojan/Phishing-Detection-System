@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: backend stabil, Faza 17 completă, Faza 18 (redesign frontend) implementată. Urmează: test manual cap-coadă cu Gmail real + capturi demo.
-- Progres estimativ MVP: `99%` backend · `90%` produs final (rămâne validare manuală end-to-end + demo)
-- Faza curentă: `Faza 18 - Redesign frontend profesional (implementat, de validat manual)`
+- Stadiu actual: backend stabil, Faza 25 completă (dashboard hub + filtru global de timp). Urmează: test manual cap-coadă cu Gmail real + draft lucrare.
+- Progres estimativ MVP: `100%` backend · `100%` produs final (rămâne validare manuală end-to-end + demo)
+- Faza curentă: `Faza 25 - Dashboard hub + filtru global de timp (COMPLETĂ)`
 - Deadline: ~2 zile pentru app, ~10 zile pentru draft lucrare (termen: ~2026-06-17)
 
 ## Legendă
@@ -631,8 +631,49 @@ Regulă de ordine: fundație întâi (tokens/type/motion) → primitive shared �
 Dependențe: Faza 21
 Obligatoriu pentru MVP: nu (MVP e ~99%) — îmbunătățire de calitate/prezentare pentru coordonator
 
+## Faza 23 — Allowlist/Blocklist per utilizator (sender + domeniu) — COMPLETĂ 2026-06-10
+
+- [x] Model `SenderListEntry` cu index unic `(userId, kind, value)` — exclusivitate mutuală garantată (un criteriu nu poate fi și trusted și blocked)
+- [x] Serviciu cu normalizare (lowercase, fără `www.`), precedență sender > domeniu, potrivire domeniu pe sufix (lookalike-urile nu trec)
+- [x] API: `GET/POST /api/v1/sender-lists`, `DELETE /api/v1/sender-lists/:id` (Joi, 409 `LIST_CONFLICT` la lista opusă)
+- [x] Integrare în motorul de scanare (engine `rules-ai-v7`): blocklist = +60 garantat `likely_phishing` (`user_blocklist_match`), allowlist = contextuale mute / critice intacte (`USER_ALLOWLIST_MODIFIERS`), combinare straturi prin multiplicator minim; `senderListMatch` persistat pe scan
+- [x] Settings: secțiune „Trusted & blocked senders" (add cu selecturi + listă cu badge-uri + delete)
+- [x] Pagina emailului: buton „Trust / Block" (sender + domeniu, stare reflectată), chip „On your trusted/blocked list", banner în panoul de scanare, toast cu acțiune „Scan again"
+- [x] Teste: `sender-list.test.js` (12) — backend 47/47 (+1 skip DB), frontend 28/28, lint + build curate
+- [x] Smoke test live API + UI (preview): conflict 409, trust 38→0, block →100, ștergere → revine 67
+- [x] Documentație: PROGRESS, API_PLAN, DECISIONS, PHISHING_RULES, PROJECT_STATE actualizate
+
+Dependențe: Faza 22
+Obligatoriu pentru MVP: da (cerință coordonator/teză — control explicit al utilizatorului)
+
+## Faza 24 — Feedback liste + dashboard produs (2026-06-10) — COMPLETĂ
+
+- [x] Conflicte cross-kind respinse: sender rule vs domain rule cu tipuri opuse → 409 în ambele direcții (suffix-aware), meniul de pe email nu mai oferă opțiuni contradictorii („Already trusted/blocked through the domain rule")
+- [x] Pagină dedicată `/sender-lists` („Trusted & Blocked" în sidebar): sumar, căutare, filtre, emailuri acoperite per regulă (`withMatchCounts=1`), formular, „How rules work"; Settings păstrează doar pointer; componenta veche ștearsă
+- [x] Dashboard: card „Who is targeting you" (`GET /emails/top-risky-senders`), paletă risc reîmprospătată (centralizat în `index.css`), gradient trend mai bogat, fix „1 email needs your review"
+- [x] Trust score unificat: agregarea lunară emite split-ul efectiv (review-aware, partiție fără dublă numărare); Reports Safe rate + Risk breakdown îl folosesc; verificat live 20%→40% identic pe ambele ecrane după mark-safe
+- [x] `DELETE /users/me` implementat cu cascade (emails, scans, mail accounts, sender lists) — butonul „Delete account" din Settings era legat de o rută inexistentă
+- [x] Verificare live completă cu cont de test prin UI (șters la final prin Delete account); backend 47/47 (+1 skip), frontend 28/28, lint + build curate
+
+Dependențe: Faza 23
+Obligatoriu pentru MVP: da (feedback direct Andrei pentru demo)
+
+## Faza 25 — Dashboard ca hub + filtru global de timp (2026-06-11) — COMPLETĂ
+
+- [x] Filtru global de interval (`TimeRangeContext`, presets: Last day / Yesterday / Last 30 days / Last 90 days / Last month), calculat în timezone-ul browserului și trimis ca `?from=&to=` absolut; picker vizibil pe dashboard
+- [x] Backend: `from`/`to` (ISO, validate, `INVALID_DATE_RANGE`) pe `GET /emails`, `/emails/stats`, `/emails/trend`, `/emails/top-risky-senders` și pe rapoarte (`month` rămâne valid; `from`/`to` au prioritate); helper comun `common/utils/date-range.js` + teste unitare
+- [x] Tot ce e scoped ascultă de filtru: dashboard (toate cardurile), inbox (listă + chip counts + pastilă read-only cu intervalul activ), raportul pe email (subiect/titlu după interval, `label` opțional)
+- [x] Pagina Reports desființată: „Email me this report" + „Most common warning signs" (top rules + explicații) mutate pe dashboard; rută, intrare nav, `DetectionFunnel`, `RiskBreakdownBar`, `ReportsSkeleton` șterse — fără cod mort
+- [x] Layout: desktop full-width (scos `max-w-6xl`), mobil exact 20px gutters fără overflow orizontal la 380px (fix: `grid-cols-1` explicit pe rândurile `lg:grid-cols-5`)
+- [x] Carduri `rounded-sm`, donut fără efect de hover
+- [x] Contrast WCAG 2.1 AA: audit complet al paletei risc (script cu color-mix oklab exact); `--color-risk-phishing` #a855f7 → #b873f9 (pica la 4.21:1 pe fundalul soft al badge-ului); toate culorile trec acum 4.5:1 text / 3:1 UI pe background, card și soft
+- [x] Verificat: backend 52/52 (+1 skip) + lint, frontend 36/36 + build, verificare live în browser (desktop + 380px, switch de interval cu rescope instant)
+
+Dependențe: Faza 24
+Obligatoriu pentru MVP: da (UX-ul final pentru demo + accesibilitate)
+
 ## Unde am rămas
 
-Ultimul punct finalizat: Faza 21 completă (UX gap fixes din audit desktop 2026-06-05). Pe 2026-06-05: checkpoint de siguranță commis+pushed (backend/frontend/docs), audit UI premium cu 12 agenți rulat, plan în `docs/UI_PREMIUM_PLAN.md` + Faza 22 mai sus, findings brute în `docs/archive/ui-premium-audit-raw-2026-06-05.json`.
+Ultimul punct finalizat: **Faza 25 completă (2026-06-11)** — dashboard-ul este hub-ul aplicației: filtru global de timp respectat de toate ecranele și de raportul pe email, Reports desființat și absorbit în dashboard, layout full-width + mobil corect, paleta de risc trece WCAG AA.
 
-Următorul pas recomandat: răspuns la întrebările deschise din Faza 22, apoi implementare secvențială Faza 1 → 11. (Separat, rămâne: test manual end-to-end cu Gmail real + capturi demo.)
+Următorul pas recomandat: Andrei rulează demo-ul cap-coadă după script (cu Gmail real + emailurile seed) — atenție: scriptul de prezentare menționează pagina Reports, acum demo-ul de raport se face de pe dashboard — apoi draftul lucrării.

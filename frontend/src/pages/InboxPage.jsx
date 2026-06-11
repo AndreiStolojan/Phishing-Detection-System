@@ -11,6 +11,7 @@ import {
   CheckSquare,
   RefreshCw,
   Mail,
+  CalendarRange,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +24,7 @@ import { Card } from '@/components/ui/card';
 import { useApi } from '@/hooks/useApi';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useMailAccount } from '@/context/MailAccountContext';
+import { useTimeRange } from '@/context/TimeRangeContext';
 import { getEmails, getEmailStats } from '@/api/emailsApi';
 import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
 import { bustCacheByPrefix } from '@/hooks/useApi';
@@ -65,6 +67,9 @@ export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isConnected, syncVersion, sync, syncing } = useMailAccount();
+  // Global time-range filter — the picker lives on the dashboard; the inbox
+  // list and its chip counts are both scoped to the same window.
+  const { preset, label: rangeLabel, from, to } = useTimeRange();
   const searchRef = useRef(null);
 
   const riskBucket = searchParams.get('riskBucket') || '';
@@ -80,23 +85,25 @@ export function InboxPage() {
   const [selected, setSelected] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const cacheKey = `inbox-${syncVersion}-${riskBucket}-${debouncedSearch}-${page}`;
+  const cacheKey = `inbox-${preset}-${syncVersion}-${riskBucket}-${debouncedSearch}-${page}`;
   const { data, loading, error, reload } = useApi(
     () =>
       getEmails({
         ...(riskBucket ? { riskBucket } : {}),
         ...(debouncedSearch ? { q: debouncedSearch } : {}),
+        from,
+        to,
         page,
         limit: PAGE_SIZE,
       }),
-    [riskBucket, debouncedSearch, page, syncVersion],
+    [riskBucket, debouncedSearch, page, syncVersion, preset],
     cacheKey
   );
 
   const countsQuery = useApi(
-    () => getEmailStats(),
-    [syncVersion],
-    `inbox-stats-${syncVersion}`
+    () => getEmailStats({ from, to }),
+    [syncVersion, preset],
+    `inbox-stats-${preset}-${syncVersion}`
   );
   const counts = countsQuery.data?.counts || {};
   const totalCount = countsQuery.data?.total ?? 0;
@@ -260,6 +267,18 @@ export function InboxPage() {
               </button>
             );
           })}
+
+          {/* Active global range — read-only here; the picker lives on the dashboard. */}
+          {!selectMode && (
+            <Link
+              to="/dashboard"
+              title="Data is scoped to the range selected on the Dashboard"
+              className="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <CalendarRange className="h-3.5 w-3.5" />
+              {rangeLabel}
+            </Link>
+          )}
 
           {selectMode && (
             <div className="flex items-center gap-2">

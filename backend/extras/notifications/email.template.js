@@ -61,6 +61,26 @@ const formatMonth = (month) => {
   }).format(date);
 };
 
+/*
+ * Label for a from/to report period (the global time-range filter). Prefers
+ * the display label the app sent (e.g. "Yesterday"); falls back to the dates
+ * themselves, in the same timezone convention as formatDateTime above. `to`
+ * is exclusive, so the last shown day is the instant just before it.
+ */
+const formatRangePeriod = ({ from, to, label }) => {
+  if (label) return label;
+  const formatDay = (value) =>
+    new Intl.DateTimeFormat('en', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'Europe/Bucharest',
+    }).format(new Date(value));
+  const firstDay = formatDay(from);
+  const lastDay = formatDay(new Date(new Date(to).getTime() - 1));
+  return firstDay === lastDay ? firstDay : `${firstDay} – ${lastDay}`;
+};
+
 /** Bulletproof CTA button. */
 const ctaButton = (label, href, bg = C.primary, color = C.onPrimary) => `
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0;">
@@ -250,7 +270,12 @@ const renderBreakdownRow = (label, count, total, color, isLast) => {
 };
 
 export const monthlyDigestTemplate = ({ summary }) => {
-  const monthLabel = formatMonth(summary.period.month);
+  // Month mode keeps the historical "June 2026" label; range mode (global
+  // time filter) labels the report with the selected period instead.
+  const isMonthPeriod = Boolean(summary.period.month);
+  const periodLabel = isMonthPeriod
+    ? formatMonth(summary.period.month)
+    : formatRangePeriod(summary.period);
   const counts = summary.counts;
   const ai = summary.ai;
   const safeRate =
@@ -272,14 +297,14 @@ export const monthlyDigestTemplate = ({ summary }) => {
   const aiLine = `AI evaluated <strong style="color:${C.fg};">${formatNumber(ai.evaluated)}</strong> emails (${aiPct}%).${aiFailedPart}${aiDisabledPart}`;
 
   return {
-    subject: `Your SecureInbox report — ${monthLabel}`,
+    subject: `Your SecureInbox report — ${periodLabel}`,
     html: shell({
-      preheader: `${safeRate}% safe · ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} found in ${monthLabel}.`,
+      preheader: `${safeRate}% safe · ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} found · ${escapeHtml(periodLabel)}.`,
       accent: heroAccent,
-      eyebrow: 'Monthly security briefing',
-      title: `Security report — ${monthLabel}`,
+      eyebrow: isMonthPeriod ? 'Monthly security briefing' : 'Security briefing',
+      title: `Security report — ${periodLabel}`,
       body: `
-        ${paragraph(`SecureInbox scanned ${formatNumber(scanned)} of ${formatNumber(synced)} synced emails in ${escapeHtml(monthLabel)} — here's what it found.`)}
+        ${paragraph(`SecureInbox scanned ${formatNumber(scanned)} of ${formatNumber(synced)} synced emails ${isMonthPeriod ? `in ${escapeHtml(periodLabel)}` : `in the selected period (${escapeHtml(periodLabel)})`} — here's what it found.`)}
 
         <!-- Hero: safe rate banner -->
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;margin:4px 0 20px;">

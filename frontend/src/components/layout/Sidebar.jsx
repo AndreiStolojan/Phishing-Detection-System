@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Inbox, BarChart3, Settings, LogOut, ChevronsUpDown } from 'lucide-react';
+import { LayoutDashboard, Inbox, ListChecks, Settings, LogOut, ChevronsUpDown } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/inbox', label: 'Inbox', icon: Inbox },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/sender-lists', label: 'Trusted & Blocked', icon: ListChecks },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

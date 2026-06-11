@@ -55,4 +55,3 @@ const User = mongoose.model("User", userSchema);
 
 export default User;
 
-//{ name: 'Andrei', email: 'andreistolojan@gmail.com', passwordHash: 'hashed-password' }

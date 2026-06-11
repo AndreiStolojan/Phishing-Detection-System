@@ -1,4 +1,8 @@
 import User from '../models/user.model.js';
+import Email from '../models/email.model.js';
+import Scan from '../models/scan.model.js';
+import MailAccount from '../models/mail-account.model.js';
+import SenderListEntry from '../models/sender-list.model.js';
 import { toPublicUser } from './auth.service.js';
 
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -69,6 +73,27 @@ export const updateCurrentUserAiSettings = async (authenticatedUserId, payload) 
     return {
         aiEnabled: user.settings.aiEnabled,
     };
+};
+
+export const deleteCurrentUser = async (authenticatedUserId) => {
+    const user = await User.findById(authenticatedUserId);
+
+    if (!user) {
+        const error = new Error('User not found');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    // Cascade: every collection that stores per-user data.
+    await Promise.all([
+        Scan.deleteMany({ userId: user._id }),
+        Email.deleteMany({ userId: user._id }),
+        MailAccount.deleteMany({ userId: user._id }),
+        SenderListEntry.deleteMany({ userId: user._id }),
+    ]);
+    await User.deleteOne({ _id: user._id });
+
+    return { deleted: true };
 };
 
 export const updateCurrentUserNotificationSettings = async (authenticatedUserId, payload) => {

@@ -2,103 +2,51 @@
 
 ## Current Snapshot
 
-- Date: `2026-06-05`
+- Date: `2026-06-11`
 - Product direction: `SecureInbox` — Gmail-only phishing detection inbox, thesis project.
-- Phase: **Faza 18 — Redesign frontend profesional (implemented, pending manual end-to-end validation)** (Faza 17 auto-sync + notificări done)
-- Backend: implemented and stable in `backend/`. Tests pass. The 4 known bugs are fixed.
-- Frontend: rebuilt from scratch (`frontend/`) with Tailwind v4 + shadcn/ui, dark-only, sidebar + dashboard-first. Build + 18 unit tests pass. Stack/decision recorded in `docs/DECISIONS.md` (2026-06-05).
-- Detection: hybrid rule-based + optional Ollama semantic signals. Rule engine is the primary detector.
+- Phase: **Faza 25 — Dashboard hub + global time filter (COMPLETE)**. App is feature-complete for the thesis demo.
+- Backend: stable in `backend/`. 52/52 unit tests pass (+1 DB-dependent skip), lint clean. The 4 bugs from the 2026-06-05 review are fixed.
+- Frontend: `frontend/` (React 19 + Vite + Tailwind v4 + shadcn/ui, dark-only). 36/36 tests pass, build clean.
+- Detection: hybrid rule-based + optional Ollama semantic signals, with two context layers on top: verified-brand (hardcoded official domains) and **user sender lists (allowlist/blocklist, user-managed)**. Scan engine version: `rules-ai-v7`.
 - Auth: JWT Bearer token in `Authorization` header. Frontend logout deletes local token.
-- Timeline: ~2 days for app completion, ~10 days for thesis paper draft (deadline ~2026-06-17).
+- Timeline: demo/presentation for coordinator now; thesis paper draft deadline ~2026-06-17.
 
 ## What Works
 
-- Register/login through backend auth.
-- `GET /api/v1/users/me` for current user.
-- Gmail OAuth start/callback for one Gmail account per user.
-- Manual Gmail sync with automatic scan after sync.
+- Register/login (arcjet bot/rate-limit protection on auth routes).
+- Gmail OAuth connect, manual sync + auto-sync (node-cron, 15 min), automatic scan after sync.
 - Email list/detail with computed state: `effectiveVerdict`, `riskBucket`, `reviewStatus`, `latestScan`.
-- Raw email body: `GET /api/v1/emails/:id/raw`.
-- Frontend renders sanitized `htmlBody`, falls back to `textBody`.
-- Manual actions: `mark-safe`, `mark-phishing`; phishing tries Gmail move-to-spam.
-- Monthly report endpoint and manual digest send.
-- Backend unit tests and frontend unit tests.
+- Hybrid scan: deterministic rules (primary) + Ollama semantic signals (secondary, capped) + natural-language explanation (Ollama or controlled fallback).
+- Verified-brand layer: official brand domains get brand-typical signals discounted (`VERIFIED_BRAND_MODIFIERS`).
+- **User sender lists (2026-06-10, v2):** per-user trusted/blocked rules for exact senders and whole domains.
+  - Managed on the dedicated **/sender-lists page** ("Trusted & Blocked" in the nav): summary cards, search + filters, matched-email counts per rule (`?withMatchCounts=1`), add form, "How rules work". Also: "Trust / Block" dropdown on the email detail page. Settings only links here.
+  - Blocklist ⇒ `user_blocklist_match` rule adds exactly the likely_phishing threshold (60) — verdict guaranteed.
+  - Allowlist ⇒ contextual signals muted, critical signals (sensitive-data request, dangerous attachments, IP links, embedded credentials, punycode) keep full weight.
+  - Mutual exclusivity enforced by unique `(userId, kind, value)` index + 409 `LIST_CONFLICT`.
+  - **Cross-kind conflicts rejected (v2):** a sender rule and a covering domain rule can never have opposite types — 409 both directions; the email-page menu hides contradictory options ("Already trusted/blocked through the domain rule"). Sender-beats-domain precedence remains in the engine only as a safety net.
+  - Domain matching is suffix-aware (lookalikes do not match).
+  - Lists apply to future scans only; UI offers instant "Scan again" after a change.
+- **Dashboard = the app's hub (2026-06-11):** posture hero, stat cards, threat trend, risk donut, "Who is targeting you", needs-attention list, **"Most common warning signs"** (top rules + explanations, merged from the deleted Reports page) and **"Email me this report"**. A **global time-range filter** (`TimeRangeContext`; presets Last day / Yesterday / Last 30 days (default) / Last 90 days / Last month, computed in the browser's local timezone) scopes the dashboard, the inbox (list + chip counts, read-only range pill) and the emailed report via absolute `?from=&to=` params — `days`/`month` stay valid backend-side, `from`/`to` win. **The Reports page, its route and nav entry are gone.**
+- **Layout/a11y (2026-06-11):** desktop full-width, mobile exactly 20px gutters with no horizontal overflow at 380px; cards `rounded-sm`; risk donut has no hover effect; risk palette passes WCAG 2.1 AA on background/card/soft surfaces (`--color-risk-phishing` lightened #a855f7 → #b873f9).
+- **One trust score everywhere:** reports emit an effective-verdict split (user review overrides scan, strict partition — `effectiveSafe/Suspicious/LikelyPhishing/MarkedPhishing`); the dashboard consumes the same report data, so the numbers always agree.
+- **Account deletion:** `DELETE /users/me` with full cascade (emails, scans, mail accounts, sender lists).
+- Manual review: `mark-safe`, `mark-phishing` (also moves to Gmail Spam) — separate from the lists.
+- Report data + send-by-email live on the dashboard for the active range (`GET/POST /reports/monthly-summary[/send]?from=&to=&label=`; legacy `?month=` still works); daily digest (08:00, opt-out), instant phishing alerts (opt-in).
+- Settings: profile, Gmail connection + sync size, AI toggle, notifications, digest hour (local timezone), sender lists, delete account.
 
-## Known Bugs (must fix before new features)
+## API surface (mounted in `app.js`)
 
-### Bug 1 — AI toggle is always broken
-**File:** `backend/src/services/user.service.js:63`
-**Problem:** `payload.aiEnabled === 1` — if the frontend sends `{ aiEnabled: true }` (boolean), this evaluates to `false`. AI can never be enabled via the normal flow.
-**Fix:** Replace with `Boolean(payload.aiEnabled)`.
+`/api/v1/auth`, `/users`, `/mail-accounts`, `/emails`, `/actions`, `/meta`, `/scans`, `/reports`, `/contact`, `/sender-lists` — details in `docs/API_PLAN.md`.
 
-### Bug 2 — Default Ollama model can be `undefined`
-**File:** `backend/src/services/ollama-explanation.service.js:8`
-**Problem:** `const DEFAULT_OLLAMA_MODEL = OLLAMA_MODEL` — OLLAMA_MODEL is an env var that can be `undefined`, so the fallback is broken.
-**Fix:** `const DEFAULT_OLLAMA_MODEL = OLLAMA_MODEL || 'gemma3:4b'` (same as the semantic service).
+## Known limitations (accepted for MVP)
 
-### Bug 3 — Fallback explanation ignores triggered rules and AI signals
-**File:** `backend/src/services/scan-explanation.service.js:115-123`
-**Problem:** `buildControlledRomanianExplanationObject` takes `{ verdict, triggeredRules, aiSignals }` but only uses `verdict`. The more detailed `buildControlledRomanianExplanation` function exists in the same file but is never called anywhere.
-**Fix:** Either use the full function in the fallback path, or remove the dead `triggeredRules`/`aiSignals` params.
+- Sync scan pipeline is sequential per email when Ollama is on (latency on big syncs).
+- No SPF/DKIM/DMARC verification (listed as future work).
+- Gmail push notifications not used (polling only).
+- App will not be deployed publicly (Google OAuth verification not pursued) — thesis/demo only.
 
-### Bug 4 — MongoDB transaction in registerUser breaks on standalone MongoDB
-**File:** `backend/src/services/auth.service.js:27-60`
-**Problem:** `User.create()` is wrapped in a Mongoose session/transaction. Transactions require a replica set. A standalone MongoDB (normal dev setup) will throw a session-not-supported error on register.
-**Fix:** Remove the session/transaction. A single `User.create()` is atomic by default.
+## What remains (non-code)
 
-## Code Quality Issues (lower priority, fix after bugs)
-
-- **No rate limiting on `/api/v1/auth/login`** — `extras/security/arcjet.middleware.js` exists but is never imported in `app.js`. Brute force is possible.
-- **No CORS configuration** — `app.js` has no CORS middleware. Will be needed for production.
-- **Duplicate Ollama client code** — `ollama-semantic.service.js` and `ollama-explanation.service.js` both duplicate `normalizeBaseUrl`, `buildCandidateBaseUrls`, `stripCodeFence` and the retry loop. Should be extracted to a shared Ollama client.
-- **`user.service.js` uses raw `Error` instead of `createError`** — inconsistent with the rest of the codebase; `code` field is missing from these errors.
-- **`bcrypt` and `bcryptjs` both listed in `package.json`** — only `bcryptjs` is used. `bcrypt` (native) is unused.
-- **`cookie-parser` listed in `package.json` but never imported in `app.js`**.
-- **Email state computed twice in `getEmailsForUser`** — the MongoDB aggregation already computes `riskBucket` etc. via `buildEmailStateStages()`, then `toEmailListItem` calls `buildEmailStateForUser` again in JS.
-- **Sync scan pipeline is fully sequential** — each email scanned one-by-one including Ollama calls (10–45s each). 10 emails = potentially minutes per sync request.
-- **Developer email left in a comment** — `user.model.js:44`.
-
-## What Is Being Added (coordinator feedback 2026-06-05)
-
-The coordinator said the app must feel like something users want to use without opening Gmail.
-
-### Auto-sync scheduler (Faza 17)
-- `node-cron` job every 15 minutes — syncs and scans all users with Gmail connected
-- No manual sync required from the user
-- Interval configurable via `SYNC_INTERVAL_MINUTES` env var
-- At deploy time, can be replaced/supplemented with Gmail Push Notifications (Pub/Sub)
-
-### Instant phishing alert email (Faza 17)
-- Email sent when a `likely_phishing` email is detected during any sync
-- Opt-in only — user toggles `alertsEnabled` in settings
-- Keeps it non-annoying: only fires for the highest-risk verdict, not for `suspicious`
-
-### Daily digest auto-schedule (Faza 17)
-- Existing digest logic reused, triggered automatically at 08:00 each day
-- Only sent if there are new or risky emails in the last 24h (no empty digests)
-
-### Frontend redesign (Faza 18)
-- Full rebuild — professional look, not student project aesthetic
-- Security overlay on top of email reading (not a full email client — no compose/reply)
-- Clean dashboard with security stats, inbox with risk badges, detail with verdict + AI explanation
-
-## Current MVP Scope
-
-Included:
-- Gmail only.
-- Auto-sync (scheduler) + manual sync.
-- Read synced emails with security overlay.
-- Security filters by risk bucket.
-- Sanitized HTML email body display.
-- Security scan details, AI explanation when available, and review actions.
-- Reports, daily digest, instant phishing alerts (opt-in).
-- Settings.
-
-Not included:
-- Compose, reply, forward.
-- Archive, delete, read/unread, labels.
-- Full Gmail threading.
-- Real-time Gmail push sync (polling only for now).
-- Multi-provider support.
-- AI as the primary detector.
-
+- Demo walkthrough + screenshots for coordinator (presentation script: see `docs/PRESENTATION_SCRIPT.md`).
+- Manual end-to-end pass by Andrei with his real Gmail account.
+- Thesis paper draft (~2026-06-17).

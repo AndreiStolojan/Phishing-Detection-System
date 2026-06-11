@@ -219,3 +219,13 @@ După MVP, regulile pot fi extinse cu:
 - Nu toate emailurile periculoase vor fi detectate.
 - Nu toate emailurile legitime vor fi marcate perfect.
 - Scopul primei versiuni este un motor explicabil și demonstrabil, nu o acuratețe perfectă.
+
+## Stratul de liste per utilizator (allowlist / blocklist) — implementat 2026-06-10
+
+Peste reguli și semnalele AI există un strat de decizii explicite ale utilizatorului, gestionat în Settings și pe pagina emailului (`SenderListEntry`: sender exact sau domeniu întreg, suffix-aware, intrarea de sender bate intrarea de domeniu).
+
+- **Blocklist:** regula `user_blocklist_match` adaugă exact pragul `likely_phishing` (60 pct, `USER_BLOCKLIST_RULE_POINTS`) ⇒ verdictul e garantat prin construcție; semnalele reale se adaugă peste. Ponderea stă în afara `RULE_WEIGHTS` pentru că e decizie de utilizator, nu euristică (invariantele de scoring rămân valabile).
+- **Allowlist:** `USER_ALLOWLIST_MODIFIERS` mută la 0 semnalele contextuale (reply-to mismatch, multe linkuri, URL lung, shortener, urgență, CTA, impersonare brand) și înjumătățește social engineering + arhive. Semnalele critice rămân întregi: cerere de date sensibile, atașamente periculoase, IP-link, credențiale în URL, punycode — acoperă expeditorul de încredere compromis.
+- **Combinare cu brandul verificat:** multiplicator minim per semnal (`applyScoreContextModifiers`); un email blocat nu mai e afișat ca „verified brand".
+- **Exclusivitate mutuală:** index unic `(userId, kind, value)` — un criteriu nu poate fi pe ambele liste; conflictul răspunde 409.
+- Listele se aplică la scanările viitoare (rescan/sync), nu retroactiv. Scanarea persistă `senderListMatch` pentru explicabilitate în UI.

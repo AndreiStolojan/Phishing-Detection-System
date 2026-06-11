@@ -11,18 +11,20 @@ import {
 } from './scan-explanation.service.js';
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 import { verifySenderBrand } from './brand-verification.service.js';
+import { getSenderListContextForEmail } from './sender-list.service.js';
 import {
     AI_SCORE_MAX,
     AI_SIGNAL_WEIGHTS,
     RISK_THRESHOLDS,
     RULE_WEIGHTS,
     SCORE_MAX,
-    applyVerifiedBrandModifier,
+    USER_BLOCKLIST_RULE_POINTS,
+    applyScoreContextModifiers,
 } from '../config/scoring.config.js';
 
-// Bumped v5 -> v6 with the verified-brand context modifier layer. Old scans keep
-// their v5 score until the email is rescanned (no retroactive bulk rescoring).
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v6';
+// Bumped v6 -> v7 with the user sender-list layer (allowlist / blocklist). Old scans
+// keep their v6 score until the email is rescanned (no retroactive bulk rescoring).
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v7';
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
@@ -90,6 +92,7 @@ const toPublicScan = (scan) => ({
     aiExplanationMeta: scan.aiExplanationMeta,
     senderVerifiedBrand: scan.senderVerifiedBrand,
     verifiedBrandName: scan.verifiedBrandName,
+    senderListMatch: scan.senderListMatch,
     scannedAt: scan.scannedAt,
     createdAt: scan.createdAt,
     updatedAt: scan.updatedAt,
@@ -107,20 +110,20 @@ export const mapScoreToVerdict = (score) => {
     return 'safe';
 };
 
-export const calculateRulesForEmail = (email, brandContext = {}) => {
+export const calculateRulesForEmail = (email, scanContext = {}) => {
     let score = 0;
     const reasons = [];
     const triggeredRules = [];
 
-    // modifierKey defaults to the rule id. For the rules that the verified-brand layer
-    // discounts (reply_to_mismatch, too_many_links_*), the rule id already equals the
+    // modifierKey defaults to the rule id. For the rules that the context layers
+    // discount (reply_to_mismatch, too_many_links_*), the rule id already equals the
     // modifier key, so the default is correct; the suspicious_link_pattern:* rules are
-    // not in the modifier table and therefore keep full weight.
+    // not in the modifier tables and therefore keep full weight.
     const triggerRule = ({ rule, modifierKey, points, details, reason }) => {
-        const effectivePoints = applyVerifiedBrandModifier(
+        const effectivePoints = applyScoreContextModifiers(
             modifierKey || rule,
             points,
-            brandContext
+            scanContext
         );
 
         if (effectivePoints <= 0) {
@@ -135,6 +138,25 @@ export const calculateRulesForEmail = (email, brandContext = {}) => {
             details,
         });
     };
+
+    // User blocklist — explicit user decision, exempt from context modifiers by
+    // design. Contributes exactly the likely_phishing threshold, so the verdict is
+    // guaranteed regardless of what the other rules add.
+    if (scanContext.senderBlocklisted) {
+        const match = scanContext.listMatch || {};
+        const matchLabel =
+            match.kind === 'domain'
+                ? `domain (${match.value})`
+                : `sender (${match.value})`;
+
+        score += USER_BLOCKLIST_RULE_POINTS;
+        reasons.push('Sender is on your blocked list.');
+        triggeredRules.push({
+            rule: 'user_blocklist_match',
+            points: USER_BLOCKLIST_RULE_POINTS,
+            details: `You blocked this ${matchLabel}, so the email is always treated as likely phishing.`,
+        });
+    }
 
     if (
         email.replyToDomain &&
@@ -223,17 +245,17 @@ export const calculateRulesForEmail = (email, brandContext = {}) => {
     };
 };
 
-export const calculateAiScoreFromSignals = (aiSignals, brandContext = {}) => {
+export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
     let aiScore = 0;
     const aiTriggeredRules = [];
     const aiReasons = [];
 
-    // modifierKey is the verified-brand modifier table key (without the ai_semantic:
-    // prefix). When senderVerifiedBrand is true the points are discounted; a signal
-    // discounted to 0 (e.g. brand_impersonation_suspected) is dropped entirely so it
-    // neither scores nor shows up as a triggered warning.
+    // modifierKey is the context modifier table key (without the ai_semantic:
+    // prefix). When the sender is a verified brand or user-allowlisted the points are
+    // discounted; a signal discounted to 0 (e.g. brand_impersonation_suspected) is
+    // dropped entirely so it neither scores nor shows up as a triggered warning.
     const triggerAiRule = ({ rule, modifierKey, points, reason, details }) => {
-        const effectivePoints = applyVerifiedBrandModifier(modifierKey, points, brandContext);
+        const effectivePoints = applyScoreContextModifiers(modifierKey, points, scanContext);
 
         if (effectivePoints <= 0) {
             return;
@@ -379,6 +401,7 @@ const buildFallbackExplanationResult = ({
     aiSignals,
     senderVerifiedBrand,
     verifiedBrandName,
+    senderListMatch,
     fallbackReason,
 }) => ({
     explanation: buildControlledExplanationObject({
@@ -387,6 +410,7 @@ const buildFallbackExplanationResult = ({
         aiSignals,
         senderVerifiedBrand,
         verifiedBrandName,
+        senderListMatch,
     }),
     meta: {
         status: 'fallback',
@@ -496,6 +520,7 @@ const upsertCurrentScanForEmail = async ({
             triggeredRules: result.triggeredRules,
             senderVerifiedBrand: result.senderVerifiedBrand,
             verifiedBrandName: result.verifiedBrandName,
+            senderListMatch: result.senderListMatch,
             scanSource,
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
             aiSignals,
@@ -559,8 +584,18 @@ export const scanEmailWithRules = async ({
     skipIfCurrentEngineExists = false,
 }) => {
     const email = await findOwnedEmail({ emailId, userId });
+    const listContext = await getSenderListContextForEmail({
+        userId,
+        senderAddress: email.from,
+        senderDomain: email.senderDomain,
+    });
     const brandContext = verifySenderBrand({ senderDomain: email.senderDomain });
-    const aiInput = buildAiAnalysisInput(email, brandContext);
+    // A blocked sender never surfaces as a "verified brand": the user's block wins,
+    // and no discount layer applies on top of the hard blocklist rule.
+    const scanContext = listContext.senderBlocklisted
+        ? { ...listContext, senderVerifiedBrand: false, brandName: null }
+        : { ...brandContext, ...listContext };
+    const aiInput = buildAiAnalysisInput(email, scanContext);
     const aiEnabled = await getUserAiEnabled(userId);
     const currentScan = await getCurrentScanForEmail({ userId, emailId: email._id });
 
@@ -581,15 +616,15 @@ export const scanEmailWithRules = async ({
         };
     }
 
-    const rulesResult = calculateRulesForEmail(email, brandContext);
+    const rulesResult = calculateRulesForEmail(email, scanContext);
     const aiSignals = aiEnabled
         ? await analyzeEmailSemanticsWithOllama({
               analysisInput: aiInput,
               enabled: true,
-              brandContext,
+              brandContext: scanContext,
           })
         : buildAiDisabledSignals();
-    const aiScoreResult = calculateAiScoreFromSignals(aiSignals, brandContext);
+    const aiScoreResult = calculateAiScoreFromSignals(aiSignals, scanContext);
     const finalScore = Math.min(SCORE_MAX, rulesResult.ruleScore + aiScoreResult.aiScore);
     const finalResult = {
         score: finalScore,
@@ -601,8 +636,11 @@ export const scanEmailWithRules = async ({
             ...rulesResult.triggeredRules,
             ...aiScoreResult.aiTriggeredRules,
         ],
-        senderVerifiedBrand: Boolean(brandContext.senderVerifiedBrand),
-        verifiedBrandName: brandContext.brandName || null,
+        senderVerifiedBrand: Boolean(scanContext.senderVerifiedBrand),
+        verifiedBrandName: scanContext.senderVerifiedBrand
+            ? scanContext.brandName || null
+            : null,
+        senderListMatch: listContext.listMatch || null,
     };
     const shouldGenerateNaturalExplanation = aiEnabled;
     const explanationResult = shouldGenerateNaturalExplanation
@@ -620,6 +658,7 @@ export const scanEmailWithRules = async ({
               aiSignals,
               senderVerifiedBrand: finalResult.senderVerifiedBrand,
               verifiedBrandName: finalResult.verifiedBrandName,
+              senderListMatch: finalResult.senderListMatch,
               fallbackReason: 'ai_disabled',
           });
     const finalExplanationResult =
@@ -630,6 +669,7 @@ export const scanEmailWithRules = async ({
                   aiSignals,
                   senderVerifiedBrand: finalResult.senderVerifiedBrand,
                   verifiedBrandName: finalResult.verifiedBrandName,
+                  senderListMatch: finalResult.senderListMatch,
                   fallbackReason: explanationResult.meta.fallbackReason || 'ollama_failed',
               })
             : explanationResult.meta.status === 'generated'

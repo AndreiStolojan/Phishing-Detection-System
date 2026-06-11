@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ScanLine,
@@ -8,7 +8,14 @@ import {
   ArrowRight,
   ShieldCheck,
   CalendarRange,
+  Check,
+  ChevronDown,
+  Globe,
+  Crosshair,
+  Loader2,
+  Send,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   AreaChart,
   Area,
@@ -22,20 +29,27 @@ import {
 import { DashboardSkeleton, ErrorState, EmptyState, ConnectGmailState } from '@/components/common/states';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RiskDonut } from '@/components/dashboard/RiskDonut';
+import { TopRulesChart } from '@/components/dashboard/TopRulesChart';
 import { EmailRow } from '@/components/inbox/EmailRow';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useApi } from '@/hooks/useApi';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useMailAccount } from '@/context/MailAccountContext';
-import { getEmails, getEmailStats, getEmailTrend } from '@/api/emailsApi';
+import { useTimeRange } from '@/context/TimeRangeContext';
+import { getEmails, getEmailStats, getEmailTrend, getTopRiskySenders } from '@/api/emailsApi';
+import { getReportSummary, sendReportSummary } from '@/api/reportsApi';
 import { normalizeEmailList } from '@/lib/email-list';
-import { CATEGORY_COLORS, CATEGORY_LABELS } from '@/lib/risk';
+import { CATEGORY_COLORS, CATEGORY_LABELS, getRuleDescription } from '@/lib/risk';
 import { formatDateTime } from '@/utils/formatDate';
 import { cn } from '@/lib/utils';
-
-// Dashboard stats + trend are scoped to a rolling window of the last N days.
-const DASHBOARD_WINDOW_DAYS = 30;
 
 /* ─── Trend chart ─────────────────────────────────────────────────────────── */
 
@@ -94,8 +108,8 @@ function ThreatTrendChart({ data }) {
           <defs>
             {TREND_SERIES.map(({ gradId, color }) => (
               <linearGradient key={gradId} id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
+                <stop offset="0%" stopColor={color} stopOpacity={0.5} />
+                <stop offset="100%" stopColor={color} stopOpacity={0.02} />
               </linearGradient>
             ))}
           </defs>
@@ -143,6 +157,98 @@ function ThreatTrendChart({ data }) {
   );
 }
 
+/* ─── Top risky senders ───────────────────────────────────────────────────── */
+
+const SENDER_SEGMENTS = [
+  { key: 'needsReview', label: CATEGORY_LABELS.suspicious, color: CATEGORY_COLORS.suspicious },
+  { key: 'quarantine', label: CATEGORY_LABELS.likely_phishing, color: CATEGORY_COLORS.likely_phishing },
+  { key: 'confirmedPhishing', label: CATEGORY_LABELS.confirmed_phishing, color: CATEGORY_COLORS.confirmed_phishing },
+];
+
+function TopSendersCard({ senders, loading, periodLabel }) {
+  const max = Math.max(...(senders?.map((s) => s.total) ?? [0]), 1);
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Crosshair className="h-4 w-4 text-risk-quarantine" />
+          Who is targeting you
+        </CardTitle>
+        <CardDescription>Domains behind your risky emails — {periodLabel.toLowerCase()}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full" />
+            ))}
+          </div>
+        ) : !senders?.length ? (
+          <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
+            <ShieldCheck className="h-6 w-6 text-risk-safe" />
+            <p className="text-sm text-muted-foreground">
+              No risky senders in this period.
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3.5">
+            {senders.map((sender) => (
+              <li key={sender.domain}>
+                <Link
+                  to={`/inbox?q=${encodeURIComponent(sender.domain)}`}
+                  className="group block"
+                  title={`See all emails from ${sender.domain}`}
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm">
+                      <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate font-medium group-hover:text-primary">
+                        {sender.domain}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {sender.total} risky
+                    </span>
+                  </div>
+                  {/* Stacked severity bar, scaled against the most active domain */}
+                  <div className="flex h-2 w-full gap-px overflow-hidden rounded-full bg-muted/40">
+                    {SENDER_SEGMENTS.map(({ key, color }) => {
+                      const count = sender[key] ?? 0;
+                      if (!count) return null;
+                      return (
+                        <div
+                          key={key}
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${(count / max) * 100}%`,
+                            backgroundColor: color,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {senders?.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/60 pt-3">
+            {SENDER_SEGMENTS.map(({ key, label, color }) => (
+              <span key={key} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── Posture hero card ───────────────────────────────────────────────────── */
 
 function PostureHero({ attention, safeRate, scanned, lastSynced }) {
@@ -173,7 +279,9 @@ function PostureHero({ attention, safeRate, scanned, lastSynced }) {
             </div>
             <div>
               <p className={cn('text-sm font-semibold', allClear ? 'text-risk-safe' : 'text-risk-quarantine')}>
-                {allClear ? 'Your inbox is protected' : `${attention} email${attention > 1 ? 's' : ''} need your review`}
+                {allClear
+                  ? 'Your inbox is protected'
+                  : `${attention} email${attention > 1 ? 's' : ''} need${attention === 1 ? 's' : ''} your review`}
               </p>
               <p className="text-xs text-muted-foreground">
                 {allClear
@@ -208,23 +316,56 @@ function PostureHero({ attention, safeRate, scanned, lastSynced }) {
 
 export function DashboardPage() {
   const { account, isConnected, syncVersion } = useMailAccount();
+  const { preset, setPreset, presets, label, from, to } = useTimeRange();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const statsQuery = useApi(
-    () => getEmailStats({ days: DASHBOARD_WINDOW_DAYS }),
-    [syncVersion],
-    `dash-stats-${syncVersion}`
+    () => getEmailStats({ from, to }),
+    [syncVersion, preset],
+    `dash-stats-${preset}-${syncVersion}`
   );
   const riskyQuery = useApi(
-    () => getEmails({ riskBucket: 'quarantine' }),
-    [syncVersion],
-    `risky-${syncVersion}`
+    () => getEmails({ riskBucket: 'quarantine', from, to }),
+    [syncVersion, preset],
+    `risky-${preset}-${syncVersion}`
   );
   const trendQuery = useApi(
-    () => getEmailTrend(),
-    [syncVersion],
-    `dash-trend-${syncVersion}`
+    () => getEmailTrend({ from, to }),
+    [syncVersion, preset],
+    `dash-trend-${preset}-${syncVersion}`
   );
+  const sendersQuery = useApi(
+    () => getTopRiskySenders({ from, to }),
+    [syncVersion, preset],
+    `dash-senders-${preset}-${syncVersion}`
+  );
+  // Report data for the active range — feeds the "Most common warning signs"
+  // card and the "Email me this report" action (merged from the Reports page).
+  const reportQuery = useApi(
+    () => getReportSummary({ from, to, label }),
+    [syncVersion, preset],
+    `dash-report-${preset}-${syncVersion}`
+  );
+
+  const sendReport = useAsyncAction(sendReportSummary);
+  const [reportSentTo, setReportSentTo] = useState(null);
+
+  // A new range means a new report — reset the "Emailed" confirmation.
+  useEffect(() => {
+    setReportSentTo(null);
+  }, [preset]);
+
+  const handleSendReport = async () => {
+    try {
+      const result = await sendReport.run({ from, to, label });
+      if (result?.sent) {
+        setReportSentTo(result.recipient);
+        toast.success(`Report sent to ${result.recipient}`);
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Failed to send report. Check your email settings.');
+    }
+  };
 
   useEffect(() => {
     if (searchParams.get('gmail')) {
@@ -262,15 +403,42 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      {/* Scope label — every stat, count and graph below covers a rolling window
-          of the last 30 days. Absolute-state items (Gmail connection, last-synced
+      {/* Global time-range picker — every stat, count and graph below covers
+          the selected window, and the same range scopes the inbox and the
+          emailed report. Absolute-state items (Gmail connection, last-synced
           time) are not time-scoped and shown as-is. */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-h3 font-semibold">Security overview</h2>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground">
-          <CalendarRange className="h-3.5 w-3.5" />
-          Last 30 days
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground">
+              <CalendarRange className="h-3.5 w-3.5" />
+              {label}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {presets.map((option) => (
+                <DropdownMenuItem
+                  key={option.key}
+                  onSelect={() => setPreset(option.key)}
+                  className={cn(option.key === preset && 'text-primary')}
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" onClick={handleSendReport} disabled={sendReport.loading}>
+            {sendReport.loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : reportSentTo ? (
+              <Check className="h-4 w-4 text-risk-safe" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {reportSentTo ? 'Emailed' : 'Email me this report'}
+          </Button>
+        </div>
       </div>
 
       {/* Security posture hero — full width */}
@@ -318,10 +486,10 @@ export function DashboardPage() {
       </div>
 
       {/* Trend chart (3/5) + Risk donut (2/5) */}
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Threat activity — 30 days</CardTitle>
+            <CardTitle>Threat activity — {label.toLowerCase()}</CardTitle>
             <CardDescription>Suspicious, likely phishing &amp; confirmed phishing per day</CardDescription>
           </CardHeader>
           <CardContent>
@@ -348,8 +516,11 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Needs attention — full width */}
-      <Card>
+      {/* Top risky senders (2/5) + Needs attention (3/5) */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+      <TopSendersCard senders={sendersQuery.data} loading={sendersQuery.loading} periodLabel={label} />
+
+      <Card className="lg:col-span-3">
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle>Needs your attention</CardTitle>
           <Button asChild variant="ghost" size="sm">
@@ -384,6 +555,47 @@ export function DashboardPage() {
                 <EmailRow key={email.id || email._id} email={email} compact />
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+      </div>
+
+      {/* Most common warning signs — merged from the old Reports page */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Most common warning signs</CardTitle>
+          <CardDescription>
+            The warning signs found most often in your scanned emails — {label.toLowerCase()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {reportQuery.loading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : reportQuery.error ? (
+            <p className="text-sm text-muted-foreground">
+              Could not load the warning signs for this period.
+            </p>
+          ) : (
+            <>
+              <TopRulesChart rules={reportQuery.data?.topTriggeredRules} />
+
+              {/* Rule legend */}
+              {reportQuery.data?.topTriggeredRules?.length > 0 && (
+                <div className="border-t border-border/60 pt-3">
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    What these mean
+                  </p>
+                  <ul className="space-y-1.5">
+                    {reportQuery.data.topTriggeredRules.slice(0, 6).map((rule) => (
+                      <li key={rule.rule} className="flex gap-2 text-xs text-muted-foreground">
+                        <span className="mt-px h-1.5 w-1.5 shrink-0 translate-y-[0.2rem] rounded-full bg-muted-foreground/50" />
+                        <span>{getRuleDescription(rule.rule)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

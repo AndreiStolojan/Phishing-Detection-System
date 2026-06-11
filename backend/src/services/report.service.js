@@ -1,19 +1,44 @@
 import mongoose from 'mongoose';
 
 import createError from '../common/errors/create-error.js';
+import { parseDateRangeQuery } from '../common/utils/date-range.js';
 import { sendMonthlyDigestEmail } from '../../extras/notifications/send-email.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
 
 const MONTH_QUERY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TOP_ITEMS_LIMIT = 10;
+// Display-only label the frontend sends with a from/to range (e.g. "Yesterday"),
+// capped so it can never bloat the report email subject.
+const RANGE_LABEL_MAX_LENGTH = 60;
 
 const toUserObjectId = (userId) => new mongoose.Types.ObjectId(String(userId));
 
 const formatMonthLabel = ({ year, monthIndex }) =>
     `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
 
+/*
+ * Resolve the report window. Two modes:
+ *   - range mode: absolute `from`/`to` (the app's global time filter). Takes
+ *     precedence over `month`. Anchors on `receivedAt` so the report covers
+ *     the same emails the inbox and dashboard show for that range.
+ *   - month mode (legacy): `month=YYYY-MM` or the current UTC month. Anchors
+ *     on `createdAt` (first sync), unchanged for backward compatibility.
+ */
 const parseMonthlySummaryPeriod = (query = {}) => {
+    const range = parseDateRangeQuery(query);
+
+    if (range) {
+        const rawLabel = typeof query.label === 'string' ? query.label.trim() : '';
+
+        return {
+            mode: 'range',
+            label: rawLabel ? rawLabel.slice(0, RANGE_LABEL_MAX_LENGTH) : null,
+            from: range.from,
+            to: range.to,
+        };
+    }
+
     const rawMonth = query.month;
 
     if (rawMonth === undefined) {
@@ -22,6 +47,7 @@ const parseMonthlySummaryPeriod = (query = {}) => {
         const monthIndex = now.getUTCMonth();
 
         return {
+            mode: 'month',
             month: formatMonthLabel({ year, monthIndex }),
             from: new Date(Date.UTC(year, monthIndex, 1)),
             to: new Date(Date.UTC(year, monthIndex + 1, 1)),
@@ -42,11 +68,27 @@ const parseMonthlySummaryPeriod = (query = {}) => {
     const monthIndex = Number.parseInt(monthValue, 10) - 1;
 
     return {
+        mode: 'month',
         month: rawMonth,
         from: new Date(Date.UTC(year, monthIndex, 1)),
         to: new Date(Date.UTC(year, monthIndex + 1, 1)),
     };
 };
+
+// Public period shape: month mode keeps its historical { month, from, to };
+// range mode exposes { from, to, label } (no month to mislabel it with).
+const toPeriodResponse = (period) =>
+    period.mode === 'range'
+        ? {
+            from: period.from.toISOString(),
+            to: period.to.toISOString(),
+            label: period.label,
+        }
+        : {
+            month: period.month,
+            from: period.from.toISOString(),
+            to: period.to.toISOString(),
+        };
 
 const buildDateRange = ({ from, to }) => ({
     $gte: from,
@@ -116,10 +158,12 @@ const buildLatestScanLookupStages = () => [
     { $addFields: { latestScan: { $arrayElemAt: ['$latestScan', 0] } } },
 ];
 
-const getWindowScanAggregates = async ({ userObjectId, from, to }) => {
+const getWindowScanAggregates = async ({ userObjectId, from, to, dateField = 'createdAt' }) => {
     const [result] = await Email.aggregate([
-        // Base set = emails synced (first stored) inside the window.
-        { $match: { userId: userObjectId, createdAt: buildDateRange({ from, to }) } },
+        // Base set = emails inside the window. Month mode keys on `createdAt`
+        // (first stored on a sync); range mode keys on `receivedAt` so the
+        // report matches what the inbox shows for the same range.
+        { $match: { userId: userObjectId, [dateField]: buildDateRange({ from, to }) } },
         ...buildLatestScanLookupStages(),
         {
             $facet: {
@@ -133,6 +177,80 @@ const getWindowScanAggregates = async ({ userObjectId, from, to }) => {
                             },
                             safe: {
                                 $sum: { $cond: [{ $eq: ['$latestScan.verdict', 'safe'] }, 1, 0] },
+                            },
+                            /*
+                             * Effective-verdict split: the user's review overrides the scan,
+                             * exactly like the dashboard buckets. Every scanned email lands in
+                             * exactly one of the four (no double counting):
+                             *   marked safe            -> effectiveSafe
+                             *   marked phishing        -> effectiveMarkedPhishing
+                             *   unreviewed             -> its scan verdict bucket
+                             */
+                            effectiveSafe: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                { $ifNull: ['$latestScan', false] },
+                                                {
+                                                    $or: [
+                                                        { $eq: ['$userVerdict', 'safe'] },
+                                                        {
+                                                            $and: [
+                                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
+                                                                { $eq: ['$latestScan.verdict', 'safe'] },
+                                                            ],
+                                                        },
+                                                    ],
+                                                },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
+                            },
+                            effectiveSuspicious: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
+                                                { $eq: ['$latestScan.verdict', 'suspicious'] },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
+                            },
+                            effectiveLikelyPhishing: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
+                                                { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
+                            },
+                            effectiveMarkedPhishing: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                { $ifNull: ['$latestScan', false] },
+                                                { $eq: ['$userVerdict', 'phishing'] },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
                             },
                             suspicious: {
                                 $sum: { $cond: [{ $eq: ['$latestScan.verdict', 'suspicious'] }, 1, 0] },
@@ -198,6 +316,12 @@ const getWindowScanAggregates = async ({ userObjectId, from, to }) => {
             safe: counts.safe || 0,
             suspicious: counts.suspicious || 0,
             likelyPhishing: counts.likelyPhishing || 0,
+        },
+        effectiveCounts: {
+            safe: counts.effectiveSafe || 0,
+            suspicious: counts.effectiveSuspicious || 0,
+            likelyPhishing: counts.effectiveLikelyPhishing || 0,
+            markedPhishing: counts.effectiveMarkedPhishing || 0,
         },
         quarantined: counts.quarantined || 0,
         topTriggeredRules: result?.topTriggeredRules || [],
@@ -297,9 +421,10 @@ export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
     const userObjectId = toUserObjectId(userId);
     const period = parseMonthlySummaryPeriod(query);
     const { from, to } = period;
+    const dateField = period.mode === 'range' ? 'receivedAt' : 'createdAt';
 
     const [aggregates, reviewed, markedSafe, markedPhishing] = await Promise.all([
-        getWindowScanAggregates({ userObjectId, from, to }),
+        getWindowScanAggregates({ userObjectId, from, to, dateField }),
         Email.countDocuments({
             userId: userObjectId,
             userVerdict: { $in: ['safe', 'phishing'] },
@@ -318,15 +443,15 @@ export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
     ]);
 
     return {
-        period: {
-            month: period.month,
-            from: from.toISOString(),
-            to: to.toISOString(),
-        },
+        period: toPeriodResponse(period),
         counts: {
             syncedEmails: aggregates.syncedEmails,
             scannedEmails: aggregates.scannedEmails,
             safe: aggregates.verdictCounts.safe,
+            effectiveSafe: aggregates.effectiveCounts.safe,
+            effectiveSuspicious: aggregates.effectiveCounts.suspicious,
+            effectiveLikelyPhishing: aggregates.effectiveCounts.likelyPhishing,
+            effectiveMarkedPhishing: aggregates.effectiveCounts.markedPhishing,
             suspicious: aggregates.verdictCounts.suspicious,
             likelyPhishing: aggregates.verdictCounts.likelyPhishing,
             reviewed,

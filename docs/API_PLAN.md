@@ -21,6 +21,7 @@ Prefix recomandat pentru API:
 - `/api/v1/reports`
 - `/api/v1/scans`
 - `/api/v1/contact`
+- `/api/v1/sender-lists`
 
 ## Principii pentru API
 
@@ -106,14 +107,18 @@ Notă UI curentă:
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/emails` | Listează emailurile salvate | query pentru filtrare și paginare | listă emailuri | Da |
-| `GET` | `/api/v1/emails/stats` | Numără emailurile pe `riskBucket` curent (live, aceeași derivare ca lista) | query `days` (opțional, fereastră rulantă pe `receivedAt`) | `{ counts: { safe, needs_review, quarantine, reviewed_safe, confirmed_phishing, unscanned }, total }` | Da |
+| `GET` | `/api/v1/emails` | Listează emailurile salvate | query pentru filtrare și paginare + `from`/`to` opțional (interval absolut pe `receivedAt`) | listă emailuri | Da |
+| `GET` | `/api/v1/emails/stats` | Numără emailurile pe `riskBucket` curent (live, aceeași derivare ca lista) | query `from`/`to` (interval absolut, prioritar) sau `days` (fereastră rulantă pe `receivedAt`) | `{ counts: { safe, needs_review, quarantine, reviewed_safe, confirmed_phishing, unscanned }, total }` | Da |
+| `GET` | `/api/v1/emails/trend` | Serii pe zile per `riskBucket` efectiv, pentru graficul de trend din dashboard | query `from`/`to` opțional (implicit: ultimele 30 de zile) | listă `{ date, safe, needs_review, quarantine, confirmed_phishing }` (zero-fill pe fiecare zi din interval) | Da |
+| `GET` | `/api/v1/emails/top-risky-senders` | Top domenii din spatele emailurilor riscante (efectiv, review-aware) — cardul „Who is targeting you" | query `from`/`to` opțional (prioritar) sau `days` (implicit 30) | listă `{ domain, total, needsReview, quarantine, confirmedPhishing, lastSeenAt }` | Da |
 | `GET` | `/api/v1/emails/:id` | Detalii email | param `id` | email detaliat | Da |
 | `GET` | `/api/v1/emails/:id/raw` | Returnează corpul emailului și câmpurile brute utile | param `id` | `textBody`, `htmlBody`, linkuri și metadata | Da |
 
 Notă: `GET /api/v1/emails/stats` întoarce starea CURENTĂ (per `riskBucket`), nu evenimente pe lună. Dashboard-ul și chip-urile din inbox îl folosesc ca sursă unică, deci numerele se potrivesc cu lista și se actualizează după review. Sumarul lunar (`/reports/monthly-summary`) rămâne vederea pe lună (digest).
 
-Parametrul `days`: dacă e prezent și pozitiv, numărarea se limitează la emailurile cu `receivedAt` în ultimele N zile (fereastră rulantă). Dashboard-ul trimite `days=30` (scop ultimele 30 de zile); inbox-ul îl omite (toate emailurile, ca să se potrivească cu lista all-time).
+Parametrii de interval (filtrul global de timp, 2026-06-11): `from` și `to` sunt timestamps ISO 8601 absolute, calculate de frontend în timezone-ul utilizatorului. Trebuie trimiși împreună, `from < to`, altfel `400` cu cod `INVALID_DATE_RANGE`. Intervalul este semi-deschis `[from, to)` și filtrează pe `receivedAt`. Au prioritate peste `days` (păstrat pentru compatibilitate). Dashboard-ul și inbox-ul trimit același `from`/`to` din `TimeRangeContext`, deci lista, chip counts și toate statisticile acoperă mereu aceeași perioadă.
+
+Parametrul `days` (legacy): dacă e prezent și pozitiv (și `from`/`to` lipsesc), numărarea se limitează la emailurile cu `receivedAt` în ultimele N zile (fereastră rulantă).
 
 Notă integritate (`/reports/monthly-summary` și digest zilnic): toate cifrele din pâlnia de detecție derivă dintr-o singură sursă — setul de emailuri sincronizate în fereastră (`Email.createdAt`), cu cel mai recent scan atașat per email. Astfel `scanned ≤ synced` mereu, iar fiecare email contribuie o singură dată (cu cel mai recent verdict). Înainte, `synced` se număra pe `Email.createdAt` iar `scanned` pe `Scan.scannedAt` — un re-scan rescria `scannedAt` la „acum", deci un email vechi re-scanat umfla `scanned` peste `synced` (ex. 60 scanate vs 58 sincronizate).
 
@@ -242,10 +247,18 @@ Exemplu `aiExplanation`:
 
 | Metodă | Rută | Scop | Input principal | Output principal | Auth |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/reports/monthly-summary` | Returnează sumarul lunar de phishing pentru utilizatorul autentificat | query opțional `month=YYYY-MM` | perioadă, contoare, reguli frecvente, sumar AI | Da |
-| `POST` | `/api/v1/reports/monthly-summary/send` | Trimite manual sumarul lunar pe emailul utilizatorului autentificat | query opțional `month=YYYY-MM` | `sent`, `messageId`, `recipient`, `period`, `generatedAt` | Da |
+| `GET` | `/api/v1/reports/monthly-summary` | Returnează sumarul de phishing pentru utilizatorul autentificat (lună sau interval arbitrar) | query opțional `from`+`to` (+ `label`) sau `month=YYYY-MM` | perioadă, contoare, reguli frecvente, sumar AI | Da |
+| `POST` | `/api/v1/reports/monthly-summary/send` | Trimite manual sumarul pe emailul utilizatorului autentificat | query opțional `from`+`to` (+ `label`) sau `month=YYYY-MM` | `sent`, `messageId`, `recipient`, `period`, `generatedAt` | Da |
 
-Contract de răspuns pentru `GET /api/v1/reports/monthly-summary`:
+Suport pentru interval arbitrar (filtrul global de timp, 2026-06-11):
+
+- `from`/`to` (ISO 8601, împreună, `from < to`, altfel `400` `INVALID_DATE_RANGE`) au prioritate peste `month`;
+- în modul interval, setul de bază sunt emailurile cu `receivedAt` în `[from, to)` — aceeași ancoră ca inbox-ul și dashboard-ul, deci raportul acoperă exact emailurile pe care utilizatorul le vede pentru intervalul activ; restul logicii (cel mai recent scan per email, split efectiv, top rules, AI) este neschimbată;
+- `label` este opțional, doar pentru afișare (max 60 caractere, escaped în HTML): dă titlul/subiectul emailului de raport (ex. „Security report — Yesterday"); fără `label`, emailul afișează datele intervalului formatate în Europe/Bucharest;
+- în modul interval, `period` din răspuns este `{ from, to, label }` (fără `month`);
+- modul lunar rămâne neschimbat (bazat pe `Email.createdAt`), pentru compatibilitate cu digestul și testele.
+
+Contract de răspuns pentru `GET /api/v1/reports/monthly-summary` (modul lunar):
 
 - fără query, endpoint-ul folosește luna calendaristică UTC curentă;
 - cu `month=YYYY-MM`, endpoint-ul folosește luna cerută;
@@ -352,6 +365,21 @@ Exemplu de răspuns când lipsește configurarea de email:
   }
 }
 ```
+
+## Sender Lists (allowlist / blocklist per utilizator)
+
+| Metodă | Rută | Scop | Input principal | Output principal | Auth |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/sender-lists` | Listează intrările utilizatorului (trusted + blocked) | `withMatchCounts=1` opțional | `entries[]` cu `id`, `listType` (`allow`/`block`), `kind` (`sender`/`domain`), `value`, `createdAt`, plus `matchedEmails` când e cerut | Da |
+| `POST` | `/api/v1/sender-lists` | Adaugă o intrare; `value` se normalizează (lowercase, fără `www.`) | `listType`, `kind`, `value` (email valid pentru `sender`, domeniu valid pentru `domain`) | `201` + `entry` la creare, `200` + `entry` dacă există deja identic, `409 LIST_CONFLICT` dacă criteriul e pe lista opusă | Da |
+| `DELETE` | `/api/v1/sender-lists/:id` | Șterge o intrare proprie | `id` (ObjectId) | `entry` ștearsă sau `404 LIST_ENTRY_NOT_FOUND` | Da |
+
+Note:
+
+- Exclusivitate mutuală: index unic `(userId, kind, value)` — un criteriu nu poate fi simultan pe ambele liste; mutarea cere ștergere + adăugare.
+- Conflicte cross-kind interzise (2026-06-10): un sender rule și un domain rule care îl acoperă (suffix-aware) nu pot avea tipuri opuse — `409 LIST_CONFLICT` în ambele direcții, cu mesaj care indică regula existentă. Suprapunerea pe aceeași direcție e permisă.
+- Efect în scanare: blocklist ⇒ regulă `user_blocklist_match` (+60, verdict `likely_phishing` garantat); allowlist ⇒ semnalele contextuale sunt reduse la 0/jumătate, semnalele critice rămân întregi. Scanarea persistă `senderListMatch` (`listType`, `kind`, `value`) pe scan și îl expune în `GET /api/v1/scans/emails/:id/latest`.
+- Listele se aplică doar la scanările viitoare (rescan manual sau sync), nu retroactiv.
 
 ## Contact
 

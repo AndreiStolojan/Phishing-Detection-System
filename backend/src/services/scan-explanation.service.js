@@ -100,16 +100,36 @@ const buildVerifiedBrandSentence = (senderVerifiedBrand, verifiedBrandName) => {
     return `This email comes from a verified official domain${brandLabel}, so brand-typical signals (urgency, links, sign-in prompts) were weighted down.`;
 };
 
+const buildSenderListSentence = (senderListMatch) => {
+    if (!senderListMatch) {
+        return '';
+    }
+
+    const target = senderListMatch.kind === 'domain' ? 'domain' : 'sender';
+
+    if (senderListMatch.listType === 'block') {
+        return `You blocked this ${target} (${senderListMatch.value}), so the email is always treated as likely phishing.`;
+    }
+
+    return `This ${target} (${senderListMatch.value}) is on your trusted list, so contextual signals were weighted down; critical signals like requests for passwords or dangerous attachments still count in full.`;
+};
+
 export const buildControlledExplanation = ({
     verdict,
     triggeredRules,
     aiSignals,
     senderVerifiedBrand = false,
     verifiedBrandName = null,
+    senderListMatch = null,
 }) => {
     const sentences = [];
 
     sentences.push(verdictToSentence[verdict] || verdictToSentence.safe);
+
+    const senderListSentence = buildSenderListSentence(senderListMatch);
+    if (senderListSentence) {
+        sentences.push(senderListSentence);
+    }
 
     const verifiedBrandSentence = buildVerifiedBrandSentence(
         senderVerifiedBrand,
@@ -138,6 +158,7 @@ export const buildControlledExplanationObject = ({
     aiSignals,
     senderVerifiedBrand = false,
     verifiedBrandName = null,
+    senderListMatch = null,
 }) => ({
     summary: buildControlledExplanation({
         verdict,
@@ -145,5 +166,6 @@ export const buildControlledExplanationObject = ({
         aiSignals,
         senderVerifiedBrand,
         verifiedBrandName,
+        senderListMatch,
     }),
 });

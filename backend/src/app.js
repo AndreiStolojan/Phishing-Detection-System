@@ -10,6 +10,7 @@ import scanRouter from './routes/scan.routes.js';
 import actionRouter from './routes/action.routes.js';
 import reportRouter from './routes/report.routes.js';
 import contactRouter from './routes/contact.routes.js';
+import senderListRouter from './routes/sender-list.routes.js';
 import sendErrorResponse from './common/http/send-error-response.js';
 import errorMiddleware from './middlewares/error.middleware.js';
 import arcjetMiddleware from '../extras/security/arcjet.middleware.js';
@@ -33,6 +34,7 @@ app.use('/api/v1/scans', scanRouter);
 app.use('/api/v1/actions', actionRouter);
 app.use('/api/v1/reports', reportRouter);
 app.use('/api/v1/contact', contactRouter);
+app.use('/api/v1/sender-lists', senderListRouter);
 
 app.get('/api/v1/health', (req, res) => {
   res.status(200).json({

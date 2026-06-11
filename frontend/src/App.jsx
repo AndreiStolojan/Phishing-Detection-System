@@ -6,7 +6,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { InboxPage } from '@/pages/InboxPage';
 import { EmailDetailPage } from '@/pages/EmailDetailPage';
-import { ReportsPage } from '@/pages/ReportsPage';
+import { SenderListsPage } from '@/pages/SenderListsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 
 export default function App() {
@@ -24,7 +24,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/inbox" element={<InboxPage />} />
         <Route path="/inbox/:emailId" element={<EmailDetailPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/sender-lists" element={<SenderListsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

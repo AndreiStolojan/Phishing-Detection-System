@@ -162,6 +162,7 @@ export const humanize = (value) => {
 
 /** Short, user-friendly names for every rule key — used in charts and tooltips. */
 const RULE_LABELS = {
+  user_blocklist_match: 'Blocked by you',
   reply_to_mismatch: 'Reply address differs',
   shortened_url_detected: 'Shortened link',
   'suspicious_link_pattern:ip_address_link': 'Link uses IP address',
@@ -185,6 +186,46 @@ export const getRuleLabel = (rule) => {
   const key = String(rule || '');
   if (RULE_LABELS[key]) return RULE_LABELS[key];
   if (key.startsWith('suspicious_link_pattern:')) return 'Suspicious link';
+  return key
+    .replace(/^ai_semantic:/, '')
+    .replace(/_(high|medium|low)$/, '')
+    .replace(/[_:]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+/**
+ * Short, human-readable descriptions for the most common rule keys — used by
+ * the dashboard's "Most common warning signs" legend. Falls back to a
+ * humanized version for anything not listed.
+ */
+const RULE_DESCRIPTIONS = {
+  reply_to_mismatch: 'Reply address differs from the sender — a common phishing trick',
+  shortened_url_detected: 'Email contains shortened links that hide the real destination',
+  too_many_links_high: 'Unusually high number of links in the message',
+  too_many_links_medium: 'Higher than normal number of links in the message',
+  high_risk_attachment_extension: 'Attachment has a file type that could be used to install malware (.exe, .bat, etc.)',
+  archive_attachment_extension: 'Attachment is a compressed archive that may hide malicious files (.zip, .rar, etc.)',
+  'suspicious_link_pattern:ip_address_link': 'A link points to a raw IP address instead of a normal website name',
+  'suspicious_link_pattern:embedded_credentials': 'A link contains login details — a strong sign of phishing',
+  'suspicious_link_pattern:punycode_domain': 'A link uses a lookalike web address that imitates a real brand',
+  'suspicious_link_pattern:very_long_url': 'A link is unusually long, which can hide where it really leads',
+  'ai_semantic:urgency_high': 'AI detected language designed to create panic and rush you into acting',
+  'ai_semantic:urgency_medium': 'AI detected words pressuring you to act immediately',
+  'ai_semantic:social_engineering_high': 'AI detected manipulative tactics — using fear, authority, or rewards to trick you',
+  'ai_semantic:social_engineering_medium': 'AI detected some manipulation tactics in the email',
+  'ai_semantic:login_or_action_request': 'AI detected language pushing you to click a link or sign in right away',
+  'ai_semantic:sensitive_data_request': 'AI detected a request for your password, payment details, or personal codes',
+  'ai_semantic:brand_impersonation_suspected': 'AI suspects this email is impersonating a company or brand you know',
+};
+
+export const getRuleDescription = (rule) => {
+  const key = String(rule || '');
+  if (RULE_DESCRIPTIONS[key]) return RULE_DESCRIPTIONS[key];
+  // Any other suspicious-link subtype: friendly text, never the raw pattern key.
+  if (key.startsWith('suspicious_link_pattern:')) {
+    return 'A link in the email looks suspicious';
+  }
+  // Generic fallback: drop any AI prefix and severity suffix, then Title Case.
   return key
     .replace(/^ai_semantic:/, '')
     .replace(/_(high|medium|low)$/, '')
