@@ -19,6 +19,14 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Progres estimativ MVP: `100%` backend · `100%` produs final
 - Deadline: ~2026-06-17 (draft lucrare)
 
+## Notă sesiune 2026-06-12 (4) - Fix: timeout Ollama pentru explicații era plafonat la 10s
+
+- **Bug:** `OLLAMA_TIMEOUT_MS` (setat la 45000 în `.env.production.local.example` și `.env.development.local`) era ignorat de `ollama-explanation.service.js` — constantele locale `DEFAULT_OLLAMA_TIMEOUT_MS`/`MAX_EXPLANATION_TIMEOUT_MS` erau hardcodate la `10000`, deci `clampTimeoutMs()` plafona orice valoare la 10s indiferent de env. Pe dropletul DigitalOcean (Ollama pe CPU, mai lent decât local), explicațiile cădeau pe fallback („ollama_timeout") mult mai des decât ar trebui.
+- **Fix:** ambele constante aduse la `45000` / `120000`, alineate cu `ollama-semantic.service.js` (care deja respecta corect `OLLAMA_TIMEOUT_MS`, clamp 5000–120000). Doar `backend/src/services/ollama-explanation.service.js`, nimic altceva.
+- **Bug conex găsit:** Andrei a raportat „Unauthorized" (deconectare din SecureInbox) imediat după un timeout Ollama în timpul sync-ului. Cauza reală: când Gmail API răspunde 401 și refresh-ul tokenului OAuth eșuează (`mail-account.service.js`, cod `GMAIL_*_FAILED`/`GOOGLE_TOKEN_*`, statusCode 401 — nimic de-a face cu sesiunea JWT), `apiClient.js` din frontend trata **orice** 401 ca expirare de sesiune și apela `clearStoredToken()`, delogând userul din toată aplicația.
+- **Fix:** `frontend/src/api/apiClient.js` golește token-ul doar când `payload.code` începe cu `AUTH_` (codurile reale din `auth.middleware.js`/`role.middleware.js`). Erorile 401 legate de Gmail (reconectare cont) rămân erori normale afișate userului, fără delogare.
+- **Următorul pas:** Andrei verifică pe droplet (după redeploy) dacă explicațiile AI mai cad pe fallback la fel de des, și dacă mai apare delogarea spurioasă la sync cu Ollama lent.
+
 ## Notă sesiune 2026-06-12 (3) - Plan + artefacte de deployment (Student Pack)
 
 - **Ce s-a făcut:** plan concret de deploy low-cost pe DigitalOcean (Student Pack $200 credit) + MongoDB Atlas (M0 free) + domeniu/SSL, documentat în `docs/DEPLOYMENT.md`. Artefacte create (toate noi, fără modificări de cod existent): `backend/Dockerfile`, `backend/.dockerignore`, `backend/.env.production.local.example`, `frontend/Dockerfile`, `frontend/.dockerignore`, `frontend/nginx.conf`, `docker-compose.yml` (caddy + backend + frontend + ollama), `Caddyfile`, `.env.example` (DOMAIN pentru Caddy). `.gitignore` actualizat cu `/.env`. `docker compose config` validează curat.

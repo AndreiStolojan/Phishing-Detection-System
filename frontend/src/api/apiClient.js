@@ -46,7 +46,7 @@ export const apiRequest = async (path, options = {}) => {
   const payload = await parseResponsePayload(response);
 
   if (!response.ok || payload.success === false) {
-    if (response.status === 401) {
+    if (response.status === 401 && payload.code?.startsWith('AUTH_')) {
       clearStoredToken();
     }
 
