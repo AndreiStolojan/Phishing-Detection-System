@@ -158,6 +158,97 @@ const buildLatestScanLookupStages = () => [
     { $addFields: { latestScan: { $arrayElemAt: ['$latestScan', 0] } } },
 ];
 
+// `$userVerdict` is neither 'safe' nor 'phishing': the user has not reviewed the email,
+// so its scan verdict still decides the effective bucket.
+const isUnreviewedExpr = { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] };
+
+// True when the email has a latest scan attached.
+const hasLatestScanExpr = { $ifNull: ['$latestScan', false] };
+
+// Sum 1 for every document where `expr` is truthy, 0 otherwise.
+const countWhere = (expr) => ({ $sum: { $cond: [expr, 1, 0] } });
+
+// Count documents whose latest scan carries the given raw verdict.
+const countWhereScanVerdict = (verdict) =>
+    countWhere({ $eq: ['$latestScan.verdict', verdict] });
+
+const windowCountsFacet = [
+    {
+        $group: {
+            _id: null,
+            syncedEmails: { $sum: 1 },
+            scannedEmails: countWhere(hasLatestScanExpr),
+            safe: countWhereScanVerdict('safe'),
+            /*
+             * Effective-verdict split: the user's review overrides the scan,
+             * exactly like the dashboard buckets. Every scanned email lands in
+             * exactly one of the four (no double counting):
+             *   marked safe            -> effectiveSafe
+             *   marked phishing        -> effectiveMarkedPhishing
+             *   unreviewed             -> its scan verdict bucket
+             */
+            effectiveSafe: countWhere({
+                $and: [
+                    hasLatestScanExpr,
+                    {
+                        $or: [
+                            { $eq: ['$userVerdict', 'safe'] },
+                            {
+                                $and: [
+                                    isUnreviewedExpr,
+                                    { $eq: ['$latestScan.verdict', 'safe'] },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            }),
+            effectiveSuspicious: countWhere({
+                $and: [isUnreviewedExpr, { $eq: ['$latestScan.verdict', 'suspicious'] }],
+            }),
+            effectiveLikelyPhishing: countWhere({
+                $and: [
+                    isUnreviewedExpr,
+                    { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                ],
+            }),
+            effectiveMarkedPhishing: countWhere({
+                $and: [hasLatestScanExpr, { $eq: ['$userVerdict', 'phishing'] }],
+            }),
+            suspicious: countWhereScanVerdict('suspicious'),
+            likelyPhishing: countWhereScanVerdict('likely_phishing'),
+            quarantined: countWhere({
+                $and: [
+                    { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                    isUnreviewedExpr,
+                ],
+            }),
+        },
+    },
+];
+
+// Top warning signs across the window's emails, one latest scan each.
+const topTriggeredRulesFacet = [
+    { $match: { latestScan: { $ne: null } } },
+    { $unwind: '$latestScan.triggeredRules' },
+    {
+        $group: {
+            _id: '$latestScan.triggeredRules.rule',
+            count: { $sum: 1 },
+            totalPoints: { $sum: '$latestScan.triggeredRules.points' },
+        },
+    },
+    { $sort: { count: -1, totalPoints: -1, _id: 1 } },
+    { $limit: TOP_ITEMS_LIMIT },
+    { $project: { _id: 0, rule: '$_id', count: 1, totalPoints: 1 } },
+];
+
+// AI coverage across the window's scanned emails.
+const aiCoverageFacet = [
+    { $match: { latestScan: { $ne: null } } },
+    { $group: { _id: '$latestScan.aiStatus', count: { $sum: 1 } } },
+];
+
 const getWindowScanAggregates = async ({ userObjectId, from, to, dateField = 'createdAt' }) => {
     const [result] = await Email.aggregate([
         // Base set = emails inside the window. Month mode keys on `createdAt`
@@ -167,136 +258,9 @@ const getWindowScanAggregates = async ({ userObjectId, from, to, dateField = 'cr
         ...buildLatestScanLookupStages(),
         {
             $facet: {
-                counts: [
-                    {
-                        $group: {
-                            _id: null,
-                            syncedEmails: { $sum: 1 },
-                            scannedEmails: {
-                                $sum: { $cond: [{ $ifNull: ['$latestScan', false] }, 1, 0] },
-                            },
-                            safe: {
-                                $sum: { $cond: [{ $eq: ['$latestScan.verdict', 'safe'] }, 1, 0] },
-                            },
-                            /*
-                             * Effective-verdict split: the user's review overrides the scan,
-                             * exactly like the dashboard buckets. Every scanned email lands in
-                             * exactly one of the four (no double counting):
-                             *   marked safe            -> effectiveSafe
-                             *   marked phishing        -> effectiveMarkedPhishing
-                             *   unreviewed             -> its scan verdict bucket
-                             */
-                            effectiveSafe: {
-                                $sum: {
-                                    $cond: [
-                                        {
-                                            $and: [
-                                                { $ifNull: ['$latestScan', false] },
-                                                {
-                                                    $or: [
-                                                        { $eq: ['$userVerdict', 'safe'] },
-                                                        {
-                                                            $and: [
-                                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
-                                                                { $eq: ['$latestScan.verdict', 'safe'] },
-                                                            ],
-                                                        },
-                                                    ],
-                                                },
-                                            ],
-                                        },
-                                        1,
-                                        0,
-                                    ],
-                                },
-                            },
-                            effectiveSuspicious: {
-                                $sum: {
-                                    $cond: [
-                                        {
-                                            $and: [
-                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
-                                                { $eq: ['$latestScan.verdict', 'suspicious'] },
-                                            ],
-                                        },
-                                        1,
-                                        0,
-                                    ],
-                                },
-                            },
-                            effectiveLikelyPhishing: {
-                                $sum: {
-                                    $cond: [
-                                        {
-                                            $and: [
-                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
-                                                { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                                            ],
-                                        },
-                                        1,
-                                        0,
-                                    ],
-                                },
-                            },
-                            effectiveMarkedPhishing: {
-                                $sum: {
-                                    $cond: [
-                                        {
-                                            $and: [
-                                                { $ifNull: ['$latestScan', false] },
-                                                { $eq: ['$userVerdict', 'phishing'] },
-                                            ],
-                                        },
-                                        1,
-                                        0,
-                                    ],
-                                },
-                            },
-                            suspicious: {
-                                $sum: { $cond: [{ $eq: ['$latestScan.verdict', 'suspicious'] }, 1, 0] },
-                            },
-                            likelyPhishing: {
-                                $sum: {
-                                    $cond: [{ $eq: ['$latestScan.verdict', 'likely_phishing'] }, 1, 0],
-                                },
-                            },
-                            quarantined: {
-                                $sum: {
-                                    $cond: [
-                                        {
-                                            $and: [
-                                                { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                                                { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
-                                            ],
-                                        },
-                                        1,
-                                        0,
-                                    ],
-                                },
-                            },
-                        },
-                    },
-                ],
-                // Top warning signs across the window's emails, one latest scan each.
-                topTriggeredRules: [
-                    { $match: { latestScan: { $ne: null } } },
-                    { $unwind: '$latestScan.triggeredRules' },
-                    {
-                        $group: {
-                            _id: '$latestScan.triggeredRules.rule',
-                            count: { $sum: 1 },
-                            totalPoints: { $sum: '$latestScan.triggeredRules.points' },
-                        },
-                    },
-                    { $sort: { count: -1, totalPoints: -1, _id: 1 } },
-                    { $limit: TOP_ITEMS_LIMIT },
-                    { $project: { _id: 0, rule: '$_id', count: 1, totalPoints: 1 } },
-                ],
-                // AI coverage across the window's scanned emails.
-                ai: [
-                    { $match: { latestScan: { $ne: null } } },
-                    { $group: { _id: '$latestScan.aiStatus', count: { $sum: 1 } } },
-                ],
+                counts: windowCountsFacet,
+                topTriggeredRules: topTriggeredRulesFacet,
+                ai: aiCoverageFacet,
             },
         },
     ]);
