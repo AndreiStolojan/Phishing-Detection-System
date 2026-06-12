@@ -69,3 +69,4 @@ scripts/*
 /.postman/
 /postman/
 .claude/*
+.env
