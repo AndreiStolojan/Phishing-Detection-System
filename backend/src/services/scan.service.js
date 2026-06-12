@@ -577,6 +577,43 @@ const upsertCurrentScanForEmail = async ({
     return currentScan;
 };
 
+// Decide which explanation to store: the AI text when it generated cleanly, a controlled
+// fallback when AI was asked but failed, or the already-built fallback when AI was off.
+const resolveExplanationResult = ({
+    shouldGenerateNaturalExplanation,
+    explanationResult,
+    finalResult,
+    aiSignals,
+}) => {
+    const aiFailedAfterRequest =
+        shouldGenerateNaturalExplanation &&
+        explanationResult.meta.status !== 'generated';
+    if (aiFailedAfterRequest) {
+        return buildFallbackExplanationResult({
+            verdict: finalResult.verdict,
+            triggeredRules: finalResult.triggeredRules,
+            aiSignals,
+            senderVerifiedBrand: finalResult.senderVerifiedBrand,
+            verifiedBrandName: finalResult.verifiedBrandName,
+            senderListMatch: finalResult.senderListMatch,
+            fallbackReason: explanationResult.meta.fallbackReason || 'ollama_failed',
+        });
+    }
+
+    if (explanationResult.meta.status === 'generated') {
+        return {
+            explanation: explanationResult.explanation,
+            meta: {
+                ...explanationResult.meta,
+                fallbackUsed: false,
+                fallbackReason: null,
+            },
+        };
+    }
+
+    return explanationResult;
+};
+
 export const scanEmailWithRules = async ({
     userId,
     emailId,
@@ -661,27 +698,12 @@ export const scanEmailWithRules = async ({
               senderListMatch: finalResult.senderListMatch,
               fallbackReason: 'ai_disabled',
           });
-    const finalExplanationResult =
-        shouldGenerateNaturalExplanation && explanationResult.meta.status !== 'generated'
-            ? buildFallbackExplanationResult({
-                  verdict: finalResult.verdict,
-                  triggeredRules: finalResult.triggeredRules,
-                  aiSignals,
-                  senderVerifiedBrand: finalResult.senderVerifiedBrand,
-                  verifiedBrandName: finalResult.verifiedBrandName,
-                  senderListMatch: finalResult.senderListMatch,
-                  fallbackReason: explanationResult.meta.fallbackReason || 'ollama_failed',
-              })
-            : explanationResult.meta.status === 'generated'
-              ? {
-                  explanation: explanationResult.explanation,
-                  meta: {
-                      ...explanationResult.meta,
-                      fallbackUsed: false,
-                      fallbackReason: null,
-                  },
-                }
-              : explanationResult;
+    const finalExplanationResult = resolveExplanationResult({
+        shouldGenerateNaturalExplanation,
+        explanationResult,
+        finalResult,
+        aiSignals,
+    });
 
     const scan = await upsertCurrentScanForEmail({
         email,

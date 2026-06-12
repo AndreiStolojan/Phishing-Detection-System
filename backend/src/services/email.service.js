@@ -313,101 +313,107 @@ const buildLatestScanLookupStages = () => [
     },
 ];
 
+// A user's manual verdict always overrides the scan; otherwise use the latest scan verdict.
+const effectiveVerdictExpr = {
+    $switch: {
+        branches: [
+            { case: { $eq: ['$userVerdict', 'safe'] }, then: 'safe' },
+            { case: { $eq: ['$userVerdict', 'phishing'] }, then: 'phishing' },
+            {
+                case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                then: 'likely_phishing',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'suspicious'] },
+                then: 'suspicious',
+            },
+            { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
+        ],
+        default: null,
+    },
+};
+
+// Records who decided the effective verdict: the user, the scan, or nobody yet.
+const verdictSourceExpr = {
+    $switch: {
+        branches: [
+            { case: { $in: ['$userVerdict', ['safe', 'phishing']] }, then: 'user' },
+            {
+                case: {
+                    $in: [
+                        '$latestScan.verdict',
+                        ['safe', 'suspicious', 'likely_phishing'],
+                    ],
+                },
+                then: 'scan',
+            },
+        ],
+        default: null,
+    },
+};
+
+// Inbox review state: reviewed by the user, awaiting review, safe, or never scanned.
+const reviewStatusExpr = {
+    $switch: {
+        branches: [
+            {
+                case: { $in: ['$userVerdict', ['safe', 'phishing']] },
+                then: 'reviewed',
+            },
+            {
+                case: {
+                    $in: ['$latestScan.verdict', ['suspicious', 'likely_phishing']],
+                },
+                then: 'pending_review',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'safe'] },
+                then: 'no_review_needed',
+            },
+        ],
+        default: 'unscanned',
+    },
+};
+
+// Quarantined only when the user has NOT reviewed it and the scan says likely phishing.
+const isQuarantinedExpr = {
+    $and: [
+        { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
+        { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+    ],
+};
+
+// Bucket the dashboard groups emails by; a user verdict wins over the scan verdict.
+const riskBucketExpr = {
+    $switch: {
+        branches: [
+            { case: { $eq: ['$userVerdict', 'safe'] }, then: 'reviewed_safe' },
+            {
+                case: { $eq: ['$userVerdict', 'phishing'] },
+                then: 'confirmed_phishing',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                then: 'quarantine',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'suspicious'] },
+                then: 'needs_review',
+            },
+            { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
+        ],
+        default: 'unscanned',
+    },
+};
+
 const buildEmailStateStages = () => [
     {
         $addFields: {
-            effectiveVerdict: {
-                $switch: {
-                    branches: [
-                        { case: { $eq: ['$userVerdict', 'safe'] }, then: 'safe' },
-                        {
-                            case: { $eq: ['$userVerdict', 'phishing'] },
-                            then: 'phishing',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                            then: 'likely_phishing',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'suspicious'] },
-                            then: 'suspicious',
-                        },
-                        { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
-                    ],
-                    default: null,
-                },
-            },
-            verdictSource: {
-                $switch: {
-                    branches: [
-                        {
-                            case: { $in: ['$userVerdict', ['safe', 'phishing']] },
-                            then: 'user',
-                        },
-                        {
-                            case: {
-                                $in: [
-                                    '$latestScan.verdict',
-                                    ['safe', 'suspicious', 'likely_phishing'],
-                                ],
-                            },
-                            then: 'scan',
-                        },
-                    ],
-                    default: null,
-                },
-            },
-            reviewStatus: {
-                $switch: {
-                    branches: [
-                        {
-                            case: { $in: ['$userVerdict', ['safe', 'phishing']] },
-                            then: 'reviewed',
-                        },
-                        {
-                            case: {
-                                $in: ['$latestScan.verdict', ['suspicious', 'likely_phishing']],
-                            },
-                            then: 'pending_review',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'safe'] },
-                            then: 'no_review_needed',
-                        },
-                    ],
-                    default: 'unscanned',
-                },
-            },
-            isQuarantined: {
-                $and: [
-                    { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
-                    { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                ],
-            },
-            riskBucket: {
-                $switch: {
-                    branches: [
-                        {
-                            case: { $eq: ['$userVerdict', 'safe'] },
-                            then: 'reviewed_safe',
-                        },
-                        {
-                            case: { $eq: ['$userVerdict', 'phishing'] },
-                            then: 'confirmed_phishing',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                            then: 'quarantine',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'suspicious'] },
-                            then: 'needs_review',
-                        },
-                        { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
-                    ],
-                    default: 'unscanned',
-                },
-            },
+            effectiveVerdict: effectiveVerdictExpr,
+            verdictSource: verdictSourceExpr,
+            reviewStatus: reviewStatusExpr,
+            isQuarantined: isQuarantinedExpr,
+            riskBucket: riskBucketExpr,
         },
     },
 ];
