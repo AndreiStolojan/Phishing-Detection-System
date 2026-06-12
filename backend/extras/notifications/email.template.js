@@ -2,9 +2,9 @@ import { FRONTEND_APP_URL } from '../../src/config/env.js';
 
 /*
   SecureInbox transactional emails — one shared, on-brand, bulletproof shell used
-  by the welcome, monthly digest, and phishing alert messages. Dark by default to
+  by the welcome, monthly digest, daily digest, and phishing alert messages. Dark by default to
   mirror the app, with every colour set inline so it renders consistently across
-  Gmail, Apple Mail, and Outlook. Risk hexes mirror src/lib/risk.js.
+  Gmail, Apple Mail, and Outlook. Hexes mirror frontend/src/index.css.
 */
 
 const C = {
@@ -14,13 +14,14 @@ const C = {
   border: '#1f2838',
   fg: '#e7ecf3',
   muted: '#9aa6ba',
-  subtle: '#6b7689',
+  subtle: '#828fa3',
   primary: '#3b9eff',
   onPrimary: '#04111f',
-  safe: '#34c77b',
-  review: '#f0b429',
-  quarantine: '#f5506a',
-  phishing: '#c4313a',
+  destructiveForeground: '#fff5f5',
+  safe: '#3ddc97',
+  review: '#fbbf24',
+  quarantine: '#fb637e',
+  phishing: '#b873f9',
 };
 
 const FONT =
@@ -443,7 +444,7 @@ export const dailyDigestTemplate = ({ summary, userName }) => {
           </tr>
         </table>
 
-        <div style="margin-top:4px;">${ctaButton('Review your inbox', `${APP_URL}/inbox`, heroAccent, allClear ? C.onPrimary : '#ffffff')}</div>
+        <div style="margin-top:4px;">${ctaButton('Review your inbox', `${APP_URL}/inbox`, heroAccent, allClear ? C.onPrimary : C.destructiveForeground)}</div>
 
         ${mutedLine('You receive this daily digest because it’s enabled in Settings → Detection & alerts.')}
       `,
@@ -504,7 +505,7 @@ export const phishingAlertTemplate = ({ userName, emails, detectedAt }) => {
           ${rows}
         </table>
 
-        ${ctaButton('Review flagged messages', ctaHref, C.quarantine, '#ffffff')}
+        ${ctaButton('Review flagged messages', ctaHref, C.quarantine, C.destructiveForeground)}
         ${mutedLine('You receive this because phishing alerts are enabled. Turn them off in Settings → Notifications.')}
       `,
     }),

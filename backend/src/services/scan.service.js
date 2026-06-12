@@ -284,7 +284,7 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
             modifierKey: 'urgency_high',
             points: AI_SIGNAL_WEIGHTS.urgency_high,
             reason: 'AI semantic: high urgency language detected.',
-            details: 'Semantic model flagged urgent pressure language as high.',
+            details: 'AI flagged urgent pressure language as high.',
         });
     } else if (aiSignals.urgencyLevel === 'medium') {
         triggerAiRule({
@@ -292,7 +292,7 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
             modifierKey: 'urgency_medium',
             points: AI_SIGNAL_WEIGHTS.urgency_medium,
             reason: 'AI semantic: medium urgency language detected.',
-            details: 'Semantic model flagged urgent pressure language as medium.',
+            details: 'AI flagged urgent pressure language as medium.',
         });
     }
 
@@ -302,7 +302,7 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
             modifierKey: 'sensitive_data_request',
             points: AI_SIGNAL_WEIGHTS.sensitive_data_request,
             reason: 'AI semantic: request for sensitive data detected.',
-            details: 'Semantic model detected password/card/OTP style data request.',
+            details: 'AI detected password/card/OTP style data request.',
         });
     }
 
@@ -312,7 +312,7 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
             modifierKey: 'login_or_action_request',
             points: AI_SIGNAL_WEIGHTS.login_or_action_request,
             reason: 'AI semantic: login or rapid action request detected.',
-            details: 'Semantic model detected push toward login or immediate user action.',
+            details: 'AI detected push toward login or immediate user action.',
         });
     }
 
@@ -322,7 +322,7 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
             modifierKey: 'social_engineering_high',
             points: AI_SIGNAL_WEIGHTS.social_engineering_high,
             reason: 'AI semantic: high social engineering pressure detected.',
-            details: 'Semantic model flagged social engineering patterns as high.',
+            details: 'AI flagged social engineering patterns as high.',
         });
     } else if (aiSignals.socialEngineeringLevel === 'medium') {
         triggerAiRule({
@@ -330,7 +330,7 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
             modifierKey: 'social_engineering_medium',
             points: AI_SIGNAL_WEIGHTS.social_engineering_medium,
             reason: 'AI semantic: medium social engineering pressure detected.',
-            details: 'Semantic model flagged social engineering patterns as medium.',
+            details: 'AI flagged social engineering patterns as medium.',
         });
     }
 
@@ -340,7 +340,7 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
             modifierKey: 'brand_impersonation_suspected',
             points: AI_SIGNAL_WEIGHTS.brand_impersonation_suspected,
             reason: 'AI semantic: possible brand impersonation detected.',
-            details: 'Semantic model found likely impersonation of known organization/brand.',
+            details: 'AI found likely impersonation of known organization/brand.',
         });
     }
 
