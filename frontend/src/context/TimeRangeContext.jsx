@@ -1,35 +1,37 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 
 import {
-  DEFAULT_TIME_RANGE_PRESET,
-  TIME_RANGE_PRESETS,
-  computeRange,
-  getPresetLabel,
+  formatRangeLabel,
+  getDefaultRange,
+  toISOWindow,
 } from '@/lib/timeRange';
 
 /*
-  Owns the app-wide time-range filter. The picker lives on the dashboard;
-  every time-scoped view (dashboard stats, inbox, report) reads { from, to }
-  from here so no two views ever show a different period. In-memory only —
-  a full page refresh resets to the default preset.
+  Owns the app-wide time-range filter. The From/To picker lives on the dashboard;
+  every time-scoped view (dashboard stats, inbox, report) reads the same window
+  from here so no two views ever show a different period. `from`/`to` are
+  inclusive day boundaries (start-of-local-day Dates); the exposed ISO strings
+  are the half-open [from, to) window the API expects. In-memory only — a full
+  page refresh resets to the default (last 30 days).
 */
 const TimeRangeContext = createContext(null);
 
 export function TimeRangeProvider({ children }) {
-  const [preset, setPreset] = useState(DEFAULT_TIME_RANGE_PRESET);
+  const [range, setRange] = useState(getDefaultRange);
 
   const value = useMemo(() => {
-    const { from, to } = computeRange(preset);
+    const iso = toISOWindow(range);
     return {
-      preset,
-      setPreset,
-      presets: TIME_RANGE_PRESETS,
-      label: getPresetLabel(preset),
-      // ISO strings, ready to be passed as ?from=&to= query params.
-      from: from.toISOString(),
-      to: to.toISOString(),
+      // Inclusive day boundaries (Dates) — for the picker inputs.
+      fromDate: range.from,
+      toDate: range.to,
+      setRange,
+      label: formatRangeLabel(range),
+      // ISO strings, ready to pass as ?from=&to= query params.
+      from: iso.from,
+      to: iso.to,
     };
-  }, [preset]);
+  }, [range]);
 
   return <TimeRangeContext.Provider value={value}>{children}</TimeRangeContext.Provider>;
 }

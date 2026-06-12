@@ -13,11 +13,7 @@ import {
   Link2,
   ChevronUp,
   ChevronDown,
-  ListChecks,
-  ArrowRight,
 } from 'lucide-react';
-
-import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -96,7 +92,7 @@ function SettingToggle({ id, icon: Icon, title, description, checked, onChange, 
         <div className="space-y-0.5">
           <p className="text-sm font-medium">{title}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
-          {caption && <p className="text-xs text-muted-foreground/70 italic">{caption}</p>}
+          {caption && <p className="text-xs text-muted-foreground-subtle italic">{caption}</p>}
         </div>
       </label>
       <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
@@ -216,7 +212,11 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Settings" description="Manage your account, Gmail connection, and detection preferences." />
+      <PageHeader
+        title="Settings"
+        className="mb-8"
+        titleClassName="text-[1.625rem] font-semibold tracking-tight"
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
@@ -300,45 +300,47 @@ export function SettingsPage() {
 
             {/* Danger zone */}
             <Separator className="my-4" />
-            <p className="text-[11px] text-muted-foreground">
-              This removes all synced data and scans from SecureInbox.
-            </p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive hover:bg-destructive/10"
-                  disabled={disconnect.loading}
-                >
-                  {disconnect.loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                  Disconnect Gmail
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Disconnect Gmail?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This removes <span className="text-foreground/80">{account.email}</span> along with its
-                    synced messages and scans from SecureInbox. You can reconnect anytime, but you'll
-                    need to sync again.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => disconnect.run().catch((e) => toast.error(e.message || 'Failed to disconnect.'))}
+            <div className="flex items-center justify-between gap-4 px-2">
+              <div>
+                <p className="text-sm font-medium">Disconnect Gmail</p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-40 shrink-0 text-destructive hover:bg-destructive/10"
+                    disabled={disconnect.loading}
                   >
+                    {disconnect.loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                     Disconnect
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Disconnect Gmail?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes <span className="text-foreground/80">{account.email}</span> along with its
+                      synced messages and scans from SecureInbox. You can reconnect anytime, but you'll
+                      need to sync again.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive-strong text-destructive-foreground hover:bg-destructive-strong/90"
+                      onClick={() => disconnect.run().catch((e) => toast.error(e.message || 'Failed to disconnect.'))}
+                    >
+                      Disconnect
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -366,7 +368,7 @@ export function SettingsPage() {
         {/* Detection & alerts */}
         <Section
           icon={Sparkles}
-          title="Detection & alerts"
+          title="Detection & Alerts"
           description="Control how SecureInbox analyses messages and notifies you."
           index={2}
         >
@@ -374,7 +376,7 @@ export function SettingsPage() {
           <SettingToggle
             id="ai-toggle"
             icon={Sparkles}
-            title="AI explanations"
+            title="AI Explanations"
             description="Enable AI-powered analysis for deeper insights and plain-language explanations."
             checked={aiEnabled}
             disabled={toggleAi.loading}
@@ -408,7 +410,7 @@ export function SettingsPage() {
                   <p className="text-xs text-muted-foreground">
                     When you'll get the digest each day, in your local time.
                   </p>
-                  <p className="text-xs text-muted-foreground/70">
+                  <p className="text-xs text-muted-foreground-subtle">
                     Your timezone: {TZ_NAME} ({offsetLabel})
                   </p>
                 </div>
@@ -440,68 +442,55 @@ export function SettingsPage() {
           )}
         </div>
 
-        <Separator className="my-4" />
-        <div className="flex items-center justify-between gap-4 px-2">
-          <div className="space-y-0.5">
-            <p className="text-sm font-medium">Delete account</p>
-            <p className="text-[11px] text-muted-foreground">
-              Permanently removes your account and all data. This can't be undone.
-            </p>
-          </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 text-destructive hover:bg-destructive/10"
-                disabled={deleteAccount.loading}
-              >
-                {deleteAccount.loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                Delete account
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Account</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action is permanent and cannot be undone. All your data, emails, and scan
-                  results will be deleted.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() =>
-                    deleteAccount.run().catch((e) => toast.error(e.message || 'Failed to delete account.'))
-                  }
-                >
-                  Delete My Account
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
       </Section>
 
-        {/* Pointer to the dedicated Trusted & Blocked page */}
         <Section
-          icon={ListChecks}
-          title="Trusted & blocked senders"
-          description="Your always-trust / always-block rules now live on their own page."
+          icon={Trash2}
+          title="Delete Account"
           index={3}
         >
-          <Button asChild size="sm" variant="outline">
-            <Link to="/sender-lists">
-              Manage rules
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex items-center justify-between gap-4 px-2">
+            <p className="text-sm font-medium">This action is irreversible.</p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-40 shrink-0 text-destructive hover:bg-destructive/10"
+                  disabled={deleteAccount.loading}
+                >
+                  {deleteAccount.loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete Account
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Account</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action is permanent and cannot be undone. All your data, emails, and scan
+                    results will be deleted.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive-strong text-destructive-foreground hover:bg-destructive-strong/90"
+                    onClick={() =>
+                      deleteAccount.run().catch((e) => toast.error(e.message || 'Failed to delete account.'))
+                    }
+                  >
+                    Delete My Account
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </Section>
+
         </div>
       </div>
     </div>

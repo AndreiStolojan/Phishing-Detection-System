@@ -1,9 +1,11 @@
-export function PageHeader({ title, description, actions, eyebrow }) {
+import { cn } from '@/lib/utils';
+
+export function PageHeader({ title, description, actions, eyebrow, titleClassName, className }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between', className)}>
       <div className="space-y-1">
         {eyebrow && <p className="label-overline">{eyebrow}</p>}
-        <h1 className="text-h2 font-semibold">{title}</h1>
+        <h1 className={cn('text-h2 font-semibold', titleClassName)}>{title}</h1>
         {description && (
           <p className="text-sm text-muted-foreground">{description}</p>
         )}

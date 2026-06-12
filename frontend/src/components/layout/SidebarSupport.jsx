@@ -56,11 +56,11 @@ export function SidebarSupport({ onNavigate }) {
           onNavigate?.();
           setOpen(true);
         }}
-        className="block w-full rounded-lg text-left text-muted-foreground outline-none transition-colors hover:text-foreground"
+        className="block w-full rounded-sm text-left text-muted-foreground outline-none transition-colors hover:text-foreground"
       >
         <motion.span
           whileTap={{ scale: 0.97 }}
-          className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors hover:bg-accent"
+          className="flex min-h-[44px] items-center gap-3 rounded-sm px-3 py-2 text-xs font-medium transition-colors hover:bg-accent"
         >
           <LifeBuoy className="h-4 w-4 shrink-0" />
           <span>Support</span>

@@ -142,10 +142,7 @@ const emailSchema = new mongoose.Schema(
         },
         lastManualAction: {
             type: String,
-            enum: [
-                'mark_safe',
-                'mark_phishing',
-            ],
+            enum: ['mark_safe', 'mark_phishing'],
             default: null,
         },
         lastProviderAction: {

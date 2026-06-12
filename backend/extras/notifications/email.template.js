@@ -278,11 +278,25 @@ export const monthlyDigestTemplate = ({ summary }) => {
     : formatRangePeriod(summary.period);
   const counts = summary.counts;
   const ai = summary.ai;
+
+  /*
+   * Use the EFFECTIVE verdicts (the user's manual "mark safe" / "mark phishing"
+   * overrides applied on top of the raw scan), so the email matches the
+   * dashboard. The raw scan counts (counts.safe / counts.suspicious / ...) do
+   * NOT move when a user reviews an email, which made a re-sent report show the
+   * same % as before any review. Fall back to the raw counts only if a caller
+   * supplies a summary without the effective fields.
+   */
+  const safeCount = counts.effectiveSafe ?? counts.safe ?? 0;
+  const suspiciousCount = counts.effectiveSuspicious ?? counts.suspicious ?? 0;
+  const likelyPhishingCount = counts.effectiveLikelyPhishing ?? counts.likelyPhishing ?? 0;
+  const markedPhishingCount = counts.effectiveMarkedPhishing ?? counts.markedPhishing ?? 0;
+
   const safeRate =
-    counts.scannedEmails > 0 ? Math.round((counts.safe / counts.scannedEmails) * 100) : 0;
+    counts.scannedEmails > 0 ? Math.round((safeCount / counts.scannedEmails) * 100) : 0;
   const heroAccent = safeRate >= 80 ? C.safe : safeRate >= 50 ? C.review : C.quarantine;
 
-  const threats = (counts.suspicious || 0) + (counts.likelyPhishing || 0) + (counts.markedPhishing || 0);
+  const threats = suspiciousCount + likelyPhishingCount + markedPhishingCount;
   const synced = counts.syncedEmails ?? counts.scannedEmails;
   const scanned = counts.scannedEmails;
 
@@ -311,7 +325,7 @@ export const monthlyDigestTemplate = ({ summary }) => {
           <tr><td style="padding:24px;text-align:center;">
             <p style="margin:0;font-family:${FONT};font-size:48px;font-weight:700;line-height:1;color:${heroAccent};">${safeRate}%</p>
             <p style="margin:8px 0 0;font-family:${FONT};font-size:13px;color:${C.muted};">of scanned messages were safe</p>
-            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${formatNumber(counts.safe || 0)} emails were safe &mdash; ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} detected</p>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${C.subtle};">${formatNumber(safeCount)} emails were safe &mdash; ${formatNumber(threats)} threat${threats !== 1 ? 's' : ''} detected</p>
           </td></tr>
         </table>
 
@@ -320,10 +334,10 @@ export const monthlyDigestTemplate = ({ summary }) => {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.inner};border:1px solid ${C.border};border-radius:12px;padding:0 16px;margin-bottom:20px;">
           <tr><td style="padding:0 16px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              ${renderBreakdownRow('Safe', counts.safe || 0, scanned, C.safe, false)}
-              ${renderBreakdownRow('Suspicious', counts.suspicious || 0, scanned, C.review, false)}
-              ${renderBreakdownRow('Likely phishing', counts.likelyPhishing || 0, scanned, C.quarantine, false)}
-              ${renderBreakdownRow('Confirmed phishing', counts.markedPhishing || 0, scanned, C.phishing, true)}
+              ${renderBreakdownRow('Safe', safeCount, scanned, C.safe, false)}
+              ${renderBreakdownRow('Suspicious', suspiciousCount, scanned, C.review, false)}
+              ${renderBreakdownRow('Likely phishing', likelyPhishingCount, scanned, C.quarantine, false)}
+              ${renderBreakdownRow('Confirmed phishing', markedPhishingCount, scanned, C.phishing, true)}
             </table>
           </td></tr>
         </table>

@@ -3,6 +3,11 @@ import {
     sendMonthlySummaryForUser,
 } from '../services/report.service.js';
 
+const statusFromMailResult = (result) => {
+    if (result.sent) return 200;
+    return result.error?.code === 'EMAIL_CONFIG_MISSING' ? 503 : 502;
+};
+
 export const getMonthlySummary = async (req, res, next) => {
     try {
         const summary = await getMonthlySummaryForUser({
@@ -26,13 +31,7 @@ export const sendMonthlySummary = async (req, res, next) => {
             query: req.query,
         });
 
-        const statusCode = result.sent
-            ? 200
-            : result.error?.code === 'EMAIL_CONFIG_MISSING'
-                ? 503
-                : 502;
-
-        res.status(statusCode).json({
+        res.status(statusFromMailResult(result)).json({
             success: result.sent,
             data: result,
         });

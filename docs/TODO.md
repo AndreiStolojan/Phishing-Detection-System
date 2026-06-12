@@ -14,9 +14,9 @@ Acest document este planul practic de implementare. El trebuie actualizat pe mă
 ## Progres general
 
 - Proiect: `xai-licenta`
-- Stadiu actual: backend stabil, Faza 25 completă (dashboard hub + filtru global de timp). Urmează: test manual cap-coadă cu Gmail real + draft lucrare.
+- Stadiu actual: backend stabil, Faza 26 completă (interval custom From/To + trecere completă WCAG 2.1 AA, strict frontend). Urmează: capturi de ecran din sesiunea reală + test manual cap-coadă cu Gmail real + draft lucrare.
 - Progres estimativ MVP: `100%` backend · `100%` produs final (rămâne validare manuală end-to-end + demo)
-- Faza curentă: `Faza 25 - Dashboard hub + filtru global de timp (COMPLETĂ)`
+- Faza curentă: `Faza 26 - Interval custom From/To + WCAG 2.1 AA (COMPLETĂ)`
 - Deadline: ~2 zile pentru app, ~10 zile pentru draft lucrare (termen: ~2026-06-17)
 
 ## Legendă

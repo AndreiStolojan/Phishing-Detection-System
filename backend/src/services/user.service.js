@@ -5,8 +5,6 @@ import MailAccount from '../models/mail-account.model.js';
 import SenderListEntry from '../models/sender-list.model.js';
 import { toPublicUser } from './auth.service.js';
 
-const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
-
 export const getAllUsers = async () => {
     const users = await User.find();
     return users.map(toPublicUser);
@@ -45,7 +43,7 @@ export const updateCurrentUser = async (authenticatedUserId, payload) => {
         throw error;
     }
 
-    if (hasOwn(payload, 'name')) {
+    if (Object.hasOwn(payload, 'name')) {
         user.name = payload.name;
     }
 

@@ -22,6 +22,28 @@ const triggeredRuleSchema = new mongoose.Schema(
     }
 );
 
+const senderListMatchSchema = new mongoose.Schema(
+    {
+        listType: {
+            type: String,
+            enum: ['allow', 'block'],
+            required: true,
+        },
+        kind: {
+            type: String,
+            enum: ['sender', 'domain'],
+            required: true,
+        },
+        value: {
+            type: String,
+            required: true,
+            trim: true,
+            lowercase: true,
+        },
+    },
+    { _id: false }
+);
+
 const scanSchema = new mongoose.Schema(
     {
         emailId: {
@@ -81,27 +103,7 @@ const scanSchema = new mongoose.Schema(
         // Set when the sender matched the user's allowlist/blocklist at scan time
         // (see sender-list.service.js). Records WHICH entry decided the outcome.
         senderListMatch: {
-            type: new mongoose.Schema(
-                {
-                    listType: {
-                        type: String,
-                        enum: ['allow', 'block'],
-                        required: true,
-                    },
-                    kind: {
-                        type: String,
-                        enum: ['sender', 'domain'],
-                        required: true,
-                    },
-                    value: {
-                        type: String,
-                        required: true,
-                        trim: true,
-                        lowercase: true,
-                    },
-                },
-                { _id: false }
-            ),
+            type: senderListMatchSchema,
             default: null,
         },
         scanSource: {

@@ -143,6 +143,7 @@ ${JSON.stringify(explanationInput)}
 const normalizeText = (value, maxLength) => String(value || '').trim().slice(0, maxLength);
 
 const validateExplanationOutput = (rawValue) => {
+    const invalid = (reason) => ({ isValid: false, reason });
     const cleanedValue = stripCodeFence(String(rawValue || ''));
     const firstObjectIndex = cleanedValue.indexOf('{');
     const lastObjectIndex = cleanedValue.lastIndexOf('}');
@@ -155,17 +156,11 @@ const validateExplanationOutput = (rawValue) => {
     try {
         parsedValue = JSON.parse(jsonCandidate);
     } catch {
-        return {
-            isValid: false,
-            reason: 'invalid_json',
-        };
+        return invalid('invalid_json');
     }
 
     if (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue)) {
-        return {
-            isValid: false,
-            reason: 'invalid_shape',
-        };
+        return invalid('invalid_shape');
     }
 
     const explanation = {
@@ -173,10 +168,7 @@ const validateExplanationOutput = (rawValue) => {
     };
 
     if (!explanation.summary) {
-        return {
-            isValid: false,
-            reason: 'missing_summary',
-        };
+        return invalid('missing_summary');
     }
 
     return {
