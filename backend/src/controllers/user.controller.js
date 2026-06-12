@@ -9,24 +9,24 @@ import {
 } from '../services/user.service.js';
 
 export const getUsers = async (req, res, next) => {
-    try{
+    try {
         const users = await getAllUsers();
 
-        res.status(200).json({success: true, data: users});
-    }catch(err){
+        res.status(200).json({ success: true, data: users });
+    } catch (err) {
         next(err);
     }
-}
+};
 
 export const getUser = async (req, res, next) => {
-    try{
+    try {
         const user = await getUserById(req.params.id);
 
-        res.status(200).json({success: true, data: user});
-    }catch(err){
+        res.status(200).json({ success: true, data: user });
+    } catch (err) {
         next(err);
     }
-}
+};
 
 export const getMe = async (req, res, next) => {
     try {
