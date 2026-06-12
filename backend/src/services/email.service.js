@@ -21,6 +21,17 @@ const MAX_LIMIT = 100;
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const utcMidnight = (date) =>
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+
+const emptyTrendRow = (date) => ({
+    date,
+    safe: 0,
+    needs_review: 0,
+    quarantine: 0,
+    confirmed_phishing: 0,
+});
+
 const toCompactLatestScan = (scan) => {
     if (!scan) {
         return null;
@@ -472,11 +483,15 @@ export const getEmailsForUser = async ({ userId, query }) => {
     const stateMatchStages =
         Object.keys(stateMatch).length > 0 ? [{ $match: stateMatch }] : [];
 
-    const listPipeline = [
+    const filterStages = [
         { $match: baseMatch },
         ...latestScanStages,
         ...emailStateStages,
         ...stateMatchStages,
+    ];
+
+    const listPipeline = [
+        ...filterStages,
         { $sort: { receivedAt: -1, _id: -1 } },
         { $skip: skip },
         { $limit: limit },
@@ -515,10 +530,7 @@ export const getEmailsForUser = async ({ userId, query }) => {
     ];
 
     const countPipeline = [
-        { $match: baseMatch },
-        ...latestScanStages,
-        ...emailStateStages,
-        ...stateMatchStages,
+        ...filterStages,
         { $count: 'total' },
     ];
 
@@ -593,7 +605,7 @@ export const getTrendForUser = async ({ userId, days = 30, from, to } = {}) => {
     for (const row of results) {
         const { date, riskBucket } = row._id;
         if (!map[date]) {
-            map[date] = { date, safe: 0, needs_review: 0, quarantine: 0, confirmed_phishing: 0 };
+            map[date] = emptyTrendRow(date);
         }
         if (riskBucket in map[date]) {
             map[date][riskBucket] = row.count;
@@ -606,26 +618,14 @@ export const getTrendForUser = async ({ userId, days = 30, from, to } = {}) => {
     const DAY_MS = 24 * 60 * 60 * 1000;
     const windowEnd = range ? new Date(range.to.getTime() - 1) : new Date();
     const firstDay = range
-        ? Date.UTC(
-            range.from.getUTCFullYear(),
-            range.from.getUTCMonth(),
-            range.from.getUTCDate()
-        )
-        : Date.UTC(
-            windowEnd.getUTCFullYear(),
-            windowEnd.getUTCMonth(),
-            windowEnd.getUTCDate()
-        ) - (days - 1) * DAY_MS;
-    const lastDay = Date.UTC(
-        windowEnd.getUTCFullYear(),
-        windowEnd.getUTCMonth(),
-        windowEnd.getUTCDate()
-    );
+        ? utcMidnight(range.from)
+        : utcMidnight(windowEnd) - (days - 1) * DAY_MS;
+    const lastDay = utcMidnight(windowEnd);
 
     const trend = [];
     for (let dayMs = firstDay; dayMs <= lastDay; dayMs += DAY_MS) {
         const dateStr = new Date(dayMs).toISOString().split('T')[0];
-        trend.push(map[dateStr] || { date: dateStr, safe: 0, needs_review: 0, quarantine: 0, confirmed_phishing: 0 });
+        trend.push(map[dateStr] || emptyTrendRow(dateStr));
     }
 
     return trend;

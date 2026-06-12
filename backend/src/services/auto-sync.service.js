@@ -22,10 +22,10 @@ const findPhishingEmailsFromIds = async ({ userId, emailIds }) => {
         return [];
     }
 
-    const phishingEmailIds = phishingScans.map((s) => s.emailId);
+    const phishingEmailIds = phishingScans.map((scan) => scan.emailId);
 
     const scanByEmailId = new Map(
-        phishingScans.map((s) => [String(s.emailId), s])
+        phishingScans.map((scan) => [String(scan.emailId), scan])
     );
 
     const emails = await Email.find({ _id: { $in: phishingEmailIds }, userId })

@@ -346,6 +346,16 @@ const getRecentRiskyEmails = async ({ userObjectId, from, to }) =>
         },
     ]);
 
+// Shared subset of the counts object built by both the daily and monthly
+// summaries. Each caller spreads this and adds its own extra fields.
+const toBaseCounts = (aggregates) => ({
+    syncedEmails: aggregates.syncedEmails,
+    scannedEmails: aggregates.scannedEmails,
+    safe: aggregates.verdictCounts.safe,
+    suspicious: aggregates.verdictCounts.suspicious,
+    likelyPhishing: aggregates.verdictCounts.likelyPhishing,
+});
+
 export const getDailySummaryForUser = async ({ userId }) => {
     const userObjectId = toUserObjectId(userId);
     const to = new Date();
@@ -367,11 +377,7 @@ export const getDailySummaryForUser = async ({ userId }) => {
             to: to.toISOString(),
         },
         counts: {
-            syncedEmails: aggregates.syncedEmails,
-            scannedEmails: aggregates.scannedEmails,
-            safe: aggregates.verdictCounts.safe,
-            suspicious: aggregates.verdictCounts.suspicious,
-            likelyPhishing: aggregates.verdictCounts.likelyPhishing,
+            ...toBaseCounts(aggregates),
             markedPhishing,
         },
         riskyEmails,
@@ -409,15 +415,11 @@ export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
     return {
         period: toPeriodResponse(period),
         counts: {
-            syncedEmails: aggregates.syncedEmails,
-            scannedEmails: aggregates.scannedEmails,
-            safe: aggregates.verdictCounts.safe,
+            ...toBaseCounts(aggregates),
             effectiveSafe: aggregates.effectiveCounts.safe,
             effectiveSuspicious: aggregates.effectiveCounts.suspicious,
             effectiveLikelyPhishing: aggregates.effectiveCounts.likelyPhishing,
             effectiveMarkedPhishing: aggregates.effectiveCounts.markedPhishing,
-            suspicious: aggregates.verdictCounts.suspicious,
-            likelyPhishing: aggregates.verdictCounts.likelyPhishing,
             reviewed,
             markedSafe,
             markedPhishing,

@@ -44,6 +44,22 @@ const hasActivityInLast24h = async (userId) => {
 
 const DEFAULT_DIGEST_HOUR = 8;
 
+const sendDigestToUser = async (user) => {
+    const hasActivity = await hasActivityInLast24h(user._id);
+
+    if (!hasActivity) {
+        return { sent: false };
+    }
+
+    const summary = await getDailySummaryForUser({ userId: user._id });
+
+    return sendDailyDigestEmail({
+        recipient: user.email,
+        userName: user.name,
+        summary,
+    });
+};
+
 const runDailyDigestForHour = async (currentHour) => {
     console.log(`[daily-digest] Starting digest run for hour ${currentHour} UTC`);
 
@@ -75,20 +91,7 @@ const runDailyDigestForHour = async (currentHour) => {
 
     for (const user of eligible) {
         try {
-            const hasActivity = await hasActivityInLast24h(user._id);
-
-            if (!hasActivity) {
-                skippedCount += 1;
-                continue;
-            }
-
-            const summary = await getDailySummaryForUser({ userId: user._id });
-
-            const result = await sendDailyDigestEmail({
-                recipient: user.email,
-                userName: user.name,
-                summary,
-            });
+            const result = await sendDigestToUser(user);
 
             if (result.sent) {
                 sentCount += 1;
