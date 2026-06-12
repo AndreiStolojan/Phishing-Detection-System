@@ -11,12 +11,13 @@ import {
   CheckSquare,
   RefreshCw,
   Mail,
-  CalendarRange,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { InboxSkeleton, ErrorState, EmptyState } from '@/components/common/states';
+import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
+import { TimeRangeFilter } from '@/components/common/TimeRangeFilter';
 import { EmailRow } from '@/components/inbox/EmailRow';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,7 @@ export function InboxPage() {
   const { isConnected, syncVersion, sync, syncing } = useMailAccount();
   // Global time-range filter — the picker lives on the dashboard; the inbox
   // list and its chip counts are both scoped to the same window.
-  const { preset, label: rangeLabel, from, to } = useTimeRange();
+  const { from, to } = useTimeRange();
   const searchRef = useRef(null);
 
   const riskBucket = searchParams.get('riskBucket') || '';
@@ -85,7 +86,7 @@ export function InboxPage() {
   const [selected, setSelected] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const cacheKey = `inbox-${preset}-${syncVersion}-${riskBucket}-${debouncedSearch}-${page}`;
+  const cacheKey = `inbox-${from}-${to}-${syncVersion}-${riskBucket}-${debouncedSearch}-${page}`;
   const { data, loading, error, reload } = useApi(
     () =>
       getEmails({
@@ -96,14 +97,14 @@ export function InboxPage() {
         page,
         limit: PAGE_SIZE,
       }),
-    [riskBucket, debouncedSearch, page, syncVersion, preset],
+    [riskBucket, debouncedSearch, page, syncVersion, from, to],
     cacheKey
   );
 
   const countsQuery = useApi(
     () => getEmailStats({ from, to }),
-    [syncVersion, preset],
-    `inbox-stats-${preset}-${syncVersion}`
+    [syncVersion, from, to],
+    `inbox-stats-${from}-${to}-${syncVersion}`
   );
   const counts = countsQuery.data?.counts || {};
   const totalCount = countsQuery.data?.total ?? 0;
@@ -226,8 +227,14 @@ export function InboxPage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="Scaned Emails"
+        className="mb-8"
+        titleClassName="text-[1.625rem] font-semibold tracking-tight"
+      />
+
       {/* Filter chips + search + select button */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div className="sticky top-0 z-20 flex flex-col gap-4 bg-background py-2 sm:flex-row sm:items-center sm:justify-between md:top-0">
         <div className="scrollbar-none -mx-5 flex items-center gap-1 overflow-x-auto px-5 sm:mx-0 sm:flex-wrap sm:px-0">
           {!selectMode && RISK_FILTERS.map((filter) => {
             const isActive = riskBucket === filter.key;
@@ -243,7 +250,7 @@ export function InboxPage() {
                 key={filter.key || 'all'}
                 onClick={() => setFilter(filter.key)}
                 className={cn(
-                  'relative rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                  'relative rounded-sm px-3 py-1.5 text-xs font-medium transition-colors',
                   isActive ? filterTextClass(filter.key) : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -251,7 +258,7 @@ export function InboxPage() {
                   <motion.span
                     layoutId="filter-pill"
                     transition={springSoft}
-                    className="absolute inset-0 rounded-full"
+                    className="absolute inset-0 rounded-sm"
                     style={{
                       backgroundColor: `color-mix(in oklab, ${hex} 16%, transparent)`,
                       boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${hex} 38%, transparent)`,
@@ -268,17 +275,7 @@ export function InboxPage() {
             );
           })}
 
-          {/* Active global range — read-only here; the picker lives on the dashboard. */}
-          {!selectMode && (
-            <Link
-              to="/dashboard"
-              title="Data is scoped to the range selected on the Dashboard"
-              className="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <CalendarRange className="h-3.5 w-3.5" />
-              {rangeLabel}
-            </Link>
-          )}
+          {!selectMode && <TimeRangeFilter variant="plain" className="translate-y-1" />}
 
           {selectMode && (
             <div className="flex items-center gap-2">

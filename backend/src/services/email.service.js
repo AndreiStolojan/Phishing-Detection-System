@@ -21,6 +21,17 @@ const MAX_LIMIT = 100;
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const utcMidnight = (date) =>
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+
+const emptyTrendRow = (date) => ({
+    date,
+    safe: 0,
+    needs_review: 0,
+    quarantine: 0,
+    confirmed_phishing: 0,
+});
+
 const toCompactLatestScan = (scan) => {
     if (!scan) {
         return null;
@@ -313,101 +324,107 @@ const buildLatestScanLookupStages = () => [
     },
 ];
 
+// A user's manual verdict always overrides the scan; otherwise use the latest scan verdict.
+const effectiveVerdictExpr = {
+    $switch: {
+        branches: [
+            { case: { $eq: ['$userVerdict', 'safe'] }, then: 'safe' },
+            { case: { $eq: ['$userVerdict', 'phishing'] }, then: 'phishing' },
+            {
+                case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                then: 'likely_phishing',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'suspicious'] },
+                then: 'suspicious',
+            },
+            { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
+        ],
+        default: null,
+    },
+};
+
+// Records who decided the effective verdict: the user, the scan, or nobody yet.
+const verdictSourceExpr = {
+    $switch: {
+        branches: [
+            { case: { $in: ['$userVerdict', ['safe', 'phishing']] }, then: 'user' },
+            {
+                case: {
+                    $in: [
+                        '$latestScan.verdict',
+                        ['safe', 'suspicious', 'likely_phishing'],
+                    ],
+                },
+                then: 'scan',
+            },
+        ],
+        default: null,
+    },
+};
+
+// Inbox review state: reviewed by the user, awaiting review, safe, or never scanned.
+const reviewStatusExpr = {
+    $switch: {
+        branches: [
+            {
+                case: { $in: ['$userVerdict', ['safe', 'phishing']] },
+                then: 'reviewed',
+            },
+            {
+                case: {
+                    $in: ['$latestScan.verdict', ['suspicious', 'likely_phishing']],
+                },
+                then: 'pending_review',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'safe'] },
+                then: 'no_review_needed',
+            },
+        ],
+        default: 'unscanned',
+    },
+};
+
+// Quarantined only when the user has NOT reviewed it and the scan says likely phishing.
+const isQuarantinedExpr = {
+    $and: [
+        { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
+        { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+    ],
+};
+
+// Bucket the dashboard groups emails by; a user verdict wins over the scan verdict.
+const riskBucketExpr = {
+    $switch: {
+        branches: [
+            { case: { $eq: ['$userVerdict', 'safe'] }, then: 'reviewed_safe' },
+            {
+                case: { $eq: ['$userVerdict', 'phishing'] },
+                then: 'confirmed_phishing',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
+                then: 'quarantine',
+            },
+            {
+                case: { $eq: ['$latestScan.verdict', 'suspicious'] },
+                then: 'needs_review',
+            },
+            { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
+        ],
+        default: 'unscanned',
+    },
+};
+
 const buildEmailStateStages = () => [
     {
         $addFields: {
-            effectiveVerdict: {
-                $switch: {
-                    branches: [
-                        { case: { $eq: ['$userVerdict', 'safe'] }, then: 'safe' },
-                        {
-                            case: { $eq: ['$userVerdict', 'phishing'] },
-                            then: 'phishing',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                            then: 'likely_phishing',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'suspicious'] },
-                            then: 'suspicious',
-                        },
-                        { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
-                    ],
-                    default: null,
-                },
-            },
-            verdictSource: {
-                $switch: {
-                    branches: [
-                        {
-                            case: { $in: ['$userVerdict', ['safe', 'phishing']] },
-                            then: 'user',
-                        },
-                        {
-                            case: {
-                                $in: [
-                                    '$latestScan.verdict',
-                                    ['safe', 'suspicious', 'likely_phishing'],
-                                ],
-                            },
-                            then: 'scan',
-                        },
-                    ],
-                    default: null,
-                },
-            },
-            reviewStatus: {
-                $switch: {
-                    branches: [
-                        {
-                            case: { $in: ['$userVerdict', ['safe', 'phishing']] },
-                            then: 'reviewed',
-                        },
-                        {
-                            case: {
-                                $in: ['$latestScan.verdict', ['suspicious', 'likely_phishing']],
-                            },
-                            then: 'pending_review',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'safe'] },
-                            then: 'no_review_needed',
-                        },
-                    ],
-                    default: 'unscanned',
-                },
-            },
-            isQuarantined: {
-                $and: [
-                    { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] },
-                    { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                ],
-            },
-            riskBucket: {
-                $switch: {
-                    branches: [
-                        {
-                            case: { $eq: ['$userVerdict', 'safe'] },
-                            then: 'reviewed_safe',
-                        },
-                        {
-                            case: { $eq: ['$userVerdict', 'phishing'] },
-                            then: 'confirmed_phishing',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'likely_phishing'] },
-                            then: 'quarantine',
-                        },
-                        {
-                            case: { $eq: ['$latestScan.verdict', 'suspicious'] },
-                            then: 'needs_review',
-                        },
-                        { case: { $eq: ['$latestScan.verdict', 'safe'] }, then: 'safe' },
-                    ],
-                    default: 'unscanned',
-                },
-            },
+            effectiveVerdict: effectiveVerdictExpr,
+            verdictSource: verdictSourceExpr,
+            reviewStatus: reviewStatusExpr,
+            isQuarantined: isQuarantinedExpr,
+            riskBucket: riskBucketExpr,
         },
     },
 ];
@@ -466,11 +483,15 @@ export const getEmailsForUser = async ({ userId, query }) => {
     const stateMatchStages =
         Object.keys(stateMatch).length > 0 ? [{ $match: stateMatch }] : [];
 
-    const listPipeline = [
+    const filterStages = [
         { $match: baseMatch },
         ...latestScanStages,
         ...emailStateStages,
         ...stateMatchStages,
+    ];
+
+    const listPipeline = [
+        ...filterStages,
         { $sort: { receivedAt: -1, _id: -1 } },
         { $skip: skip },
         { $limit: limit },
@@ -509,10 +530,7 @@ export const getEmailsForUser = async ({ userId, query }) => {
     ];
 
     const countPipeline = [
-        { $match: baseMatch },
-        ...latestScanStages,
-        ...emailStateStages,
-        ...stateMatchStages,
+        ...filterStages,
         { $count: 'total' },
     ];
 
@@ -587,7 +605,7 @@ export const getTrendForUser = async ({ userId, days = 30, from, to } = {}) => {
     for (const row of results) {
         const { date, riskBucket } = row._id;
         if (!map[date]) {
-            map[date] = { date, safe: 0, needs_review: 0, quarantine: 0, confirmed_phishing: 0 };
+            map[date] = emptyTrendRow(date);
         }
         if (riskBucket in map[date]) {
             map[date][riskBucket] = row.count;
@@ -600,26 +618,14 @@ export const getTrendForUser = async ({ userId, days = 30, from, to } = {}) => {
     const DAY_MS = 24 * 60 * 60 * 1000;
     const windowEnd = range ? new Date(range.to.getTime() - 1) : new Date();
     const firstDay = range
-        ? Date.UTC(
-            range.from.getUTCFullYear(),
-            range.from.getUTCMonth(),
-            range.from.getUTCDate()
-        )
-        : Date.UTC(
-            windowEnd.getUTCFullYear(),
-            windowEnd.getUTCMonth(),
-            windowEnd.getUTCDate()
-        ) - (days - 1) * DAY_MS;
-    const lastDay = Date.UTC(
-        windowEnd.getUTCFullYear(),
-        windowEnd.getUTCMonth(),
-        windowEnd.getUTCDate()
-    );
+        ? utcMidnight(range.from)
+        : utcMidnight(windowEnd) - (days - 1) * DAY_MS;
+    const lastDay = utcMidnight(windowEnd);
 
     const trend = [];
     for (let dayMs = firstDay; dayMs <= lastDay; dayMs += DAY_MS) {
         const dateStr = new Date(dayMs).toISOString().split('T')[0];
-        trend.push(map[dateStr] || { date: dateStr, safe: 0, needs_review: 0, quarantine: 0, confirmed_phishing: 0 });
+        trend.push(map[dateStr] || emptyTrendRow(dateStr));
     }
 
     return trend;

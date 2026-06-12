@@ -12,6 +12,9 @@ import createError from '../errors/create-error.js';
  * `month`, all-time). Providing only one bound is rejected: a half-specified
  * window is a client bug, not an intent.
  */
+const invalidRange = (detail) =>
+    createError('Invalid date range', 400, [detail], 'INVALID_DATE_RANGE');
+
 export const parseDateRangeQuery = (query = {}) => {
     const rawFrom = query.from;
     const rawTo = query.to;
@@ -21,33 +24,18 @@ export const parseDateRangeQuery = (query = {}) => {
     }
 
     if (rawFrom === undefined || rawTo === undefined) {
-        throw createError(
-            'Invalid date range',
-            400,
-            ['from and to must be provided together.'],
-            'INVALID_DATE_RANGE'
-        );
+        throw invalidRange('from and to must be provided together.');
     }
 
     const from = new Date(rawFrom);
     const to = new Date(rawTo);
 
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-        throw createError(
-            'Invalid date range',
-            400,
-            ['from and to must be valid ISO 8601 dates.'],
-            'INVALID_DATE_RANGE'
-        );
+        throw invalidRange('from and to must be valid ISO 8601 dates.');
     }
 
     if (from.getTime() >= to.getTime()) {
-        throw createError(
-            'Invalid date range',
-            400,
-            ['from must be earlier than to.'],
-            'INVALID_DATE_RANGE'
-        );
+        throw invalidRange('from must be earlier than to.');
     }
 
     return { from, to };

@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Inbox, ListChecks, Settings, LogOut, ChevronsUpDown } from 'lucide-react';
+import { LayoutDashboard, Inbox, ListChecks, Settings, LogOut } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/inbox', label: 'Inbox', icon: Inbox },
-  { to: '/sender-lists', label: 'Trusted & Blocked', icon: ListChecks },
+  { to: '/sender-lists', label: 'Rules', icon: ListChecks },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -38,7 +38,7 @@ function NavItem({ to, label, icon: Icon, onNavigate }) {
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'block rounded-lg outline-none transition-colors',
+          'block rounded-sm outline-none transition-colors',
           isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
         )
       }
@@ -47,7 +47,7 @@ function NavItem({ to, label, icon: Icon, onNavigate }) {
         <motion.span
           whileTap={{ scale: 0.97 }}
           className={cn(
-            'relative flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+            'relative flex min-h-[44px] items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium transition-colors',
             !isActive && 'hover:bg-accent'
           )}
         >
@@ -56,12 +56,12 @@ function NavItem({ to, label, icon: Icon, onNavigate }) {
               <motion.span
                 layoutId="sidebar-active"
                 transition={springSoft}
-                className="absolute inset-0 rounded-lg bg-primary/12 ring-1 ring-inset ring-primary/15"
+                className="absolute inset-0 rounded-sm bg-primary/12 ring-1 ring-inset ring-primary/15"
               />
               <motion.span
                 layoutId="sidebar-accent"
                 transition={springSoft}
-                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-sm bg-primary"
               />
             </>
           )}
@@ -78,7 +78,7 @@ function GmailStatus({ onNavigate }) {
 
   if (isConnected) {
     return (
-      <div className="flex min-h-[44px] items-center gap-2.5 rounded-lg px-3 py-2">
+      <div className="flex min-h-[44px] items-center gap-2.5 rounded-sm px-3 py-2">
         <span className="relative flex h-2 w-2 shrink-0">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-risk-safe/60" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-risk-safe" />
@@ -95,7 +95,7 @@ function GmailStatus({ onNavigate }) {
     <NavLink
       to="/settings"
       onClick={onNavigate}
-      className="flex min-h-[44px] items-center gap-2.5 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="flex min-h-[44px] items-center gap-2.5 rounded-sm px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <span className="h-2 w-2 shrink-0 rounded-full bg-risk-quarantine" />
       <span className="text-xs font-medium text-foreground">Gmail not connected</span>
@@ -114,11 +114,10 @@ export function SidebarContent({ onNavigate }) {
   return (
     <div className="flex h-full flex-col">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 px-5 py-5">
+      <div className="flex justify-center px-5 py-5">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">
           <img src="/logo.png" alt="SecureInbox" className="h-full w-full object-contain" />
         </div>
-        <p className="text-[15px] font-semibold tracking-tight">SecureInbox</p>
       </div>
 
       {/* Primary navigation */}
@@ -129,32 +128,30 @@ export function SidebarContent({ onNavigate }) {
       </nav>
 
       {/* Secondary — kept below the primary nav so it doesn't read as a 5th page */}
-      <div className="border-t border-border/60 px-3 py-2">
+      <div className="px-3 py-2">
         <SidebarSupport onNavigate={onNavigate} />
       </div>
 
       {/* Gmail connection status */}
-      <div className="border-t border-border/60 px-3 py-2.5">
-        <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+      <div className="px-3 py-2.5">
+        <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground-subtle">
           Gmail
         </p>
         <GmailStatus onNavigate={onNavigate} />
       </div>
 
       {/* User */}
-      <div className="border-t border-border p-3">
+      <div className="p-3">
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-accent">
+          <DropdownMenuTrigger className="flex min-h-[48px] w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left outline-none transition-colors hover:bg-accent">
             <Avatar>
               <AvatarFallback>{initials(user?.name, user?.email)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate text-sm font-medium">{user?.name || 'User'}</p>
-              <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
             </div>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuContent align="start" className="w-48">
             <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={logout} className="text-destructive focus:text-destructive">
@@ -170,7 +167,7 @@ export function SidebarContent({ onNavigate }) {
 
 export function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 overflow-y-auto border-r border-border bg-card/60 backdrop-blur-xl md:block">
+    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 overflow-y-auto bg-background md:block">
       <SidebarContent />
     </aside>
   );

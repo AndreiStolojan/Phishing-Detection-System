@@ -196,6 +196,46 @@ const pushCappedSyncError = ({ syncErrors, messageId, stage, error }) => {
     return true;
 };
 
+// Log a per-message sync failure and store it (capped). Returns 1 when the error was
+// dropped because the cap was reached, 0 otherwise, so the caller can tally omissions.
+const recordSyncItemError = ({ mailAccount, syncSource, messageId, stage, error, syncErrors }) => {
+    logSyncItemFailure({ mailAccount, syncSource, messageId, stage, error });
+    const isStored = pushCappedSyncError({ syncErrors, messageId, stage, error });
+
+    return isStored ? 0 : 1;
+};
+
+// After an upsert, re-read the email's _id so the scan pipeline can target it. A lookup
+// failure is recorded (not thrown) and yields no id. Returns { id, omitted } so the caller
+// can push the id and add `omitted` to its dropped-error tally.
+const findUpsertedEmailId = async ({
+    mailAccount,
+    syncSource,
+    messageId,
+    providerMessageId,
+    syncErrors,
+}) => {
+    try {
+        const email = await Email.findOne(
+            { userId: mailAccount.userId, providerMessageId },
+            { _id: 1 }
+        );
+
+        return { id: email?._id ?? null, omitted: 0 };
+    } catch (error) {
+        const omitted = recordSyncItemError({
+            mailAccount,
+            syncSource,
+            messageId,
+            stage: 'db_lookup',
+            error,
+            syncErrors,
+        });
+
+        return { id: null, omitted };
+    }
+};
+
 export const getMailAccountsForUser = async (userId) => {
     const mailAccounts = await MailAccount.find({ userId }).sort({ createdAt: -1 });
 
@@ -722,24 +762,14 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             });
         } catch (error) {
             skippedCount += 1;
-            logSyncItemFailure({
+            omittedSyncErrorsCount += recordSyncItemError({
                 mailAccount,
                 syncSource,
                 messageId,
                 stage: 'details_fetch',
                 error,
-            });
-
-            const isStored = pushCappedSyncError({
                 syncErrors,
-                messageId,
-                stage: 'details_fetch',
-                error,
             });
-
-            if (!isStored) {
-                omittedSyncErrorsCount += 1;
-            }
 
             continue;
         }
@@ -754,24 +784,14 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             });
         } catch (error) {
             skippedCount += 1;
-            logSyncItemFailure({
+            omittedSyncErrorsCount += recordSyncItemError({
                 mailAccount,
                 syncSource,
                 messageId,
                 stage: 'payload_parse',
                 error,
-            });
-
-            const isStored = pushCappedSyncError({
                 syncErrors,
-                messageId,
-                stage: 'payload_parse',
-                error,
             });
-
-            if (!isStored) {
-                omittedSyncErrorsCount += 1;
-            }
 
             continue;
         }
@@ -802,99 +822,36 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             );
         } catch (error) {
             skippedCount += 1;
-            logSyncItemFailure({
+            omittedSyncErrorsCount += recordSyncItemError({
                 mailAccount,
                 syncSource,
                 messageId,
                 stage: 'db_upsert',
                 error,
-            });
-
-            const isStored = pushCappedSyncError({
                 syncErrors,
-                messageId,
-                stage: 'db_upsert',
-                error,
             });
-
-            if (!isStored) {
-                omittedSyncErrorsCount += 1;
-            }
 
             continue;
         }
 
+        const { id: upsertedEmailId, omitted } = await findUpsertedEmailId({
+            mailAccount,
+            syncSource,
+            messageId,
+            providerMessageId: emailPayload.providerMessageId,
+            syncErrors,
+        });
+        omittedSyncErrorsCount += omitted;
+
         if (updateResult.upsertedCount === 1) {
             insertedCount += 1;
-            let insertedEmail;
-
-            try {
-                insertedEmail = await Email.findOne(
-                    {
-                        userId: mailAccount.userId,
-                        providerMessageId: emailPayload.providerMessageId,
-                    },
-                    { _id: 1 }
-                );
-            } catch (error) {
-                logSyncItemFailure({
-                    mailAccount,
-                    syncSource,
-                    messageId,
-                    stage: 'db_lookup',
-                    error,
-                });
-
-                const isStored = pushCappedSyncError({
-                    syncErrors,
-                    messageId,
-                    stage: 'db_lookup',
-                    error,
-                });
-
-                if (!isStored) {
-                    omittedSyncErrorsCount += 1;
-                }
-            }
-
-            if (insertedEmail?._id) {
-                insertedEmailIds.push(insertedEmail._id);
+            if (upsertedEmailId) {
+                insertedEmailIds.push(upsertedEmailId);
             }
         } else {
             updatedCount += 1;
-            let updatedEmail;
-
-            try {
-                updatedEmail = await Email.findOne(
-                    {
-                        userId: mailAccount.userId,
-                        providerMessageId: emailPayload.providerMessageId,
-                    },
-                    { _id: 1 }
-                );
-            } catch (error) {
-                logSyncItemFailure({
-                    mailAccount,
-                    syncSource,
-                    messageId,
-                    stage: 'db_lookup',
-                    error,
-                });
-
-                const isStored = pushCappedSyncError({
-                    syncErrors,
-                    messageId,
-                    stage: 'db_lookup',
-                    error,
-                });
-
-                if (!isStored) {
-                    omittedSyncErrorsCount += 1;
-                }
-            }
-
-            if (updatedEmail?._id) {
-                updatedEmailIds.push(updatedEmail._id);
+            if (upsertedEmailId) {
+                updatedEmailIds.push(upsertedEmailId);
             }
         }
     }

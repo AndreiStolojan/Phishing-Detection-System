@@ -1,5 +1,10 @@
 import { sendContactMessageForUser } from '../services/contact.service.js';
 
+const statusFromMailResult = (result) => {
+    if (result.sent) return 200;
+    return result.error?.code === 'EMAIL_CONFIG_MISSING' ? 503 : 502;
+};
+
 export const sendContactMessage = async (req, res, next) => {
     try {
         const result = await sendContactMessageForUser({
@@ -7,13 +12,7 @@ export const sendContactMessage = async (req, res, next) => {
             payload: req.body,
         });
 
-        const statusCode = result.sent
-            ? 200
-            : result.error?.code === 'EMAIL_CONFIG_MISSING'
-                ? 503
-                : 502;
-
-        res.status(statusCode).json({
+        res.status(statusFromMailResult(result)).json({
             success: result.sent,
             message: result.sent
                 ? 'Contact message sent.'

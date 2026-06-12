@@ -112,7 +112,7 @@ export function ScanDetails({ scan }) {
               <Sparkles className="h-4 w-4" />
             </span>
             <CardTitle className="text-sm">
-              {ollamaUnavailable ? 'Automated explanation' : 'AI explanation'}
+              {ollamaUnavailable ? 'Automated Explanation' : 'AI Explanation'}
             </CardTitle>
           </CardHeader>
           <CardContent>

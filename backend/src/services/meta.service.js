@@ -4,15 +4,8 @@ import MailAccount from '../models/mail-account.model.js';
 import Scan from '../models/scan.model.js';
 import User from '../models/user.model.js';
 
-const isTruthyEnvValue = (value) => {
-    if (typeof value !== 'string') {
-        return false;
-    }
-
-    const normalizedValue = value.trim().toLowerCase();
-
-    return ['true', '1', 'yes', 'on'].includes(normalizedValue);
-};
+const isTruthyEnvValue = (value) =>
+    typeof value === 'string' && ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
 
 export const getStatusForUser = async (userId) => {
     const [mailAccountsCount, emailsCount, scansCount, activeGmailAccount, user] = await Promise.all([

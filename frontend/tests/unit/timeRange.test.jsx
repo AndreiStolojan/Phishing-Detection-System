@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  DEFAULT_TIME_RANGE_PRESET,
-  TIME_RANGE_PRESETS,
-  computeRange,
-  getPresetLabel,
+  DEFAULT_RANGE_DAYS,
+  formatRangeLabel,
+  fromDateInputValue,
+  getDefaultRange,
+  toDateInputValue,
+  toISOWindow,
 } from '../../src/lib/timeRange.js';
 
 // Fixed local "now": Thursday 2026-06-11, 14:30 local time.
@@ -12,57 +14,60 @@ const NOW = new Date(2026, 5, 11, 14, 30, 0);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-describe('computeRange', () => {
-  it('last_day is the rolling 24 hours ending now', () => {
-    const { from, to } = computeRange('last_day', NOW);
-    expect(to).toEqual(NOW);
-    expect(to.getTime() - from.getTime()).toBe(DAY_MS);
-  });
-
-  it('yesterday is the previous full local calendar day', () => {
-    const { from, to } = computeRange('yesterday', NOW);
-    expect(from).toEqual(new Date(2026, 5, 10, 0, 0, 0));
-    expect(to).toEqual(new Date(2026, 5, 11, 0, 0, 0));
-  });
-
-  it('last_30_days and last_90_days are rolling windows ending now', () => {
-    const thirty = computeRange('last_30_days', NOW);
-    expect(thirty.to).toEqual(NOW);
-    expect(thirty.to.getTime() - thirty.from.getTime()).toBe(30 * DAY_MS);
-
-    const ninety = computeRange('last_90_days', NOW);
-    expect(ninety.to.getTime() - ninety.from.getTime()).toBe(90 * DAY_MS);
-  });
-
-  it('last_month is the previous full calendar month', () => {
-    const { from, to } = computeRange('last_month', NOW);
-    expect(from).toEqual(new Date(2026, 4, 1)); // May 1
-    expect(to).toEqual(new Date(2026, 5, 1)); // June 1
-  });
-
-  it('last_month works across a year boundary', () => {
-    const january = new Date(2026, 0, 15, 9, 0, 0);
-    const { from, to } = computeRange('last_month', january);
-    expect(from).toEqual(new Date(2025, 11, 1)); // Dec 1 previous year
-    expect(to).toEqual(new Date(2026, 0, 1));
-  });
-
-  it('falls back to last 30 days for an unknown preset', () => {
-    const { from, to } = computeRange('nonsense', NOW);
-    expect(to.getTime() - from.getTime()).toBe(30 * DAY_MS);
-  });
-
-  it('always returns from strictly before to', () => {
-    for (const { key } of TIME_RANGE_PRESETS) {
-      const { from, to } = computeRange(key, NOW);
-      expect(from.getTime()).toBeLessThan(to.getTime());
-    }
+describe('getDefaultRange', () => {
+  it('is the last 30 days ending on today (start-of-local-day boundaries)', () => {
+    const { from, to } = getDefaultRange(NOW);
+    expect(to).toEqual(new Date(2026, 5, 11)); // start of today
+    expect(from).toEqual(new Date(to.getTime() - DEFAULT_RANGE_DAYS * DAY_MS));
+    expect(from.getHours()).toBe(0); // both are day boundaries
   });
 });
 
-describe('presets', () => {
-  it('default preset exists and has a label', () => {
-    expect(TIME_RANGE_PRESETS.some((p) => p.key === DEFAULT_TIME_RANGE_PRESET)).toBe(true);
-    expect(getPresetLabel(DEFAULT_TIME_RANGE_PRESET)).toBe('Last 30 days');
+describe('toISOWindow', () => {
+  it('is half-open and includes the whole To day (exclusive end +1 day)', () => {
+    const range = { from: new Date(2026, 5, 1), to: new Date(2026, 5, 12) };
+    const { from, to } = toISOWindow(range);
+    expect(from).toBe(new Date(2026, 5, 1).toISOString());
+    // Exclusive end is the start of the day AFTER the To day, so June 12 is included.
+    expect(to).toBe(new Date(2026, 5, 13).toISOString());
+  });
+
+  it('snaps a mid-day From/To to day boundaries', () => {
+    const range = { from: new Date(2026, 5, 1, 9, 30), to: new Date(2026, 5, 1, 18, 45) };
+    const { from, to } = toISOWindow(range);
+    expect(from).toBe(new Date(2026, 5, 1).toISOString());
+    expect(to).toBe(new Date(2026, 5, 2).toISOString());
+  });
+});
+
+describe('formatRangeLabel', () => {
+  it('shows the year once when both days share it', () => {
+    const label = formatRangeLabel({ from: new Date(2026, 4, 13), to: new Date(2026, 5, 12) });
+    expect(label).toBe('May 13 – Jun 12, 2026');
+  });
+
+  it('shows both years when they differ', () => {
+    const label = formatRangeLabel({ from: new Date(2025, 11, 20), to: new Date(2026, 0, 5) });
+    expect(label).toBe('Dec 20, 2025 – Jan 5, 2026');
+  });
+});
+
+describe('date-input helpers', () => {
+  it('formats a Date to a yyyy-MM-dd value (local, zero-padded)', () => {
+    expect(toDateInputValue(new Date(2026, 5, 3))).toBe('2026-06-03');
+  });
+
+  it('parses a yyyy-MM-dd value back to a local start-of-day Date', () => {
+    expect(fromDateInputValue('2026-06-03')).toEqual(new Date(2026, 5, 3));
+  });
+
+  it('round-trips a Date through value and back', () => {
+    const date = new Date(2026, 0, 9);
+    expect(fromDateInputValue(toDateInputValue(date))).toEqual(date);
+  });
+
+  it('returns null for an empty or malformed value', () => {
+    expect(fromDateInputValue('')).toBeNull();
+    expect(fromDateInputValue('not-a-date')).toBeNull();
   });
 });
