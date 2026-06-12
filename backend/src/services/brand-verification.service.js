@@ -35,15 +35,9 @@ const domainMatches = (senderDomain, officialDomain) =>
     senderDomain === officialDomain ||
     senderDomain.endsWith(`.${officialDomain}`);
 
-const isConsumerMailbox = (senderDomain) => {
-    for (const consumerDomain of CONSUMER_MAILBOX_DOMAINS) {
-        if (domainMatches(senderDomain, consumerDomain)) {
-            return true;
-        }
-    }
-
-    return false;
-};
+const isConsumerMailbox = (senderDomain) =>
+    [...CONSUMER_MAILBOX_DOMAINS].some((consumerDomain) =>
+        domainMatches(senderDomain, consumerDomain));
 
 const buildUnverifiedResult = (senderDomain) => ({
     senderVerifiedBrand: false,

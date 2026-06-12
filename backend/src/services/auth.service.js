@@ -5,7 +5,7 @@ import createError from '../common/errors/create-error.js';
 import { JWT_EXPIRES_IN, JWT_SECRET } from '../config/env.js';
 import User from '../models/user.model.js';
 
-const toPublicUser = (user) => ({
+export const toPublicUser = (user) => ({
     _id: user._id,
     name: user.name,
     email: user.email,
@@ -23,6 +23,8 @@ const buildAuthResponse = (user, token) => ({
     user: toPublicUser(user),
 });
 
+const signToken = (userId) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
 export const registerUser = async ({ name, email, password }) => {
     const existingUser = await User.findOne({ email });
 
@@ -35,11 +37,7 @@ export const registerUser = async ({ name, email, password }) => {
 
     const createdUser = await User.create({ name, email, passwordHash: hashedPassword, role: 'user' });
 
-    const token = jwt.sign(
-        { userId: createdUser._id },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRES_IN }
-    );
+    const token = signToken(createdUser._id);
 
     return buildAuthResponse(createdUser, token);
 };
@@ -57,13 +55,7 @@ export const loginUser = async ({ email, password }) => {
         throw createError('Invalid password', 401, [], 'INVALID_CREDENTIALS');
     }
 
-    const token = jwt.sign(
-        { userId: user._id },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRES_IN }
-    );
+    const token = signToken(user._id);
 
     return buildAuthResponse(user, token);
 };
-
-export { toPublicUser };

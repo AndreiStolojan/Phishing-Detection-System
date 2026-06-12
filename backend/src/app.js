@@ -24,6 +24,15 @@ app.use(cors({ origin: FRONTEND_APP_URL, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
+const healthCheck = (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      status: 'ok',
+    },
+  });
+};
+
 const authGuards = ARCJET_KEY ? [arcjetMiddleware] : [];
 app.use('/api/v1/auth', ...authGuards, authRouter);
 app.use('/api/v1/users', userRouter);
@@ -36,14 +45,7 @@ app.use('/api/v1/reports', reportRouter);
 app.use('/api/v1/contact', contactRouter);
 app.use('/api/v1/sender-lists', senderListRouter);
 
-app.get('/api/v1/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'ok',
-    },
-  });
-});
+app.get('/api/v1/health', healthCheck);
 
 app.use((req, res) => {
   return sendErrorResponse(

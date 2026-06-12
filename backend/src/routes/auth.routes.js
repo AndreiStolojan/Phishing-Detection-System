@@ -7,7 +7,6 @@ import arcjetMiddleware from '../../extras/security/arcjet.middleware.js';
 
 const authRouter = Router();
 
-// Path: /api/v1/auth
 authRouter.post('/register', arcjetMiddleware, validate(registerSchema), register);
 authRouter.post('/login', arcjetMiddleware, validate(loginSchema), login);
 

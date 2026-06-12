@@ -1,9 +1,5 @@
 import sendErrorResponse from '../common/http/send-error-response.js';
 
-/**
- * Middleware generic pentru validare cu Joi
- * Primește o schemă Joi și validează req.body
- */
 const validate = (schema) => {
     return (req, res, next) => {
         const { error, value } = schema.validate(req.body, {
