@@ -1,5 +1,5 @@
-// Express recunoaste un error middleware doar daca are 4 argumente.
-// `next` nu e folosit aici, dar trebuie pastrat in semnatura.
+// Express recognizes a middleware as error-handling only if it has 4 arguments.
+// `next` is not used here, but it must be kept in the signature.
 // eslint-disable-next-line no-unused-vars
 const errorMiddleware = (err, req, res, next) => {
     let statusCode = err.statusCode || 500;

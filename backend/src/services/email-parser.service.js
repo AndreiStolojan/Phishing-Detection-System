@@ -6,6 +6,7 @@ const decodeBase64Url = (encodedValue) => {
     }
 
     const normalizedValue = encodedValue.replace(/-/g, '+').replace(/_/g, '/');
+    // base64 decoding needs the string length padded to a multiple of 4
     const paddedValue = normalizedValue.padEnd(Math.ceil(normalizedValue.length / 4) * 4, '=');
 
     try {
@@ -165,6 +166,6 @@ export const parseGmailMessageToEmailPayload = ({ gmailMessage, mailAccount, syn
         attachmentExtensions,
         receivedAt: getReceivedAtDate(gmailMessage, headers),
         syncSource,
-        rawHeaders: headers.map(h => ({ name: h.name || '', value: h.value || '' })),
+        rawHeaders: headers.map(header => ({ name: header.name || '', value: header.value || '' })),
     };
 };

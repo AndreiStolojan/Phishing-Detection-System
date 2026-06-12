@@ -7,36 +7,28 @@ const verdictToSentence = {
         'The current verdict shows a high likelihood of phishing based on the detected signals. Do not open the links and do not send any sensitive information.',
 };
 
+const RULE_PHRASES = {
+    reply_to_mismatch: 'the Reply-To address does not match the sender',
+    shortened_url_detected: 'the email contains shortened links',
+    high_risk_attachment_extension: 'the email contains a high-risk attachment',
+    archive_attachment_extension:
+        'the email contains a compressed archive attachment',
+};
+
 const ruleToPhrase = (ruleId) => {
     if (!ruleId) {
         return '';
-    }
-
-    if (ruleId === 'reply_to_mismatch') {
-        return 'the Reply-To address does not match the sender';
-    }
-
-    if (ruleId === 'shortened_url_detected') {
-        return 'the email contains shortened links';
     }
 
     if (ruleId.startsWith('suspicious_link_pattern:')) {
         return 'the email contains suspicious link patterns';
     }
 
-    if (ruleId === 'high_risk_attachment_extension') {
-        return 'the email contains a high-risk attachment';
-    }
-
-    if (ruleId === 'archive_attachment_extension') {
-        return 'the email contains a compressed archive attachment';
-    }
-
     if (ruleId === 'too_many_links_high' || ruleId === 'too_many_links_medium') {
         return 'the email has an unusually high number of links';
     }
 
-    return '';
+    return RULE_PHRASES[ruleId] || '';
 };
 
 const buildRuleSentence = (triggeredRules = []) => {
@@ -152,20 +144,6 @@ export const buildControlledExplanation = ({
     return sentences.join(' ').trim();
 };
 
-export const buildControlledExplanationObject = ({
-    verdict,
-    triggeredRules,
-    aiSignals,
-    senderVerifiedBrand = false,
-    verifiedBrandName = null,
-    senderListMatch = null,
-}) => ({
-    summary: buildControlledExplanation({
-        verdict,
-        triggeredRules,
-        aiSignals,
-        senderVerifiedBrand,
-        verifiedBrandName,
-        senderListMatch,
-    }),
+export const buildControlledExplanationObject = (input) => ({
+    summary: buildControlledExplanation(input),
 });
