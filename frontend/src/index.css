@@ -64,10 +64,15 @@
   --color-secondary-foreground: #cdd6e4;
   --color-muted: #1a2233;
   --color-muted-foreground: #9aa6ba;
-  --color-muted-foreground-subtle: #6b7689;
+  --color-muted-foreground-subtle: #828fa3;
   --color-accent: #1c2740;
   --color-accent-foreground: #dce6f7;
+  /* `destructive` stays light so it passes as text/icon on dark surfaces
+     (text-destructive). `destructive-strong` is the darker fill used UNDER
+     near-white text on solid danger buttons — #ef5350 was too light there
+     (white text only 3.26:1). Verified 2026-06-12, see scripts/contrast-audit.mjs. */
   --color-destructive: #ef5350;
+  --color-destructive-strong: #c62828;
   --color-destructive-foreground: #fff5f5;
 
   --color-border: #1f2838;

@@ -7,9 +7,7 @@ import {
   ShieldX,
   ArrowRight,
   ShieldCheck,
-  CalendarRange,
   Check,
-  ChevronDown,
   Globe,
   Crosshair,
   Loader2,
@@ -27,6 +25,7 @@ import {
 } from 'recharts';
 
 import { DashboardSkeleton, ErrorState, EmptyState, ConnectGmailState } from '@/components/common/states';
+import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RiskDonut } from '@/components/dashboard/RiskDonut';
 import { TopRulesChart } from '@/components/dashboard/TopRulesChart';
@@ -34,13 +33,9 @@ import { EmailRow } from '@/components/inbox/EmailRow';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { TimeRangeFilter } from '@/components/common/TimeRangeFilter';
 import { useApi } from '@/hooks/useApi';
+import { useAuth } from '@/hooks/useAuth';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { useTimeRange } from '@/context/TimeRangeContext';
@@ -84,7 +79,7 @@ function TrendTooltip({ active, payload, label }) {
                 <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
                 <span className="text-muted-foreground">{name}</span>
               </div>
-              <span className={cn('font-semibold tabular-nums', val === 0 && 'text-muted-foreground/50')}>
+              <span className={cn('font-semibold tabular-nums', val === 0 && 'text-muted-foreground-subtle')}>
                 {val === 0 ? '—' : val}
               </span>
             </div>
@@ -292,10 +287,6 @@ function PostureHero({ attention, safeRate, scanned, lastSynced }) {
           </div>
           <div className="flex items-center gap-6 text-right">
             <div>
-              <p className="text-lg font-bold tabular-nums text-risk-safe">{safeRate}%</p>
-              <p className="text-[11px] text-muted-foreground">safe rate</p>
-            </div>
-            <div>
               <p className="text-lg font-bold tabular-nums">{scanned}</p>
               <p className="text-[11px] text-muted-foreground">scanned</p>
             </div>
@@ -315,36 +306,37 @@ function PostureHero({ attention, safeRate, scanned, lastSynced }) {
 /* ─── Dashboard page ──────────────────────────────────────────────────────── */
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const { account, isConnected, syncVersion } = useMailAccount();
-  const { preset, setPreset, presets, label, from, to } = useTimeRange();
+  const { label, from, to } = useTimeRange();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const statsQuery = useApi(
     () => getEmailStats({ from, to }),
-    [syncVersion, preset],
-    `dash-stats-${preset}-${syncVersion}`
+    [syncVersion, from, to],
+    `dash-stats-${from}-${to}-${syncVersion}`
   );
   const riskyQuery = useApi(
     () => getEmails({ riskBucket: 'quarantine', from, to }),
-    [syncVersion, preset],
-    `risky-${preset}-${syncVersion}`
+    [syncVersion, from, to],
+    `risky-${from}-${to}-${syncVersion}`
   );
   const trendQuery = useApi(
     () => getEmailTrend({ from, to }),
-    [syncVersion, preset],
-    `dash-trend-${preset}-${syncVersion}`
+    [syncVersion, from, to],
+    `dash-trend-${from}-${to}-${syncVersion}`
   );
   const sendersQuery = useApi(
     () => getTopRiskySenders({ from, to }),
-    [syncVersion, preset],
-    `dash-senders-${preset}-${syncVersion}`
+    [syncVersion, from, to],
+    `dash-senders-${from}-${to}-${syncVersion}`
   );
   // Report data for the active range — feeds the "Most common warning signs"
   // card and the "Email me this report" action (merged from the Reports page).
   const reportQuery = useApi(
     () => getReportSummary({ from, to, label }),
-    [syncVersion, preset],
-    `dash-report-${preset}-${syncVersion}`
+    [syncVersion, from, to],
+    `dash-report-${from}-${to}-${syncVersion}`
   );
 
   const sendReport = useAsyncAction(sendReportSummary);
@@ -353,7 +345,7 @@ export function DashboardPage() {
   // A new range means a new report — reset the "Emailed" confirmation.
   useEffect(() => {
     setReportSentTo(null);
-  }, [preset]);
+  }, [from, to]);
 
   const handleSendReport = async () => {
     try {
@@ -400,6 +392,7 @@ export function DashboardPage() {
   const safeRate = scanned > 0 ? Math.round((safeCount / scanned) * 100) : 0;
   const attention = counts.quarantine ?? 0;
   const lastSynced = account?.lastSyncedAt;
+  const displayName = user?.name || user?.email?.split('@')[0] || 'there';
 
   return (
     <div className="space-y-4">
@@ -407,39 +400,26 @@ export function DashboardPage() {
           the selected window, and the same range scopes the inbox and the
           emailed report. Absolute-state items (Gmail connection, last-synced
           time) are not time-scoped and shown as-is. */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-h3 font-semibold">Security overview</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground">
-              <CalendarRange className="h-3.5 w-3.5" />
-              {label}
-              <ChevronDown className="h-3.5 w-3.5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {presets.map((option) => (
-                <DropdownMenuItem
-                  key={option.key}
-                  onSelect={() => setPreset(option.key)}
-                  className={cn(option.key === preset && 'text-primary')}
-                >
-                  {option.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="outline" size="sm" onClick={handleSendReport} disabled={sendReport.loading}>
-            {sendReport.loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : reportSentTo ? (
-              <Check className="h-4 w-4 text-risk-safe" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            {reportSentTo ? 'Emailed' : 'Email me this report'}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={`Welcome back, ${displayName}!`}
+        className="mb-8"
+        titleClassName="text-[1.625rem] font-semibold tracking-tight"
+        actions={
+          <>
+            <TimeRangeFilter variant="plain" />
+            <Button variant="outline" size="sm" onClick={handleSendReport} disabled={sendReport.loading}>
+              {sendReport.loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : reportSentTo ? (
+                <Check className="h-4 w-4 text-risk-safe" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {reportSentTo ? 'Emailed' : 'Email me this report'}
+            </Button>
+          </>
+        }
+      />
 
       {/* Security posture hero — full width */}
       <PostureHero

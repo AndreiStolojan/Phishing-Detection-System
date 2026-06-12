@@ -13,11 +13,25 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 
 ## Snapshot curent
 
-- Data ultimei actualizări: `2026-06-11`
-- Faza curentă: `Faza 25 - Dashboard hub + filtru global de timp` — COMPLETĂ
-- Status general: backend 100% stabil, MVP complet. Dashboard-ul e hub-ul aplicației: filtru global de interval (Last day/Yesterday/30/90/Last month) respectat de dashboard, inbox și raportul pe email; pagina Reports desființată și absorbită în dashboard; layout full-width + 20px gutters pe mobil; paleta de risc trece WCAG 2.1 AA. Backend 52/52 teste (+1 skip DB), frontend 36/36, lint + build curate.
+- Data ultimei actualizări: `2026-06-12`
+- Faza curentă: `Faza 26 - Interval custom From/To + trecere completă WCAG 2.1 AA` — COMPLETĂ
+- Status general: backend 100% stabil, MVP complet. Filtrul global de timp e acum un selector custom **From/To** (două `<input type="date">`) pe dashboard, respectat de dashboard, inbox (text static read-only) și raportul pe email; backend neatins (acceptă deja `?from=&to=`). Întreaga paletă frontend trece WCAG 2.1 AA: token nou `--color-destructive-strong` pentru butoanele solide de delete, `--color-muted-foreground-subtle` urcat și adoptat în locul opacităților sub-AA. Audit reproductibil: `frontend/scripts/contrast-audit.mjs` → 0 eșecuri / 38 perechi. Backend 52/52 teste (+1 skip DB), frontend **39/39**, build curat (frontend fără script lint — gate = build + teste).
 - Progres estimativ MVP: `100%` backend · `100%` produs final
 - Deadline: ~2026-06-17 (draft lucrare)
+
+## Notă sesiune 2026-06-12 (2) - Fix: raportul pe email ignora „Mark safe"
+
+- **Bug raportat:** după marcarea manuală ca „safe" a emailurilor suspecte / likely phishing, retrimiterea raportului pe email arăta același `%` de siguranță ca înainte, deși dashboard-ul afișa procentul nou (corect). Diagnostic confirmat: `monthlyDigestTemplate` (`backend/extras/notifications/email.template.js`) calcula `safeRate`, numărul de „threats" și breakdown-ul din verdictele BRUTE de scan (`counts.safe/suspicious/likelyPhishing/markedPhishing`), care nu se mișcă la review-ul userului. Serviciul (`report.service.js`) returna deja `effectiveSafe/effectiveSuspicious/effectiveLikelyPhishing/effectiveMarkedPhishing` (override-ul `userVerdict` aplicat peste scan, exact ca dashboard-ul) — emailul pur și simplu le ignora.
+- **Fix:** template-ul folosește acum count-urile *effective* (cu fallback pe cele brute dacă lipsesc), pentru hero `%`, linia „X emails were safe — Y threats", și cele 4 rânduri de breakdown (Safe/Suspicious/Likely phishing/Confirmed phishing). O singură atingere, doar în `email.template.js`; serviciul și agregările rămân neatinse.
+- **Teste (scrise ÎNAINTE de fix, pentru a reproduce bug-ul):** `backend/tests/unit/report-email-template.test.js` randează template-ul direct (funcție pură, fără DB). Scenariu: 4 scanate (1 safe + 2 suspicious + 1 likely phishing brut), userul marchează cele 3 riscante ca safe ⇒ effective = 4 safe / 0 threats. Înainte de fix testele picau (emailul arăta 25% / 3 threats); după fix trec (100% / 0 threats). Plus un test de sanity (fără override-uri, effective == brut ⇒ 75%, neschimbat).
+- **Verificat:** backend **55/55** (+1 skip DB), lint curat.
+
+## Notă sesiune 2026-06-12 - Interval custom From/To + WCAG 2.1 AA pe toată paleta
+
+- **Preset → From/To (strict frontend):** `TimeRangeContext` ține acum `{ from, to }` ca date inclusive (start-of-local-day) în loc de `preset`. `lib/timeRange.js` rescris cu helpere pure: `getDefaultRange` (ultimele 30 zile, seed), `toISOWindow` (half-open `[from, to)`, capătul exclusiv +1 zi ⇒ ziua To inclusă), `formatRangeLabel` („May 13 – Jun 12, 2026"), `to/fromDateInputValue`. Selectorul nou `components/common/TimeRangeFilter.jsx` (două `<input type="date">`, clamp From>To) trăiește pe dashboard; inbox-ul afișează intervalul ca `<span>` static (fără link/hover). Cache-keys + dependency arrays din `DashboardPage`/`InboxPage` re-cheiate pe `${from}-${to}`. Backend, schemă, rute — **neatinse** (acceptau deja `?from=&to=`).
+- **Contrast WCAG 2.1 AA:** singura nereușită reală de delete erau butoanele solide (alb pe `#ef5350` = 3.26:1). Token nou `--color-destructive-strong` `#c62828` (alb 5.26:1) pentru fundalul solid; `--color-destructive` rămâne deschis pentru text/icon (trece 5.23:1). `--color-muted-foreground-subtle` `#6b7689 → #828fa3` și adoptat în locul `text-muted-foreground/70` și `/50` care picau (caption-uri Settings, overline Sidebar, dash „—" din trend). Butoanele ghost de delete și delete-ul SenderLists au fost **măsurate, trec deja** — neatinse. Audit reproductibil `frontend/scripts/contrast-audit.mjs`: **0/38 eșecuri**.
+- **Verificare:** build curat, **39/39** teste (incl. `timeRange.test.jsx` + `TimeRangeFilter.test.jsx` actualizate la modelul From/To). Fără erori în consolă la încărcare. Screenshot-urile vizuale rămân de făcut din sesiunea autentificată + Gmail conectat (vezi „Următorul pas").
+- **Următorul pas imediat:** capturi de ecran (dashboard cu chooser-ul From/To, inbox cu textul static, hover pe un buton de delete) din sesiunea reală; apoi test manual cap-coadă + draft lucrare.
 
 ## Notă sesiune 2026-06-11 - Dashboard hub: filtru global de timp, Reports absorbit, layout + contrast WCAG
 

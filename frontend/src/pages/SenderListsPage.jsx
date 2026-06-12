@@ -40,22 +40,22 @@ const FILTERS = [
   { key: 'block', label: 'Blocked' },
 ];
 
-function SummaryCard({ icon: Icon, label, value, hint, tone, index = 0 }) {
+function SummaryCard({ icon: Icon, label, value, tone, index = 0 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...springSoft, delay: index * 0.05 }}
+      className="h-full"
     >
-      <Card>
-        <CardContent className="flex items-center gap-3 p-4">
+      <Card className="h-full">
+        <CardContent className="flex h-full items-center gap-3 p-4">
           <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', tone.soft)}>
             <Icon className={cn('h-5 w-5', tone.text)} />
           </span>
           <div className="min-w-0">
             <p className="text-2xl font-bold leading-none tabular-nums">{value}</p>
             <p className="mt-1 text-xs text-muted-foreground">{label}</p>
-            {hint && <p className="text-[11px] text-muted-foreground/60">{hint}</p>}
           </div>
         </CardContent>
       </Card>
@@ -134,9 +134,9 @@ export function SenderListsPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        eyebrow="Protection rules"
-        title="Trusted & blocked senders"
-        description="Your own always-trust / always-block rules, applied before every scan."
+        title="Trusted & Blocked Rules"
+        className="mb-8"
+        titleClassName="text-[1.625rem] font-semibold tracking-tight"
       />
 
       {/* Summary */}
@@ -159,7 +159,6 @@ export function SenderListsPage() {
           icon={Mail}
           label="Emails covered"
           value={coveredEmails}
-          hint="Synced emails matching your rules"
           tone={{ soft: 'bg-primary/10', text: 'text-primary' }}
           index={2}
         />
@@ -177,19 +176,27 @@ export function SenderListsPage() {
             <CardHeader className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-sm">Your rules</CardTitle>
-                <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
+                <div className="flex items-center gap-1 rounded-sm border border-border p-0.5">
                   {FILTERS.map((f) => (
                     <button
                       key={f.key}
+                      type="button"
                       onClick={() => setFilter(f.key)}
                       className={cn(
-                        'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                        'relative overflow-hidden rounded-sm px-2.5 py-1 text-xs font-medium outline-none transition-colors',
                         filter === f.key
-                          ? 'bg-accent text-foreground'
+                          ? 'text-primary'
                           : 'text-muted-foreground hover:text-foreground'
                       )}
                     >
-                      {f.label}
+                      {filter === f.key && (
+                        <motion.span
+                          layoutId="rules-filter-active"
+                          transition={springSoft}
+                          className="absolute inset-0 rounded-sm bg-primary/12 ring-1 ring-inset ring-primary/15"
+                        />
+                      )}
+                      <span className="relative">{f.label}</span>
                     </button>
                   ))}
                 </div>
