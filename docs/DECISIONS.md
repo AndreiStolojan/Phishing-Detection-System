@@ -11,6 +11,12 @@ Format recomandat pentru deciziile viitoare:
 - motiv
 - impact
 
+## 2026-06-12 — Plan de deployment: un droplet (Docker Compose) + MongoDB Atlas M0 + Caddy
+
+- **Decizie:** pentru deploy low-cost folosind GitHub Student Pack, alegem **un singur VPS** (DigitalOcean, $200 credit) care rulează `backend`, `frontend` (nginx) și `ollama` via Docker Compose, în spatele unui reverse-proxy **Caddy** (HTTPS automat prin Let's Encrypt). **MongoDB rămâne extern**, pe Atlas M0 (gratuit permanent), nu containerizat.
+- **Motiv:** `gemma3:4b` (Ollama) e singura componentă cu cerințe serioase de RAM (~6-8GB), restul aplicației (Express + Vite/nginx) e neglijabil. Scoaterea Mongo din droplet elimină nevoia unui droplet și mai mare și a backup-urilor manuale. Caddy a fost preferat peste nginx+certbot pentru simplitate (HTTPS automat, un singur fișier de config). Recomandare: droplet 8GB/4vCPU (~$48/lună, ~4 luni pe credit) pentru a include Ollama; alternativ `AI_SEMANTIC_ENABLED=false` + droplet 2GB (~$12/lună, ~16 luni) dacă Ollama rămâne doar local.
+- **Impact:** fișiere noi, fără modificări la codul existent — `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.env.example`, `backend/.env.production.local.example`, `docs/DEPLOYMENT.md`. App-ul rămâne neatins; toate variabilele de mediu existente (`OLLAMA_*`, `GOOGLE_*`, etc.) sunt reutilizate ca atare. Pașii de cont/resurse cloud (DO, Atlas, domeniu, Google OAuth redirect URI) sunt manuali, marcați „YOU DO THIS" în `docs/DEPLOYMENT.md`.
+
 ## 2026-06-12 — Raportul pe email folosește verdictele *effective* (mirror cu dashboard-ul)
 
 - **Decizie:** `monthlyDigestTemplate` (`backend/extras/notifications/email.template.js`) raportează `%` de siguranță, numărul de „threats" și breakdown-ul Safe/Suspicious/Likely phishing/Confirmed phishing din count-urile *effective* (`effectiveSafe/effectiveSuspicious/effectiveLikelyPhishing/effectiveMarkedPhishing`), nu din verdictele brute de scan. Effective = verdictul scan-ului cu override-ul manual al userului (`userVerdict` „safe"/„phishing") aplicat deasupra — exact bucket-ul folosit de dashboard.

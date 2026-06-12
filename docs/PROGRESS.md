@@ -19,6 +19,13 @@ Acest fișier arată clar unde a rămas proiectul în acest moment. El trebuie c
 - Progres estimativ MVP: `100%` backend · `100%` produs final
 - Deadline: ~2026-06-17 (draft lucrare)
 
+## Notă sesiune 2026-06-12 (3) - Plan + artefacte de deployment (Student Pack)
+
+- **Ce s-a făcut:** plan concret de deploy low-cost pe DigitalOcean (Student Pack $200 credit) + MongoDB Atlas (M0 free) + domeniu/SSL, documentat în `docs/DEPLOYMENT.md`. Artefacte create (toate noi, fără modificări de cod existent): `backend/Dockerfile`, `backend/.dockerignore`, `backend/.env.production.local.example`, `frontend/Dockerfile`, `frontend/.dockerignore`, `frontend/nginx.conf`, `docker-compose.yml` (caddy + backend + frontend + ollama), `Caddyfile`, `.env.example` (DOMAIN pentru Caddy). `.gitignore` actualizat cu `/.env`. `docker compose config` validează curat.
+- **Arhitectură:** un singur droplet (8GB/4vCPU recomandat ca să încapă `gemma3:4b`) rulează toate containerele; Mongo NU e containerizat — Atlas M0 (gratuit permanent) ca să elibereze RAM pentru Ollama. Alternativă documentată: `AI_SEMANTIC_ENABLED=false` + droplet 2GB dacă bugetul/timpul nu permite 8GB.
+- **Nimic deployat încă** — toți pașii care creează conturi/resurse cloud (DigitalOcean, Atlas, domeniu, Google OAuth redirect URI) sunt marcați „YOU DO THIS" în `docs/DEPLOYMENT.md` și rămân de făcut manual de Andrei.
+- **Următorul pas:** Andrei decide dacă merge mai departe cu deployul acum (înainte de deadline 2026-06-17) sau îl lasă pentru după predarea lucrării — planul/artefactele sunt pregătite oricum.
+
 ## Notă sesiune 2026-06-12 (2) - Fix: raportul pe email ignora „Mark safe"
 
 - **Bug raportat:** după marcarea manuală ca „safe" a emailurilor suspecte / likely phishing, retrimiterea raportului pe email arăta același `%` de siguranță ca înainte, deși dashboard-ul afișa procentul nou (corect). Diagnostic confirmat: `monthlyDigestTemplate` (`backend/extras/notifications/email.template.js`) calcula `safeRate`, numărul de „threats" și breakdown-ul din verdictele BRUTE de scan (`counts.safe/suspicious/likelyPhishing/markedPhishing`), care nu se mișcă la review-ul userului. Serviciul (`report.service.js`) returna deja `effectiveSafe/effectiveSuspicious/effectiveLikelyPhishing/effectiveMarkedPhishing` (override-ul `userVerdict` aplicat peste scan, exact ca dashboard-ul) — emailul pur și simplu le ignora.
