@@ -291,7 +291,7 @@ export const analyzeEmailSemanticsWithOllama = async ({
         10
     );
     const ollamaTimeoutMs = Number.isFinite(parsedTimeoutMs)
-        ? Math.min(Math.max(parsedTimeoutMs, 5000), 300000)
+        ? Math.min(Math.max(parsedTimeoutMs, 5000), 600000)
         : DEFAULT_OLLAMA_TIMEOUT_MS;
     const requestBody = JSON.stringify({
         model: baseMeta.model,
