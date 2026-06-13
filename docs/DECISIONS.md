@@ -11,6 +11,12 @@ Format recomandat pentru deciziile viitoare:
 - motiv
 - impact
 
+## 2026-06-12 — Gmail Push Notifications (Pub/Sub) rămân future work, nu pentru deploy-ul curent
+
+- **Decizie:** chiar dacă app-ul devine public (HTTPS prin Caddy), NU migrăm de la `node-cron` (15 min) la Gmail Push Notifications acum. Rămâne notat ca opțiune swap-in (vezi `docs/TODO.md` linii 374, 390).
+- **Motiv:** Push Notifications cere infra suplimentară — proiect Google Cloud Pub/Sub, topic + subscription, grant publish pentru `gmail-api-push@system.gserviceaccount.com`, endpoint nou autentificat, plus `users.watch()` care expiră la 7 zile (deci tot ai nevoie de un job de renew — cron nu dispare complet). Cost/beneficiu nu se justifică cu ~5 zile până la deadline (2026-06-17), pentru un app care e deja feature-complete.
+- **Impact:** niciuna pe cod. Rămâne ca linie de "future work" în teză/`PROJECT_STATE.md`.
+
 ## 2026-06-12 — Plan de deployment: un droplet (Docker Compose) + MongoDB Atlas M0 + Caddy
 
 - **Decizie:** pentru deploy low-cost folosind GitHub Student Pack, alegem **un singur VPS** (DigitalOcean, $200 credit) care rulează `backend`, `frontend` (nginx) și `ollama` via Docker Compose, în spatele unui reverse-proxy **Caddy** (HTTPS automat prin Let's Encrypt). **MongoDB rămâne extern**, pe Atlas M0 (gratuit permanent), nu containerizat.
