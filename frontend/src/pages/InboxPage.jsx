@@ -17,7 +17,6 @@ import { toast } from 'sonner';
 import { InboxSkeleton, ErrorState, EmptyState } from '@/components/common/states';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
-import { TimeRangeFilter } from '@/components/common/TimeRangeFilter';
 import { EmailRow } from '@/components/inbox/EmailRow';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -62,7 +61,7 @@ const FILTER_COUNT_MAP = {
 
 // Tone used to colour an active filter chip; null filter ("All") uses the brand.
 const filterHex = (key) => (key ? getRiskMeta(key).tone.hex : 'var(--color-primary)');
-const filterTextClass = (key) => (key ? getRiskMeta(key).tone.text : 'text-primary');
+const filterTextClass = (key) => (key ? getRiskMeta(key).tone.text : 'text-foreground');
 
 export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -233,51 +232,38 @@ export function InboxPage() {
         titleClassName="text-[1.625rem] font-semibold tracking-tight"
       />
 
-      {/* Filter chips + search + select button */}
-      <div className="sticky top-0 z-20 flex flex-col gap-4 bg-background py-2 sm:flex-row sm:items-center sm:justify-between md:top-0">
-        <div className="scrollbar-none -mx-5 flex items-center gap-1 overflow-x-auto px-5 sm:mx-0 sm:flex-wrap sm:px-0">
-          {!selectMode && RISK_FILTERS.map((filter) => {
-            const isActive = riskBucket === filter.key;
-            const countKey = FILTER_COUNT_MAP[filter.key];
-            const count = !showCounts
-              ? null
-              : countKey === '__total__'
-                ? totalCount
-                : (counts[countKey] ?? null);
-            const hex = filterHex(filter.key);
-            return (
-              <button
-                key={filter.key || 'all'}
-                onClick={() => setFilter(filter.key)}
-                className={cn(
-                  'relative rounded-sm px-3 py-1.5 text-xs font-medium transition-colors',
-                  isActive ? filterTextClass(filter.key) : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId="filter-pill"
-                    transition={springSoft}
-                    className="absolute inset-0 rounded-sm"
-                    style={{
-                      backgroundColor: `color-mix(in oklab, ${hex} 16%, transparent)`,
-                      boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${hex} 38%, transparent)`,
-                    }}
-                  />
-                )}
-                <span className="relative">
-                  {filter.label}
-                  {count != null && count > 0 && (
-                    <span className="ml-1.5 opacity-70">({count})</span>
+      {/* Search (left, above filters) + select/refresh actions (right) */}
+      <div className="sticky top-0 z-20 flex flex-col gap-6 bg-background py-2 md:top-0">
+        {/* Top row: search on the left, action buttons on the right */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {!selectMode ? (
+            <div className="relative w-full sm:w-96">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={searchRef}
+                value={searchInput}
+                onChange={handleSearchChange}
+                placeholder="Search sender or subject…  (press /)"
+                className="rounded-lg bg-card surface-raised pl-9 pr-9 focus-visible:!border-[#4485fd]"
+                style={{ borderColor: '#1e2a45' }}
+              />
+              {searchInput && (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  {searching ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <button
+                      onClick={clearSearch}
+                      aria-label="Clear search"
+                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   )}
-                </span>
-              </button>
-            );
-          })}
-
-          {!selectMode && <TimeRangeFilter variant="plain" className="translate-y-1" />}
-
-          {selectMode && (
+                </div>
+              )}
+            </div>
+          ) : (
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -291,56 +277,81 @@ export function InboxPage() {
               </span>
             </div>
           )}
+
+          <div className="flex items-center gap-2 sm:ml-auto">
+            {!selectMode ? (
+              <>
+                <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={enterSelectMode} disabled={emails.length === 0 || syncing}>
+                  <CheckSquare className="h-4 w-4" />
+                  Select
+                </Button>
+                {isConnected && (
+                  <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={sync} disabled={syncing}>
+                    {syncing
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <RefreshCw className="h-4 w-4" />}
+                    {syncing ? 'Refreshing…' : 'Refresh'}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={exitSelectMode}>
+                <X className="h-4 w-4" />
+                Cancel
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {!selectMode ? (
-            <>
-              <div className="relative w-full sm:w-72">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={searchRef}
-                  value={searchInput}
-                  onChange={handleSearchChange}
-                  placeholder="Search sender or subject…  (press /)"
-                  className="pl-9 pr-9"
-                />
-                {searchInput && (
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                    {searching ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : (
-                      <button
-                        onClick={clearSearch}
-                        aria-label="Clear search"
-                        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+        {/* Bară de filtre: un track compact (fundal soft + linie fină) care
+            grupează chips-urile într-un singur element — aliniat la stânga,
+            mai mic decât search. Doar chip-ul activ se colorează (pilula
+            alunecă lin). */}
+        {!selectMode && (
+          <div
+            className="scrollbar-none flex w-fit max-w-full items-center gap-1 self-start overflow-x-auto rounded-md border bg-card/40 p-1"
+            style={{ borderColor: '#2d3a5e' }}
+          >
+            {RISK_FILTERS.map((filter) => {
+              const isActive = riskBucket === filter.key;
+              const countKey = FILTER_COUNT_MAP[filter.key];
+              const count = !showCounts
+                ? null
+                : countKey === '__total__'
+                  ? totalCount
+                  : (counts[countKey] ?? null);
+              const hex = filterHex(filter.key);
+              return (
+                <button
+                  key={filter.key || 'all'}
+                  onClick={() => setFilter(filter.key)}
+                  className={cn(
+                    'relative flex-none whitespace-nowrap rounded-sm px-3 py-1 text-sm font-medium transition-colors',
+                    isActive ? filterTextClass(filter.key) : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="filter-pill"
+                      transition={springSoft}
+                      className="absolute inset-0 rounded-sm"
+                      style={{
+                        backgroundColor: `color-mix(in oklab, ${hex} 14%, transparent)`,
+                        boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${hex} 40%, transparent)`,
+                      }}
+                    />
+                  )}
+                  <span className="relative">
+                    {filter.label}
+                    {count != null && count > 0 && (
+                      <span className="ml-1.5 opacity-70">({count})</span>
                     )}
-                  </div>
-                )}
-              </div>
-              <Button variant="outline" size="sm" onClick={enterSelectMode} disabled={emails.length === 0 || syncing}>
-                <CheckSquare className="h-4 w-4" />
-                Select
-              </Button>
-              {isConnected && (
-                <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
-                  {syncing
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <RefreshCw className="h-4 w-4" />}
-                  {syncing ? 'Syncing…' : 'Sync'}
-                </Button>
-              )}
-            </>
-          ) : (
-            <Button variant="ghost" size="sm" onClick={exitSelectMode}>
-              <X className="h-4 w-4" />
-              Cancel
-            </Button>
-          )}
-        </div>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* List */}

@@ -1,32 +1,33 @@
-/*
- * Brand → official sending-domain reference list.
- *
- * Purpose: let the scan engine recognise when an email genuinely originates from a
- * brand's own infrastructure, so it can stop flagging legitimate brand mail for
- * "brand impersonation" and can soften brand-typical signals (urgency, links, CTAs).
- * See docs/FALSE_POSITIVE_REDUCTION.md for the full reasoning.
- *
- * IMPORTANT design rule — only brand-CONTROLLED domains belong here.
- * A domain qualifies only if the brand alone can send from it (paypal.com,
- * accounts.google.com, amazon.com, microsoft.com, apple.com …). These cannot be
- * obtained by an attacker, so a match is a strong trust signal.
- *
- * Consumer mailbox domains (gmail.com, outlook.com, live.com, hotmail.com,
- * icloud.com, yahoo.com …) are DELIBERATELY EXCLUDED even though the brand "owns"
- * them, because anyone can open an address there. Treating @gmail.com as
- * "verified Google" would let an attacker mail phishing from a throwaway Gmail
- * account and have its urgency/link/CTA signals discounted — a recall hole. Those
- * domains are listed in CONSUMER_MAILBOX_DOMAINS below and are never verified.
- *
- * The list is intentionally non-exhaustive. It targets the brands most often seen
- * in legitimate transactional/marketing mail that were being falsely flagged. Add
- * new brands or regional domains here — no rule code needs to change.
- *
- * Matching is suffix-aware (handled in brand-verification.service.js): a sender on
- * mail.paypal.com matches paypal.com, but evil-paypal.com and paypal.com.evil.com
- * do not.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// brand-domains.config.js — lista domeniilor oficiale ale brandurilor cunoscute.
+//
+// Ce face, pe scurt: definește, pentru câteva branduri mari (PayPal, Google,
+// Amazon, Microsoft etc.), care domenii sunt deținute/controlate CHIAR de brand.
+// Motorul de scanare (prin brand-verification.service.js) verifică dacă domeniul
+// expeditorului se potrivește cu unul din această listă (verificare "suffix-aware":
+// mail.paypal.com se potrivește cu paypal.com, dar evil-paypal.com și
+// paypal.com.evil.com NU se potrivesc). Dacă da, emailul e tratat ca
+// "brand verificat" — vezi scoring.config.js (VERIFIED_BRAND_MODIFIERS), care
+// reduce anumite semnale de risc pentru mailul real al brandului.
+//
+// REGULA DE DESIGN importantă: aici intră DOAR domenii pe care brandul le
+// controlează exclusiv (paypal.com, accounts.google.com, amazon.com,
+// microsoft.com, apple.com...) — un atacator nu le poate obține. Domeniile de
+// mailbox de consum (gmail.com, outlook.com, yahoo.com...) sunt EXCLUSE
+// INTENȚIONAT mai jos, în CONSUMER_MAILBOX_DOMAINS, pentru că oricine își poate
+// face un cont gratuit acolo — a le trata ca "verificat Google" ar fi o gaură de
+// securitate (un atacator ar trimite phishing de pe un @gmail.com și ar primi
+// reducerea de scor a unui brand verificat).
+//
+// Lista e intenționat neexhaustivă — conține brandurile întâlnite cel mai des în
+// mailul tranzacțional/marketing legitim care era fals marcat ca suspect. Se pot
+// adăuga branduri/domenii noi aici fără să se schimbe vreun cod de regulă.
+//
+// Detalii: docs/EXPLICATIE_BACKEND.md §4.4 (stratul "brand verificat").
+// ─────────────────────────────────────────────────────────────────────────────
 
+// Harta brand -> { nume afișat, listă de domenii oficiale }. Fiecare grup de mai
+// jos corespunde unui brand cunoscut, des întâlnit în mailul legitim.
 export const BRAND_OFFICIAL_DOMAINS = {
     paypal: {
         displayName: 'PayPal',
@@ -50,7 +51,7 @@ export const BRAND_OFFICIAL_DOMAINS = {
             'docs.google.com',
             'drive.google.com',
             'youtube.com',
-            // NOTE: gmail.com / googlemail.com are consumer mailboxes — see exclusion list.
+            // NOTĂ: gmail.com / googlemail.com sunt mailbox-uri de consum — vezi lista de exclus.
         ],
     },
     amazon: {
@@ -65,9 +66,9 @@ export const BRAND_OFFICIAL_DOMAINS = {
             'amazon.ca',
             'amazon.in',
             'amazon.co.jp',
-            // NOTE: amazonses.com is deliberately EXCLUDED — it is AWS SES shared sending
-            // infrastructure that any AWS customer can send through, not a brand-controlled
-            // domain. Including it would let an attacker on SES be "verified" as Amazon.
+            // NOTĂ: amazonses.com e EXCLUS intenționat — e infrastructura partajată AWS SES,
+            // prin care poate trimite orice client AWS, nu un domeniu controlat de brand.
+            // Includerea lui ar permite unui atacator de pe SES să fie "verificat" ca Amazon.
         ],
     },
     microsoft: {
@@ -83,7 +84,7 @@ export const BRAND_OFFICIAL_DOMAINS = {
             'microsoftstore.com',
             'accountprotection.microsoft.com',
             'email.microsoft.com',
-            // NOTE: outlook.com / live.com / hotmail.com are consumer mailboxes — excluded.
+            // NOTĂ: outlook.com / live.com / hotmail.com sunt mailbox-uri de consum — excluse.
         ],
     },
     apple: {
@@ -93,7 +94,7 @@ export const BRAND_OFFICIAL_DOMAINS = {
             'id.apple.com',
             'email.apple.com',
             'itunes.com',
-            // NOTE: icloud.com / me.com / mac.com are consumer mailboxes — excluded.
+            // NOTĂ: icloud.com / me.com / mac.com sunt mailbox-uri de consum — excluse.
         ],
     },
     netflix: {
@@ -129,11 +130,10 @@ export const BRAND_OFFICIAL_DOMAINS = {
     },
 };
 
-/*
- * Consumer mailbox providers. Anyone can hold an address here, so a match is NOT a
- * brand-trust signal. Verification logic must never treat a sender on one of these
- * (or a subdomain of one) as a verified brand, regardless of the lists above.
- */
+// Domenii de furnizori de mailbox pentru consumatori. Oricine poate avea o adresă
+// aici, deci o potrivire NU e un semnal de încredere de brand. Logica de verificare
+// nu trebuie NICIODATĂ să trateze un expeditor de pe unul din aceste domenii (sau
+// subdomeniu al lor) ca "brand verificat", indiferent de listele de mai sus.
 export const CONSUMER_MAILBOX_DOMAINS = new Set([
     'gmail.com',
     'googlemail.com',

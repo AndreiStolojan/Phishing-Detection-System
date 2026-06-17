@@ -12,6 +12,7 @@ import {
   Crosshair,
   Loader2,
   Send,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -99,7 +100,9 @@ function ThreatTrendChart({ data }) {
   return (
     <div>
       <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+        {/* accessibilityLayer={false}: în recharts v3 e activat implicit și
+            desenează un chenar de focus în jurul graficului la click. Îl oprim. */}
+        <AreaChart accessibilityLayer={false} data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
           <defs>
             {TREND_SERIES.map(({ gradId, color }) => (
               <linearGradient key={gradId} id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -286,10 +289,6 @@ function PostureHero({ attention, safeRate, scanned, lastSynced }) {
             </div>
           </div>
           <div className="flex items-center gap-6 text-right">
-            <div>
-              <p className="text-lg font-bold tabular-nums">{scanned}</p>
-              <p className="text-[11px] text-muted-foreground">scanned</p>
-            </div>
             {lastSynced && (
               <div className="hidden sm:block">
                 <p className="text-xs text-muted-foreground">Last synced</p>
@@ -307,7 +306,7 @@ function PostureHero({ attention, safeRate, scanned, lastSynced }) {
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const { account, isConnected, syncVersion } = useMailAccount();
+  const { account, isConnected, syncVersion, sync, syncing } = useMailAccount();
   const { label, from, to } = useTimeRange();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -406,8 +405,7 @@ export function DashboardPage() {
         titleClassName="text-[1.625rem] font-semibold tracking-tight"
         actions={
           <>
-            <TimeRangeFilter variant="plain" />
-            <Button variant="outline" size="sm" onClick={handleSendReport} disabled={sendReport.loading}>
+            <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={handleSendReport} disabled={sendReport.loading}>
               {sendReport.loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : reportSentTo ? (
@@ -415,7 +413,12 @@ export function DashboardPage() {
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              {reportSentTo ? 'Emailed' : 'Email me this report'}
+              {reportSentTo ? 'Sent' : 'Send Report'}
+            </Button>
+            <TimeRangeFilter variant="plain" />
+            <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={sync} disabled={syncing}>
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {syncing ? 'Refreshing…' : 'Refresh'}
             </Button>
           </>
         }
@@ -435,7 +438,7 @@ export function DashboardPage() {
           icon={ScanLine}
           label="Messages"
           value={total}
-          hint={`${scanned} scanned`}
+          hint={scanned >= total ? 'All scanned' : `${total - scanned} not scanned yet`}
           tone="text-primary"
           to="/inbox"
         />
@@ -443,7 +446,7 @@ export function DashboardPage() {
           icon={ShieldAlert}
           label="Likely phishing"
           value={counts.quarantine ?? 0}
-          hint="Awaiting your review"
+          hint="High-confidence threats"
           tone="text-risk-quarantine"
           to="/inbox?riskBucket=quarantine"
         />
@@ -451,7 +454,7 @@ export function DashboardPage() {
           icon={AlertTriangle}
           label="Suspicious"
           value={counts.needs_review ?? 0}
-          hint="Needs review"
+          hint="Possible threats"
           tone="text-risk-review"
           to="/inbox?riskBucket=needs_review"
         />
@@ -467,7 +470,7 @@ export function DashboardPage() {
 
       {/* Trend chart (3/5) + Risk donut (2/5) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-3 select-none">
           <CardHeader>
             <CardTitle>Threat activity — {label.toLowerCase()}</CardTitle>
             <CardDescription>Suspicious, likely phishing &amp; confirmed phishing per day</CardDescription>

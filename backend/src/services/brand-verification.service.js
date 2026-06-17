@@ -1,24 +1,30 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// brand-verification.service.js — primul strat de context peste motorul de reguli:
+// verificarea brandului expeditorului.
+//
+// Ce face, pe scurt: verifică dacă un email vine CHIAR de pe domeniul oficial al
+// unui brand cunoscut (ex: paypal.com). Dacă da, motorul de scanare (scan.service.js)
+// (1) nu mai dă puncte pentru "impersonare de brand", (2) reduce greutatea unor
+// semnale care la un brand real sunt normale (urgență, multe linkuri, buton
+// "Sign in"), și (3) spune promptului Ollama să nu mai caute impersonare, ci să se
+// concentreze pe semnale reale de risc din conținut.
+//
+// De ce verificăm pe DOMENIUL expeditorului și nu pe textul din email? Pentru că
+// domeniul de trimitere e singurul lucru pe care un atacator NU îl poate falsifica
+// pentru un domeniu controlat de brand. Dacă în text e scris "PayPal" dar domeniul
+// e paypal-secure.ru (impersonare prin text), asta rămâne în grija semnalului AI de
+// impersonare din Ollama, care rulează doar când expeditorul NU e verificat aici.
+//
+// Detalii: docs/EXPLICATIE_BACKEND.md §4.4, punctul 1 ("Brand verificat").
+// ─────────────────────────────────────────────────────────────────────────────
+
 import {
     BRAND_OFFICIAL_DOMAINS,
     CONSUMER_MAILBOX_DOMAINS,
 } from '../config/brand-domains.config.js';
 
-/*
- * Sender-brand verification.
- *
- * Decides whether an email genuinely comes from a brand's own (brand-controlled)
- * sending domain. This is the anchor for the false-positive fix: when the sender
- * domain is an official brand domain we (1) suppress brand-impersonation scoring,
- * (2) soften brand-typical signals via the context modifier layer, and (3) tell the
- * Ollama prompt to stop looking for impersonation and focus on real payload signals.
- *
- * Verification is based on the SENDER DOMAIN, not on text in the body, because the
- * sending domain is the one thing an attacker cannot forge for a brand-controlled
- * domain. Claimed-brand-from-text impersonation (display name says "PayPal" but the
- * domain is paypal-secure.ru) is left to the existing Ollama impersonation signal,
- * which still runs whenever the sender is NOT verified.
- */
-
+// Normalizează un domeniu pentru comparație: litere mici, fără spații, fără
+// prefixul "www." și fără punctul final (ex: "WWW.PayPal.com." -> "paypal.com").
 const normalizeDomain = (value) =>
     String(value || '')
         .trim()
@@ -26,19 +32,24 @@ const normalizeDomain = (value) =>
         .replace(/^www\./, '')
         .replace(/\.$/, '');
 
-/*
- * Suffix-aware domain match: the sender domain equals the official domain, or is a
- * subdomain of it. Guards against lookalikes — evil-paypal.com and
- * paypal.com.evil.com do NOT match paypal.com.
- */
+// Comparație "suffix-aware" (ține cont de sufix): domeniul expeditorului se
+// potrivește dacă e identic cu domeniul oficial SAU dacă e un subdomeniu al lui
+// (ex: "mail.paypal.com" se potrivește cu "paypal.com"). Asta ne protejează de
+// domenii care doar "par" la fel: "evil-paypal.com" și "paypal.com.evil.com" NU
+// se potrivesc cu "paypal.com" (nu sunt subdomenii reale).
 const domainMatches = (senderDomain, officialDomain) =>
     senderDomain === officialDomain ||
     senderDomain.endsWith(`.${officialDomain}`);
 
+// Domeniile de mail "de consum" (gmail.com, yahoo.com etc.) nu pot fi niciodată
+// un semnal de încredere pentru un brand — oricine își poate face un cont gratuit
+// acolo, deci nu dovedesc nimic despre identitatea expeditorului.
 const isConsumerMailbox = (senderDomain) =>
     [...CONSUMER_MAILBOX_DOMAINS].some((consumerDomain) =>
         domainMatches(senderDomain, consumerDomain));
 
+// Rezultatul standard pentru "nu e un brand verificat" — păstrăm aceeași formă
+// a obiectului în toate cazurile de "nu", ca să fie simplu de folosit mai departe.
 const buildUnverifiedResult = (senderDomain) => ({
     senderVerifiedBrand: false,
     brandKey: null,
@@ -49,7 +60,7 @@ const buildUnverifiedResult = (senderDomain) => ({
 });
 
 /*
- * @param {{ senderDomain?: string }} email-derived fields
+ * @param {{ senderDomain?: string }} câmpuri derivate din email
  * @returns {{
  *   senderVerifiedBrand: boolean,
  *   brandKey: string|null,
@@ -59,18 +70,23 @@ const buildUnverifiedResult = (senderDomain) => ({
  *   senderDomain: string,
  * }}
  */
+// Funcția principală a fișierului: primește domeniul expeditorului și spune dacă
+// e un domeniu oficial al unui brand cunoscut din config/brand-domains.config.js.
 export const verifySenderBrand = ({ senderDomain } = {}) => {
     const normalizedSenderDomain = normalizeDomain(senderDomain);
 
+    // Fără domeniu -> nu putem verifica nimic.
     if (!normalizedSenderDomain) {
         return buildUnverifiedResult('');
     }
 
-    // Consumer mailbox domains are never a brand-trust signal (anyone can hold one).
+    // Domeniile de mail gratuite/personale nu sunt un semnal de încredere de brand.
     if (isConsumerMailbox(normalizedSenderDomain)) {
         return buildUnverifiedResult(normalizedSenderDomain);
     }
 
+    // Parcurgem lista de branduri cunoscute și domeniile lor oficiale; la prima
+    // potrivire (suffix-aware) marcăm emailul ca venind de la un brand verificat.
     for (const [brandKey, brand] of Object.entries(BRAND_OFFICIAL_DOMAINS)) {
         for (const officialDomain of brand.domains) {
             if (domainMatches(normalizedSenderDomain, officialDomain)) {
@@ -86,5 +102,6 @@ export const verifySenderBrand = ({ senderDomain } = {}) => {
         }
     }
 
+    // Niciun brand cunoscut nu se potrivește -> expeditor neverificat.
     return buildUnverifiedResult(normalizedSenderDomain);
 };

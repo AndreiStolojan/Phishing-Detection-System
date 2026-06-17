@@ -19,7 +19,7 @@
 }
 
 @theme {
-  --font-sans: 'InterVariable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Roboto', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* Type ramp — size / line-height / tracking paired per step */
   --text-display: 2.5rem;
@@ -46,26 +46,28 @@
   --radius-2xl: 1.25rem;
 
   /* Base surfaces — deep navy/slate */
-  --color-background: #0a0d14;
-  --color-foreground: #e7ecf3;
-  --color-card: #11151f;
-  --color-card-foreground: #e7ecf3;
-  --color-popover: #141a26;
-  --color-popover-foreground: #e7ecf3;
+  --color-background: #0c121d;
+  --color-foreground: #ffffff;
+  --color-card: #141b27;
+  --color-card-foreground: #ffffff;
+  --color-popover: #141b27;
+  --color-popover-foreground: #ffffff;
   --color-elevated: #161d2b;
 
-  /* Brand — security cyan/blue + tonal steps */
-  --color-primary: #3b9eff;
-  --color-primary-foreground: #04111f;
-  --color-primary-hover: #57adff;
-  --color-primary-active: #2a8be6;
+  /* Brand — security blue + tonal steps */
+  --color-primary: #1d6bfc;
+  --color-primary-foreground: #ffffff;
+  --color-primary-hover: #4485fd;
+  --color-primary-active: #1557d6;
   --color-primary-soft: color-mix(in oklab, var(--color-primary) 16%, var(--color-background));
+  /* Links read a touch lighter than the primary button fill */
+  --color-link: #5690fd;
   --color-secondary: #1c2536;
   --color-secondary-foreground: #cdd6e4;
   --color-muted: #1a2233;
-  --color-muted-foreground: #9aa6ba;
-  --color-muted-foreground-subtle: #828fa3;
-  --color-accent: #1c2740;
+  --color-muted-foreground: #aab4c4;
+  --color-muted-foreground-subtle: #8b96a8;
+  --color-accent: #141b27;
   --color-accent-foreground: #dce6f7;
   /* `destructive` stays light so it passes as text/icon on dark surfaces
      (text-destructive). `destructive-strong` is the darker fill used UNDER
@@ -75,9 +77,9 @@
   --color-destructive-strong: #c62828;
   --color-destructive-foreground: #fff5f5;
 
-  --color-border: #1f2838;
+  --color-border: #172234;
   --color-input: #232d40;
-  --color-ring: #3b9eff;
+  --color-ring: #1d6bfc;
 
   /* Risk buckets — core semantic palette. Names are STABLE.
      Severity ramp: review (amber) -> quarantine (rose) -> phishing (violet).
@@ -88,8 +90,8 @@
      was lightened from #a855f7, which failed on its soft badge (4.21:1). */
   --color-risk-safe: #3ddc97;
   --color-risk-safe-soft: color-mix(in oklab, var(--color-risk-safe) 15%, var(--color-background));
-  --color-risk-review: #fbbf24;
-  --color-risk-review-soft: color-mix(in oklab, var(--color-risk-review) 15%, var(--color-background));
+  --color-risk-review: #ff954a;
+  --color-risk-review-soft: #2b1a00;
   --color-risk-quarantine: #fb637e;
   --color-risk-quarantine-soft: color-mix(in oklab, var(--color-risk-quarantine) 16%, var(--color-background));
   --color-risk-phishing: #b873f9;
@@ -140,7 +142,7 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -155,6 +157,16 @@
 
   ::selection {
     background-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  }
+
+  /* Graficele recharts sunt pur decorative -> la click nu vrem chenar de focus
+     (ringul albastru --color-ring) în jurul suprafeței/wrapper-ului. Hover-ul
+     (tooltip) nu e afectat. */
+  .recharts-wrapper:focus,
+  .recharts-wrapper:focus-visible,
+  .recharts-surface:focus,
+  .recharts-surface:focus-visible {
+    outline: none;
   }
 
   /* Slim, themed scrollbars */
@@ -249,7 +261,7 @@
   .email-body :where(h3, h4) { font-size: 1rem; }
   .email-body :where(p) { margin: 0.75em 0; }
   .email-body :where(a) {
-    color: var(--color-primary);
+    color: var(--color-link);
     text-decoration: underline;
     text-underline-offset: 2px;
   }

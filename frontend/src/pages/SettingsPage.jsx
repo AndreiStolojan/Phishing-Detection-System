@@ -11,8 +11,8 @@ import {
   Loader2,
   Trash2,
   Link2,
-  ChevronUp,
-  ChevronDown,
+  Minus,
+  Plus,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/PageHeader';
@@ -105,6 +105,15 @@ function NumberStepper({ id, value, onChange, min = 1, max = 50 }) {
   const num = Number(value);
   return (
     <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="Decrease"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        disabled={num <= min}
+        onClick={() => onChange(Math.max(num - 1, min))}
+      >
+        <Minus className="h-4 w-4" />
+      </button>
       <Input
         id={id}
         type="number"
@@ -112,28 +121,17 @@ function NumberStepper({ id, value, onChange, min = 1, max = 50 }) {
         max={max}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-16 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
-      <div className="flex flex-col">
-        <button
-          type="button"
-          aria-label="Increase"
-          className="flex h-5 w-6 items-center justify-center rounded-t border border-border bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-          disabled={num >= max}
-          onClick={() => onChange(Math.min(num + 1, max))}
-        >
-          <ChevronUp className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          aria-label="Decrease"
-          className="flex h-5 w-6 items-center justify-center rounded-b border-x border-b border-border bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-          disabled={num <= min}
-          onClick={() => onChange(Math.max(num - 1, min))}
-        >
-          <ChevronDown className="h-3 w-3" />
-        </button>
-      </div>
+      <button
+        type="button"
+        aria-label="Increase"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        disabled={num >= max}
+        onClick={() => onChange(Math.min(num + 1, max))}
+      >
+        <Plus className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -309,7 +307,7 @@ export function SettingsPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-40 shrink-0 text-destructive hover:bg-destructive/10"
+                    className="w-40 shrink-0 text-destructive hover:bg-transparent hover:text-destructive hover:border-input"
                     disabled={disconnect.loading}
                   >
                     {disconnect.loading ? (
@@ -456,7 +454,7 @@ export function SettingsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="w-40 shrink-0 text-destructive hover:bg-destructive/10"
+                  className="w-40 shrink-0 text-destructive hover:bg-transparent hover:text-destructive hover:border-input"
                   disabled={deleteAccount.loading}
                 >
                   {deleteAccount.loading ? (

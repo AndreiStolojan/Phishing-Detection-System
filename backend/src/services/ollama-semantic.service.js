@@ -1,3 +1,32 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ollama-semantic.service.js — stratul AI: extrage "semnale semantice" dintr-un
+// email folosind un model AI local (Ollama).
+//
+// Ce face, pe scurt: trimite subiectul, expeditorul, corpul și linkurile unui
+// email (construite de scan-ai-input.service.js) către modelul AI local și îi
+// cere să răspundă STRICT în format JSON cu niște semnale fixe: nivel de
+// urgență, dacă se cer date sensibile (parole, OTP, card), dacă se cere
+// login/acțiune rapidă, nivel de "social engineering" (manipulare psihologică)
+// și suspiciune de impersonare a unui brand. Aceste semnale sunt apoi
+// transformate în puncte de scor în scan.service.js
+// (calculateAiScoreFromSignals), cu un plafon de AI_SCORE_MAX = 50 puncte —
+// AI-ul poate ridica suspiciunea, dar nu poate decide singur "phishing".
+//
+// "Semantic" aici = înțelesul textului (ce zice emailul), nu doar fapte tehnice
+// (cum sunt regulile din scan.service.js, care verifică linkuri, atașamente etc).
+//
+// Pași cheie:
+//  - se construiește promptul de sistem (diferit dacă expeditorul e un brand
+//    verificat sau nu) + promptul cu datele emailului;
+//  - se trimite cererea către Ollama (cu timeout și mai multe adrese de rezervă);
+//  - se parsează rezultatul (JSON strict, cu fallback dacă modelul greșește
+//    formatul);
+//  - dacă AI e oprit / nu răspunde / dă output invalid, se întoarce un status
+//    'disabled' sau 'failed' — aplicația NU se blochează, doar folosește regulile.
+//
+// Detalii: docs/EXPLICATIE_BACKEND.md §4.7.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import {
     AI_SEMANTIC_ENABLED,
     OLLAMA_BASE_URL,
@@ -9,10 +38,13 @@ import {
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'gemma3:4b';
 const DEFAULT_OLLAMA_TIMEOUT_MS = 45000;
-// Bumped v2 -> v3: the prompt now receives the sender domain and a brand-verification
-// context, and uses a dedicated variant for verified-brand senders.
+// Versiunea promptului. Trecut de la v2 la v3: acum promptul primește și domeniul
+// expeditorului + un context de verificare a brandului, și folosește o variantă
+// dedicată pentru expeditorii care sunt branduri verificate.
 const DEFAULT_PROMPT_VERSION = 'semantic-v3';
 
+// Convertește o valoare (care poate veni din env ca string, ex. "true"/"1") într-un
+// boolean adevărat. Dacă valoarea nu e recunoscută, întoarce `defaultValue`.
 const normalizeBoolean = (value, defaultValue = false) => {
     if (typeof value === 'boolean') {
         return value;
@@ -33,6 +65,9 @@ const normalizeBoolean = (value, defaultValue = false) => {
     return defaultValue;
 };
 
+// Verifică dacă o valoare e unul dintre nivelurile valide (none/low/medium/high).
+// Dacă nu (ex. modelul a răspuns altceva sau a tăcut), se cade înapoi pe 'none' —
+// alegerea cea mai "sigură" (nu ridică scorul fals).
 const normalizeLevel = (value) => {
     const validLevels = ['none', 'low', 'medium', 'high'];
 
@@ -49,6 +84,8 @@ const normalizeLevel = (value) => {
     return normalized;
 };
 
+// Modelele AI răspund uneori cu JSON înfășurat în ```json ... ``` (markdown code
+// fence). Funcția asta scoate aceste delimitatoare, ca să rămână JSON curat de parsat.
 const stripCodeFence = (value) =>
     value
         .replace(/^```json\s*/i, '')
@@ -56,6 +93,9 @@ const stripCodeFence = (value) =>
         .replace(/\s*```$/i, '')
         .trim();
 
+// Metadatele de bază atașate la orice rezultat (succes sau eroare): cine a răspuns
+// (ollama, local), ce model și ce versiune de prompt s-a folosit. Util pentru
+// trasabilitate (poți reproduce exact ce s-a întâmplat la o scanare anume).
 const buildBaseMeta = () => ({
     provider: 'ollama',
     mode: 'local',
@@ -63,6 +103,8 @@ const buildBaseMeta = () => ({
     promptVersion: OLLAMA_PROMPT_VERSION || DEFAULT_PROMPT_VERSION,
 });
 
+// Normalizează adresa de bază a serverului Ollama (ex. adaugă "http://" dacă lipsește,
+// scoate "/" de la final).
 const normalizeBaseUrl = (rawValue) => {
     const trimmedValue = String(rawValue || '').trim();
 
@@ -77,6 +119,10 @@ const normalizeBaseUrl = (rawValue) => {
     return `http://${trimmedValue.replace(/\/+$/, '')}`;
 };
 
+// Construiește o listă de adrese "candidat" pentru serverul Ollama: adresa
+// configurată, plus variante echivalente localhost <-> 127.0.0.1 (unele sisteme
+// rezolvă diferit aceste nume), plus adresa implicită ca ultimă variantă de rezervă.
+// Se vor încerca în ordine, până la prima care răspunde.
 const buildCandidateBaseUrls = () => {
     const normalizedConfiguredBaseUrl = normalizeBaseUrl(
         OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL
@@ -108,8 +154,9 @@ const buildCandidateBaseUrls = () => {
     return [...new Set(candidateUrls)];
 };
 
-// The strict JSON contract is identical for both prompt variants, so the downstream
-// parser is unchanged whether or not the sender is a verified brand.
+// "Contractul" JSON pe care trebuie să-l respecte modelul. E IDENTIC pentru
+// ambele variante de prompt (brand verificat sau nu), deci parserul de mai jos
+// rămâne neschimbat în ambele cazuri — doar instrucțiunile din prompt diferă.
 const SEMANTIC_JSON_CONTRACT = `
 Return STRICT JSON only — no markdown, no text before or after the JSON.
 Use exactly these keys:
@@ -125,6 +172,13 @@ Use exactly these keys:
 
 Be conservative: when a signal is unclear, choose the safer (lower or false) value.`;
 
+// Construiește promptul de SISTEM (instrucțiunile date modelului AI, înainte de a-i
+// trimite emailul). Există două variante:
+//  - dacă expeditorul e un brand verificat (ex. domeniul oficial Google/PayPal),
+//    îi spunem explicit modelului "acesta e un expeditor legitim, nu e impersonare,
+//    caută alte tipuri de semnale suspecte" — astfel evităm un fals-pozitiv de
+//    "impersonare de brand" doar pentru că emailul vine de la brandul respectiv;
+//  - altfel, dăm modelului instrucțiunile generale de detectare a phishingului.
 const buildSemanticSystemPrompt = (brandContext = {}) => {
     if (brandContext.senderVerifiedBrand && brandContext.brandName) {
         const officialDomainsText = (brandContext.officialDomains || []).join(', ');
@@ -162,6 +216,9 @@ ${SEMANTIC_JSON_CONTRACT}
 `.trim();
 };
 
+// Construiește promptul de USER: efectiv "datele" emailului (din
+// scan-ai-input.service.js), trimise modelului ca JSON, împreună cu o instrucțiune
+// scurtă de a extrage semnalele cerute.
 const buildSemanticUserPrompt = (analysisInput) => `
 Extract the semantic signals for this email as JSON using the required keys.
 
@@ -169,9 +226,19 @@ Email data:
 ${JSON.stringify(analysisInput)}
 `.trim();
 
+// Parsează răspunsul brut al modelului AI și îl transformă într-un obiect cu
+// semnale normalizate (chei fixe, valori validate). Modelele AI nu garantează
+// 100% un JSON valid, deci parserul are mai multe nivele de siguranță:
+//  1. încearcă JSON.parse direct pe textul curățat de code fence;
+//  2. dacă eșuează, încearcă să extragă câmpurile individual cu expresii regulate
+//     (parsare "parțială" — modelul a scris ceva apropiat de JSON, dar nu valid);
+//  3. dacă nu găsește NICIUN semnal util, marchează rezultatul ca
+//     'invalid_semantic_output' (tratat ca eroare mai sus, în funcția principală).
 const parseSemanticOutput = (rawValue) => {
     const cleanedValue = stripCodeFence(String(rawValue || ''));
 
+    // Aduce un obiect "brut" (din JSON sau din extragerea parțială) la forma finală:
+    // tipuri corecte, valori limitate la opțiunile valide, lungimi plafonate.
     const normalizeParsedValue = (parsedValue) => ({
         language: String(parsedValue.language || '').trim().toLowerCase().slice(0, 12),
         urgencyLevel: normalizeLevel(parsedValue.urgencyLevel),
@@ -185,6 +252,8 @@ const parseSemanticOutput = (rawValue) => {
         summary: String(parsedValue.summary || '').trim().slice(0, 240),
     });
 
+    // Un set de semnale "neutre" (totul pe 'none'/false) — folosit ca rezultat de
+    // rezervă (fallback) când outputul modelului nu poate fi interpretat deloc.
     const buildNeutralFallback = (reason) =>
         normalizeParsedValue({
             language: '',
@@ -199,6 +268,8 @@ const parseSemanticOutput = (rawValue) => {
             rawPreview: String(cleanedValue || '').slice(0, 220),
         });
 
+    // Extrage manual o valoare boolean dintr-un text aproximativ-JSON, căutând
+    // tiparul "câmp": true/false cu o expresie regulată.
     const parseBooleanField = (fieldName) => {
         const match = cleanedValue.match(
             new RegExp(`"${fieldName}"\\s*:\\s*(true|false)`, 'i')
@@ -211,6 +282,8 @@ const parseSemanticOutput = (rawValue) => {
         return match[1].toLowerCase() === 'true';
     };
 
+    // Extrage manual o valoare string dintr-un text aproximativ-JSON, căutând
+    // tiparul "câmp": "valoare" cu o expresie regulată.
     const parseStringField = (fieldName, fallbackValue = '') => {
         const match = cleanedValue.match(
             new RegExp(`"${fieldName}"\\s*:\\s*"([^"]*)"`, 'i')
@@ -224,8 +297,10 @@ const parseSemanticOutput = (rawValue) => {
     };
 
     try {
+        // Cazul fericit: răspunsul e JSON valid, parsăm direct.
         return normalizeParsedValue(JSON.parse(cleanedValue));
     } catch {
+        // JSON invalid: încercăm să "salvăm" cât se poate, câmp cu câmp.
         const partialResult = {
             language: parseStringField('language', ''),
             urgencyLevel: parseStringField('urgencyLevel', 'none'),
@@ -236,6 +311,8 @@ const parseSemanticOutput = (rawValue) => {
             summary: parseStringField('summary', ''),
         };
 
+        // Dacă NICIUN câmp n-a putut fi extras (totul e gol/none/false), considerăm
+        // că outputul e complet inutilizabil -> 'invalid_semantic_output' (eroare).
         const hasAnySignal =
             Boolean(partialResult.language) ||
             partialResult.sensitiveDataRequest ||
@@ -253,6 +330,8 @@ const parseSemanticOutput = (rawValue) => {
             };
         }
 
+        // Am extras cel puțin un semnal util -> folosim "extragere parțială", marcată
+        // ca atare (parserFallback: true), dar NU tratată ca eroare completă.
         return {
             ...normalizeParsedValue(partialResult),
             parserFallback: true,
@@ -262,6 +341,18 @@ const parseSemanticOutput = (rawValue) => {
     }
 };
 
+// Funcția principală a fișierului: cere modelului AI local să analizeze semantic
+// un email și întoarce semnalele (sau un status 'disabled'/'failed' dacă AI-ul
+// e oprit / nu răspunde / dă output invalid). Apelată din scan.service.js doar
+// dacă userul are AI pornit (settings.aiEnabled).
+//
+// Parametri:
+//  - analysisInput: obiectul construit de buildAiAnalysisInput (subiect, corp,
+//    linkuri, context de brand).
+//  - enabled: dacă AI e activat pentru acest user (vine din setările userului);
+//    dacă nu e specificat, se cade pe variabila de mediu AI_SEMANTIC_ENABLED.
+//  - brandContext: contextul de verificare a brandului (folosit pentru promptul
+//    de sistem).
 export const analyzeEmailSemanticsWithOllama = async ({
     analysisInput,
     enabled,
@@ -275,6 +366,7 @@ export const analyzeEmailSemanticsWithOllama = async ({
             ? enabled
             : normalizeBoolean(AI_SEMANTIC_ENABLED, false);
 
+    // AI dezactivat (per-user sau global) -> nu facem niciun apel către Ollama.
     if (!aiEnabled) {
         return {
             status: 'disabled',
@@ -286,6 +378,8 @@ export const analyzeEmailSemanticsWithOllama = async ({
     }
 
     const candidateBaseUrls = buildCandidateBaseUrls();
+    // Timeout configurabil din env (OLLAMA_TIMEOUT_MS), plafonat între 5 secunde
+    // și 10 minute (600000 ms) — pentru scanări în fundal pe modele mai lente.
     const parsedTimeoutMs = Number.parseInt(
         String(OLLAMA_TIMEOUT_MS || DEFAULT_OLLAMA_TIMEOUT_MS),
         10
@@ -293,6 +387,10 @@ export const analyzeEmailSemanticsWithOllama = async ({
     const ollamaTimeoutMs = Number.isFinite(parsedTimeoutMs)
         ? Math.min(Math.max(parsedTimeoutMs, 5000), 600000)
         : DEFAULT_OLLAMA_TIMEOUT_MS;
+    // Corpul cererii HTTP trimisă la Ollama: modelul, promptul de sistem + cel de
+    // user, și opțiuni precum temperature: 0 (răspunsuri deterministe — același
+    // input dă mereu același output, important pentru reproductibilitate la
+    // susținerea tezei).
     const requestBody = JSON.stringify({
         model: baseMeta.model,
         stream: false,
@@ -315,9 +413,13 @@ export const analyzeEmailSemanticsWithOllama = async ({
 
     let lastNetworkError = null;
 
+    // Încercăm pe rând fiecare adresă candidat a serverului Ollama, până la prima
+    // care răspunde cu succes (sau până epuizăm lista).
     for (const candidateBaseUrl of candidateBaseUrls) {
         const startedAt = Date.now();
         const controller = new AbortController();
+        // AbortController = mecanismul JS de a anula o cerere fetch în desfășurare.
+        // Dacă serverul Ollama nu răspunde în `ollamaTimeoutMs`, cererea se anulează.
         const timeoutId = setTimeout(() => controller.abort(), ollamaTimeoutMs);
 
         try {
@@ -333,6 +435,8 @@ export const analyzeEmailSemanticsWithOllama = async ({
             const payload = await response.json().catch(() => ({}));
             const latencyMs = Date.now() - startedAt;
 
+            // Eroare HTTP de la Ollama (server pornit, dar a răspuns cu eroare) ->
+            // marcăm scanarea ca 'failed', dar NU oprim aplicația.
             if (!response.ok) {
                 const error = payload.error || `ollama_http_${response.status}`;
                 console.error('[ollama-semantic] HTTP error from Ollama', {
@@ -353,8 +457,9 @@ export const analyzeEmailSemanticsWithOllama = async ({
 
             const semanticSignals = parseSemanticOutput(payload?.message?.content);
 
-            // Unparseable output: treat as a failure rather than silently using neutral
-            // defaults, so the UI can tell the user AI analysis did not complete.
+            // Output neparsabil: tratăm asta ca o EROARE, nu folosim semnale neutre
+            // pe ascuns — astfel interfața poate arăta userului că analiza AI nu
+            // s-a finalizat (în loc să pară "totul e ok" fără să fie adevărat).
             if (semanticSignals.parserFallbackReason === 'invalid_semantic_output') {
                 console.error('[ollama-semantic] Unparseable model output', {
                     endpoint: `${candidateBaseUrl}/api/chat`,
@@ -371,6 +476,7 @@ export const analyzeEmailSemanticsWithOllama = async ({
                 };
             }
 
+            // Succes: AI a răspuns și am putut extrage semnale -> status 'evaluated'.
             return {
                 status: 'evaluated',
                 ...baseMeta,
@@ -382,6 +488,7 @@ export const analyzeEmailSemanticsWithOllama = async ({
         } catch (error) {
             const latencyMs = Date.now() - startedAt;
 
+            // Cererea a fost anulată din cauza timeout-ului (AbortController de mai sus).
             if (error.name === 'AbortError') {
                 console.error('[ollama-semantic] Request timed out', {
                     endpoint: `${candidateBaseUrl}/api/chat`,
@@ -398,6 +505,9 @@ export const analyzeEmailSemanticsWithOllama = async ({
                 };
             }
 
+            // Eroare de rețea (serverul Ollama nu e accesibil pe această adresă). Nu
+            // întoarcem imediat — păstrăm eroarea și încercăm și următoarea adresă
+            // candidat din `candidateBaseUrls`.
             console.error('[ollama-semantic] Ollama unreachable', {
                 endpoint: `${candidateBaseUrl}/api/chat`,
                 errorDetail: String(error?.message || 'network_error'),
@@ -413,10 +523,13 @@ export const analyzeEmailSemanticsWithOllama = async ({
                 endpoint: `${candidateBaseUrl}/api/chat`,
             };
         } finally {
+            // Indiferent de rezultat, anulăm timer-ul de timeout ca să nu rămână activ.
             clearTimeout(timeoutId);
         }
     }
 
+    // Toate adresele candidat au eșuat cu erori de rețea -> întoarcem ultima
+    // eroare de rețea înregistrată (sau una generică, dacă lista a fost goală).
     return (
         lastNetworkError || {
             status: 'failed',

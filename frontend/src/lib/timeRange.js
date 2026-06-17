@@ -1,41 +1,60 @@
-/*
-  Global time-range filter — the pure date math behind a custom From/To window.
-  The user picks two calendar days (From and To) on the dashboard; both days are
-  INCLUSIVE. Boundaries are computed in the user's LOCAL timezone and sent to the
-  API as absolute ISO timestamps (?from=&to=), so the backend never does timezone
-  math. The wire window is half-open [from, to): the exclusive end is advanced one
-  day past the To day so the To day itself is included.
-*/
+// ─────────────────────────────────────────────────────────────────────────────
+// timeRange.js — calculul datelor pentru intervalul de timp global (From/To).
+//
+// Ce face, pe scurt: userul alege pe Dashboard un interval personalizat
+// From/To (ambele zile INCLUSIV). Acest fișier conține doar matematica pură pe
+// date: calculează limitele intervalului în fusul orar LOCAL al userului și le
+// transformă în timestamp-uri ISO absolute, trimise la API ca `?from=&to=`
+// (backend-ul nu face nicio operație de fus orar). Fereastra trimisă pe "fir"
+// (wire) e semi-deschisă [from, to): capătul `to` e avansat cu o zi, ca ziua
+// "To" aleasă de user să fie inclusă integral.
+//
+// Detalii: docs/EXPLICATIE_FRONTEND.md §5.3 (TimeRangeContext).
+// ─────────────────────────────────────────────────────────────────────────────
 
+// O zi, în milisecunde — folosit pentru calculele de interval.
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Size of the default window: the last 30 days, ending today.
+// Mărimea intervalului implicit: ultimele 30 de zile, terminând azi.
 export const DEFAULT_RANGE_DAYS = 30;
 
+// Trunchiază o dată la începutul zilei, în fusul orar LOCAL (ora 00:00).
 const startOfLocalDay = (date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-/**
- * Default range seed — last 30 days ending today (both inclusive day
- * boundaries). `from`/`to` are start-of-local-day Dates.
- */
-export const getDefaultRange = (now = new Date()) => {
+// Presetările rapide din selectorul de interval (butonul "Last N days").
+// `key` e stocat în context ca să știm ce presetare e activă; `days` e mărimea.
+export const RANGE_PRESETS = [
+  { key: '7d', label: 'Last 7 days', days: 7 },
+  { key: '30d', label: 'Last 30 days', days: 30 },
+  { key: '90d', label: 'Last 90 days', days: 90 },
+];
+
+// Intervalul pentru o presetare de N zile: ultimele N zile, terminând azi
+// (ambele capete de zi inclusive). Aceeași matematică folosită și de default.
+export const getPresetRange = (days, now = new Date()) => {
   const to = startOfLocalDay(now);
-  const from = new Date(to.getTime() - DEFAULT_RANGE_DAYS * DAY_MS);
+  const from = new Date(to.getTime() - days * DAY_MS);
   return { from, to };
 };
 
-/**
- * Absolute half-open [from, to) ISO window for the API. `from`/`to` are the
- * inclusive From/To day boundaries; the To day is included by advancing the
- * exclusive end one full day past it.
- */
+// Intervalul implicit la încărcarea paginii: ultimele 30 de zile, până azi
+// (ambele capete de zi sunt incluzive). `from`/`to` sunt obiecte Date
+// trunchiate la începutul zilei locale.
+export const getDefaultRange = (now = new Date()) =>
+  getPresetRange(DEFAULT_RANGE_DAYS, now);
+
+// Transformă intervalul {from, to} (zile inclusive, alese de user) într-o
+// fereastră ISO absolută pentru API, de tip semi-deschis [from, to):
+// `from` = începutul zilei From; `to` = începutul zilei DUPĂ ziua To
+// (astfel ziua To e inclusă complet în interval).
 export const toISOWindow = ({ from, to }) => ({
   from: startOfLocalDay(from).toISOString(),
   to: new Date(startOfLocalDay(to).getTime() + DAY_MS).toISOString(),
 });
 
-/** Human-readable label, e.g. "May 13 – Jun 12, 2026" (year shown once). */
+// Construiește eticheta afișată pentru interval, ex: "May 13 – Jun 12, 2026".
+// Dacă ambele date sunt din același an, anul se arată o singură dată (la capătul `to`).
 export const formatRangeLabel = ({ from, to }) => {
   const fmt = (date, opts) => new Intl.DateTimeFormat('en', opts).format(date);
   const sameYear = from.getFullYear() === to.getFullYear();
@@ -46,18 +65,53 @@ export const formatRangeLabel = ({ from, to }) => {
   return `${fmt(from, fromOpts)} – ${fmt(to, toOpts)}`;
 };
 
-/** A local Date → the "yyyy-MM-dd" value a native <input type="date"> expects. */
-export const toDateInputValue = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// ─── Ajutoare pentru calendarul personalizat (selectorul "Custom") ───────────
+
+// Numele lunilor (în engleză, limba UI-ului) pentru dropdown-ul de lună.
+export const MONTH_NAMES = Array.from({ length: 12 }, (_, i) =>
+  new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2000, i, 1))
+);
+
+// Mută o pereche {an, lună} cu `delta` luni, normalizând trecerea de an.
+// Întoarce { year, month } (month e 0-based, ca la Date.getMonth()).
+export const addMonths = (year, month, delta) => {
+  const base = new Date(year, month + delta, 1);
+  return { year: base.getFullYear(), month: base.getMonth() };
 };
 
-/** A native date input "yyyy-MM-dd" value → a local start-of-day Date (or null). */
-export const fromDateInputValue = (value) => {
-  if (!value) return null;
-  const [year, month, day] = value.split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
+// Construiește matricea de zile a unei luni pentru afișarea în grilă:
+// săptămâni de câte 7 obiecte Date, începând cu LUNI. Include zilele de la
+// finalul lunii precedente și începutul celei următoare ca să umple grila
+// (acelea se afișează "estompat"). Întotdeauna 6 săptămâni (grilă stabilă).
+export const getMonthMatrix = (year, month) => {
+  const first = new Date(year, month, 1);
+  // getDay(): 0=Duminică..6=Sâmbătă; convertim la 0=Luni..6=Duminică.
+  const lead = (first.getDay() + 6) % 7;
+  const start = new Date(year, month, 1 - lead);
+  const weeks = [];
+  for (let w = 0; w < 6; w += 1) {
+    const days = [];
+    for (let d = 0; d < 7; d += 1) {
+      days.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + d));
+    }
+    weeks.push(days);
+  }
+  return weeks;
+};
+
+// Comparații pe ZI (ignoră ora). a/b sunt obiecte Date.
+export const isSameDay = (a, b) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
+// `true` dacă ziua `a` e strict după ziua `b` (folosit pentru a bloca viitorul).
+export const isAfterDay = (a, b) =>
+  startOfLocalDay(a).getTime() > startOfLocalDay(b).getTime();
+
+// `true` dacă ziua `day` e în intervalul [from, to] (inclusiv ambele capete).
+export const isInRange = (day, from, to) => {
+  if (!from || !to) return false;
+  const t = startOfLocalDay(day).getTime();
+  return t >= startOfLocalDay(from).getTime() && t <= startOfLocalDay(to).getTime();
 };

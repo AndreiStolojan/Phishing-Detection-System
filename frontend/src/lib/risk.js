@@ -1,3 +1,20 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// risk.js — sursa unică de adevăr pentru cum arată riscul în UI.
+//
+// Ce face, pe scurt: backend-ul trimite două câmpuri pentru fiecare email:
+//   - riskBucket: safe | needs_review | quarantine | reviewed_safe |
+//                 confirmed_phishing | unscanned
+//   - effectiveVerdict: safe | suspicious | likely_phishing | phishing | null
+// Acest fișier mapează fiecare valoare la o "meta" (etichetă, descriere, ton —
+// adică icon + clase de culoare). Toate badge-urile, bannerele, graficele și
+// filtrele citesc culorile/etichetele de aici, ca aspectul să fie consistent
+// peste tot. Tot aici sunt și etichetele/descrierile prietenoase pentru regulile
+// de detecție (transformă un cod tehnic ca
+// "suspicious_link_pattern:ip_address_link" în text ușor de citit pentru user).
+//
+// Detalii: docs/EXPLICATIE_FRONTEND.md §6.1.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import {
   ShieldCheck,
   ShieldAlert,
@@ -6,16 +23,12 @@ import {
   HelpCircle,
 } from 'lucide-react';
 
-/*
-  Single source of truth for how risk states look across the whole app.
-  Backend gives us two related fields:
-    - riskBucket: safe | needs_review | quarantine | reviewed_safe |
-                  confirmed_phishing | unscanned
-    - effectiveVerdict: safe | suspicious | likely_phishing | phishing | null
-  Every badge, banner, chart slice and filter chip reads from here so colours
-  stay consistent.
-*/
-
+// TONES = "tonurile" vizuale posibile pentru un risc: icon, clase Tailwind
+// pentru text/fundal/bordură, plus un "hex" care e de fapt o variabilă CSS
+// (--color-risk-*) definită în index.css — nu există culori hardcodate aici.
+// Cele 4 tonuri (safe/review/quarantine/phishing) + unscanned sunt distincte
+// pe tema întunecată (verde / chihlimbar / roz / violet / gri), verificate să
+// respecte contrastul WCAG 2.1 AA (accesibilitate = text lizibil pentru toți).
 const TONES = {
   safe: {
     icon: ShieldCheck,
@@ -64,6 +77,10 @@ const TONES = {
   },
 };
 
+// RISK_BUCKET_META — pentru fiecare valoare posibilă a câmpului `riskBucket`
+// (categoria vizuală a unui email), ce etichetă și ce descriere se arată, și
+// cu ce ton (din TONES de mai sus). "reviewed_safe" și "confirmed_phishing"
+// sunt cazurile în care USERUL a decis manual (vezi §6.4 din docs).
 const RISK_BUCKET_META = {
   safe: { label: 'Safe', tone: TONES.safe, description: 'No threats detected in this email.' },
   reviewed_safe: {
@@ -93,6 +110,8 @@ const RISK_BUCKET_META = {
   },
 };
 
+// VERDICT_META — la fel ca mai sus, dar pentru câmpul `effectiveVerdict`
+// (verdictul tehnic/efectiv al scanului, nu categoria vizuală "bucket").
 const VERDICT_META = {
   safe: { label: 'Safe', tone: TONES.safe },
   suspicious: { label: 'Suspicious', tone: TONES.review },
@@ -100,27 +119,28 @@ const VERDICT_META = {
   phishing: { label: 'Phishing', tone: TONES.phishing },
 };
 
+// Valoare implicită folosită când riskBucket nu se potrivește cu nimic cunoscut.
 const UNKNOWN = {
   label: 'Unknown',
   tone: TONES.unscanned,
   description: '',
 };
 
-/*
-  CATEGORY_COLORS — the single source of truth for the colour of each phishing
-  data category, used everywhere the same categories are charted: the dashboard
-  trend + risk donut, the reports detection breakdown, and the inbox badges.
-
-  Keys are the canonical category ids. Every chart maps its own local field name
-  (e.g. `needs_review`, `quarantine`, `likelyPhishing`) onto one of these, so a
-  category is always drawn in the same colour across the whole app. The values
-  point at the stable `--color-risk-*` CSS variables defined in index.css, so
-  there are no duplicated or drifting hex values.
-
-  The four colours are deliberately distinct hues on the dark theme this app
-  ships with: green / amber / rose / violet. The app is dark-only, so only the
-  dark background is targeted (see PROJECT_STATE.md).
-*/
+// CATEGORY_COLORS — sursa unică de adevăr pentru culoarea fiecărei categorii de
+// date de phishing, folosită oriunde se desenează aceleași categorii: trendul
+// + donutul de risc din dashboard, defalcarea din rapoarte și badge-urile din
+// inbox.
+//
+// Cheile sunt id-urile canonice ale categoriilor. Fiecare grafic își mapează
+// propriul nume local de câmp (ex: `needs_review`, `quarantine`,
+// `likelyPhishing`) la una din aceste chei, ca o categorie să fie desenată
+// mereu cu aceeași culoare în toată aplicația. Valorile sunt variabilele CSS
+// stabile `--color-risk-*` din index.css, deci nu există valori hex duplicate
+// sau care pot "deriva" (să devină diferite în timp).
+//
+// Cele 4 culori sunt nuanțe distincte deliberat pe tema întunecată folosită de
+// aplicație: verde / chihlimbar / roz / violet. Aplicația e doar pe temă
+// întunecată, deci se țintește doar fundalul dark (vezi PROJECT_STATE.md).
 export const CATEGORY_COLORS = {
   safe: 'var(--color-risk-safe)',
   suspicious: 'var(--color-risk-review)',
@@ -129,6 +149,7 @@ export const CATEGORY_COLORS = {
   unscanned: 'var(--color-risk-unscanned)',
 };
 
+// Etichetele afișate pentru fiecare categorie din CATEGORY_COLORS de mai sus.
 export const CATEGORY_LABELS = {
   safe: 'Safe',
   suspicious: 'Suspicious',
@@ -137,12 +158,17 @@ export const CATEGORY_LABELS = {
   unscanned: 'Unscanned',
 };
 
+// Întoarce "meta" (etichetă, descriere, ton) pentru un `riskBucket`. Dacă
+// valoarea nu e cunoscută, întoarce UNKNOWN — așa nu pică UI-ul dacă backend-ul
+// trimite o valoare nouă/necunoscută.
 export const getRiskMeta = (riskBucket) => RISK_BUCKET_META[riskBucket] || UNKNOWN;
 
+// Întoarce "meta" pentru un `effectiveVerdict`. Dacă verdictul e null/necunoscut
+// (emailul nu a fost încă scanat), arată "No verdict" cu tonul "unscanned".
 export const getVerdictMeta = (verdict) =>
   VERDICT_META[verdict] || { label: 'No verdict', tone: TONES.unscanned };
 
-/** Filter chips for the inbox, in priority order. */
+/** Chipurile de filtrare din inbox, în ordinea priorității de afișare. */
 export const RISK_FILTERS = [
   { key: '', label: 'All' },
   { key: 'quarantine', label: 'Likely phishing' },
@@ -151,7 +177,8 @@ export const RISK_FILTERS = [
   { key: 'safe', label: 'Safe' },
 ];
 
-/** Turn a snake_case enum into a readable label as a last resort. */
+// Transformă un enum snake_case într-o etichetă lizibilă, ca ultimă soluție
+// (fallback) — ex: "needs_review" -> "Needs review".
 export const humanize = (value) => {
   if (!value) return '';
   return value
@@ -160,7 +187,10 @@ export const humanize = (value) => {
     .join(' ');
 };
 
-/** Short, user-friendly names for every rule key — used in charts and tooltips. */
+// RULE_LABELS — denumiri scurte, prietenoase, pentru fiecare cod de regulă din
+// motorul de scanare (vezi scan.service.js / scoring.config.js din backend).
+// Folosite în grafice și tooltip-uri, ca userul să vadă "Shortened link" în
+// loc de "shortened_url_detected".
 const RULE_LABELS = {
   user_blocklist_match: 'Blocked by you',
   reply_to_mismatch: 'Reply address differs',
@@ -182,6 +212,11 @@ const RULE_LABELS = {
   'ai_semantic:brand_impersonation_suspected': 'Brand impersonation',
 };
 
+// Întoarce eticheta prietenoasă pentru un cod de regulă. Dacă nu e în
+// RULE_LABELS, dar e un subtip de "suspicious_link_pattern", arată generic
+// "Suspicious link". În rest, face un fallback generic: scoate prefixul
+// "ai_semantic:" și sufixul de severitate (_high/_medium/_low), înlocuiește
+// "_"/":" cu spațiu și pune Title Case (prima literă din fiecare cuvânt mare).
 export const getRuleLabel = (rule) => {
   const key = String(rule || '');
   if (RULE_LABELS[key]) return RULE_LABELS[key];
@@ -193,11 +228,9 @@ export const getRuleLabel = (rule) => {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-/**
- * Short, human-readable descriptions for the most common rule keys — used by
- * the dashboard's "Most common warning signs" legend. Falls back to a
- * humanized version for anything not listed.
- */
+// Descrieri scurte, în limbaj uman, pentru cele mai comune coduri de regulă —
+// folosite în legenda "Most common warning signs" din dashboard. Dacă o regulă
+// nu e în listă, getRuleDescription() de mai jos face un fallback generic.
 const RULE_DESCRIPTIONS = {
   reply_to_mismatch: 'Reply address differs from the sender — a common phishing trick',
   shortened_url_detected: 'Email contains shortened links that hide the real destination',
@@ -221,11 +254,11 @@ const RULE_DESCRIPTIONS = {
 export const getRuleDescription = (rule) => {
   const key = String(rule || '');
   if (RULE_DESCRIPTIONS[key]) return RULE_DESCRIPTIONS[key];
-  // Any other suspicious-link subtype: friendly text, never the raw pattern key.
+  // Orice alt subtip de "suspicious link": text prietenos, niciodată codul brut al pattern-ului.
   if (key.startsWith('suspicious_link_pattern:')) {
     return 'A link in the email looks suspicious';
   }
-  // Generic fallback: drop any AI prefix and severity suffix, then Title Case.
+  // Fallback generic: scoate eventualul prefix AI și sufixul de severitate, apoi Title Case.
   return key
     .replace(/^ai_semantic:/, '')
     .replace(/_(high|medium|low)$/, '')

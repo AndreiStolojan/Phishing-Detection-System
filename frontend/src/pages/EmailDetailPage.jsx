@@ -484,7 +484,7 @@ export function EmailDetailPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className={cn('text-sm font-semibold', tone.text)}>{label}</span>
                 {scanScore != null && (
-                  <span className={cn('text-xs tabular-nums opacity-70', tone.text)}>
+                  <span className={cn('text-xs tabular-nums opacity-90', tone.text)}>
                     {scanScore}/{SCORE_MAX}
                   </span>
                 )}

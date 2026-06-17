@@ -45,7 +45,7 @@ export function Pagination({ page, totalPages, onPage }) {
                 className={cn(
                   'flex h-9 w-9 items-center justify-center rounded-md border text-xs font-medium transition-colors',
                   p === page
-                    ? 'border-primary bg-primary/15 text-primary'
+                    ? 'border-primary bg-primary/15 text-foreground'
                     : 'border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >

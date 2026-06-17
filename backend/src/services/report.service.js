@@ -1,3 +1,22 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// report.service.js — construiește datele pentru DASHBOARD și RAPORTUL periodic.
+//
+// Ce face, pe scurt: agregă (numără/grupează) emailurile și scanările dintr-o
+// fereastră de timp (lună sau interval from/to) și produce un rezumat: câte
+// emailuri au fost sincronizate, câte au fost scanate, cum se împart pe
+// verdicte EFECTIVE (safe / suspicious / likely_phishing / marked_phishing —
+// decizia userului are prioritate față de scanul automat), care sunt cele mai
+// frecvente reguli declanșate, ce emailuri riscante așteaptă atenție, și
+// statistici AI. Mai are și o funcție care trimite acest rezumat pe email.
+//
+// Endpoint-uri care folosesc acest fișier:
+//   GET /reports/monthly-summary[?from=&to=&label=]  (sau legacy ?month=)
+//   POST /reports/monthly-summary/send
+//
+// Detalii despre verdict efectiv / riskBucket: docs/EXPLICATIE_BACKEND.md §5.4.
+// Despre formele de date (Email, Scan): docs/EXPLICATIE_BACKEND.md §3.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import mongoose from 'mongoose';
 
 import createError from '../common/errors/create-error.js';
@@ -8,22 +27,28 @@ import Scan from '../models/scan.model.js';
 
 const MONTH_QUERY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TOP_ITEMS_LIMIT = 10;
-// Display-only label the frontend sends with a from/to range (e.g. "Yesterday"),
-// capped so it can never bloat the report email subject.
+// Etichetă doar-pentru-afișare trimisă de frontend alături de un interval
+// from/to (ex. "Yesterday" / "Ieri"), limitată ca lungime ca să nu îngreuneze
+// inutil subiectul emailului de raport.
 const RANGE_LABEL_MAX_LENGTH = 60;
 
+// Transformă id-ul userului (string) într-un ObjectId Mongo, ca să poată fi
+// folosit direct în filtrele de agregare.
 const toUserObjectId = (userId) => new mongoose.Types.ObjectId(String(userId));
 
+// Formatează (an, indexLună 0-11) ca "YYYY-MM" — folosit pentru modul "month" legacy.
 const formatMonthLabel = ({ year, monthIndex }) =>
     `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
 
 /*
- * Resolve the report window. Two modes:
- *   - range mode: absolute `from`/`to` (the app's global time filter). Takes
- *     precedence over `month`. Anchors on `receivedAt` so the report covers
- *     the same emails the inbox and dashboard show for that range.
- *   - month mode (legacy): `month=YYYY-MM` or the current UTC month. Anchors
- *     on `createdAt` (first sync), unchanged for backward compatibility.
+ * Stabilește FEREASTRA de timp pentru raport. Două moduri:
+ *   - mod "range": interval absolut `from`/`to` (filtrul global de timp al
+ *     aplicației). Are prioritate față de `month`. Se bazează pe `receivedAt`
+ *     (data primirii emailului), ca raportul să arate aceleași emailuri ca
+ *     inbox-ul/dashboard-ul pentru acel interval.
+ *   - mod "month" (legacy): `month=YYYY-MM` sau luna curentă (UTC) dacă nu se
+ *     dă nimic. Se bazează pe `createdAt` (momentul primei sincronizări),
+ *     păstrat neschimbat pentru compatibilitate cu versiuni vechi.
  */
 const parseMonthlySummaryPeriod = (query = {}) => {
     const range = parseDateRangeQuery(query);
@@ -42,6 +67,7 @@ const parseMonthlySummaryPeriod = (query = {}) => {
     const rawMonth = query.month;
 
     if (rawMonth === undefined) {
+        // Nu s-a dat nimic -> folosim luna curentă (UTC).
         const now = new Date();
         const year = now.getUTCFullYear();
         const monthIndex = now.getUTCMonth();
@@ -55,6 +81,7 @@ const parseMonthlySummaryPeriod = (query = {}) => {
     }
 
     if (typeof rawMonth !== 'string' || !MONTH_QUERY_PATTERN.test(rawMonth)) {
+        // Validare: parametrul `month` trebuie să fie text în formatul YYYY-MM.
         throw createError(
             'Invalid month query parameter',
             400,
@@ -65,7 +92,7 @@ const parseMonthlySummaryPeriod = (query = {}) => {
 
     const [yearValue, monthValue] = rawMonth.split('-');
     const year = Number.parseInt(yearValue, 10);
-    const monthIndex = Number.parseInt(monthValue, 10) - 1;
+    const monthIndex = Number.parseInt(monthValue, 10) - 1; // lunile JS sunt 0-11
 
     return {
         mode: 'month',
@@ -75,8 +102,9 @@ const parseMonthlySummaryPeriod = (query = {}) => {
     };
 };
 
-// Public period shape: month mode keeps its historical { month, from, to };
-// range mode exposes { from, to, label } (no month to mislabel it with).
+// Forma publică a perioadei trimisă în răspuns: modul "month" păstrează forma
+// istorică { month, from, to }; modul "range" expune { from, to, label } (fără
+// `month`, ca să nu fie etichetat greșit cu o lună).
 const toPeriodResponse = (period) =>
     period.mode === 'range'
         ? {
@@ -90,41 +118,49 @@ const toPeriodResponse = (period) =>
             to: period.to.toISOString(),
         };
 
+// Construiește un filtru Mongo de tip interval: [from, to).
 const buildDateRange = ({ from, to }) => ({
     $gte: from,
     $lt: to,
 });
 
 /*
- * SINGLE SOURCE OF TRUTH for the report counts.
+ * SURSA UNICĂ DE ADEVĂR pentru numerele din raport.
  *
- * Every figure in the detection funnel is derived from ONE base set: the emails
- * that were synced into SecureInbox during the report window. "Synced" is keyed
- * on the email document's `createdAt` (the moment the email was first stored on a
- * sync). For each of those emails we attach its single most-recent scan via
- * `$lookup`, then derive everything else from that latest scan.
+ * Fiecare cifră din "pâlnia" de detecție (synced -> scanned -> verdicte) este
+ * derivată dintr-UN SINGUR set de bază: emailurile sincronizate în SecureInbox
+ * în fereastra raportului. "Sincronizat" se determină după `createdAt` al
+ * documentului Email (momentul în care emailul a fost salvat prima dată la o
+ * sincronizare). Pentru fiecare astfel de email, atașăm cea mai recentă scanare
+ * a lui printr-un `$lookup`, și din acea scanare derivăm tot restul.
  *
- * Why this matters (the bug it fixes):
- *   Previously `syncedEmails` counted Email docs by `createdAt` while
- *   `scannedEmails` counted Scan docs by `scannedAt`. Those are two different
- *   collections measured on two different timestamps, and a re-scan rewrites
- *   `scannedAt` to "now" — so an email synced in a previous month but re-scanned
- *   this month was counted as scanned-but-not-synced. That let `scanned` exceed
- *   `synced` (e.g. 60 scanned vs 58 synced), which is impossible.
+ * De ce e important (bug-ul pe care îl rezolvă):
+ *   Înainte, `syncedEmails` număra documentele Email după `createdAt`, iar
+ *   `scannedEmails` număra documentele Scan după `scannedAt`. Astea sunt DOUĂ
+ *   colecții diferite, măsurate pe DOUĂ timestamp-uri diferite, iar o
+ *   re-scanare rescrie `scannedAt` cu "acum" — deci un email sincronizat
+ *   într-o lună anterioară, dar re-scanat luna asta, era contabilizat ca
+ *   "scanat dar nu sincronizat" în luna curentă. Asta permitea ca `scanned` să
+ *   fie mai mare decât `synced` (ex. 60 scanate vs 58 sincronizate), ceea ce e
+ *   imposibil logic.
  *
- * Anchoring on the synced-email set guarantees the invariant
- *   scanned ≤ synced ≤ total fetched
- * because `scannedEmails` is, by construction, the subset of the window's synced
- * emails that have at least one scan. Counting the LATEST scan per email also
- * de-duplicates: each email contributes exactly once, with its most relevant
- * (most recent) verdict — never twice with two different scores.
+ * Ancorarea pe setul de emailuri sincronizate garantează invariantul
+ *   scanned ≤ synced ≤ total preluat
+ * pentru că `scannedEmails` este, prin construcție, sub-mulțimea emailurilor
+ * sincronizate în fereastră care au cel puțin o scanare. Numărarea CELEI MAI
+ * RECENTE scanări per email elimină și duplicatele: fiecare email contribuie
+ * o singură dată, cu verdictul cel mai relevant (cel mai recent) — niciodată
+ * de două ori cu două scoruri diferite.
  *
- * Returned counts:
- *   - syncedEmails:   emails first synced during the window (the base set)
- *   - scannedEmails:  of those, how many have been scanned (subset ⇒ ≤ synced)
- *   - safe/suspicious/likelyPhishing: split of scanned emails by latest verdict
- *   - quarantined:    latest verdict likely_phishing AND not yet user-reviewed
+ * Numere returnate:
+ *   - syncedEmails:   emailuri sincronizate prima dată în fereastră (setul de bază)
+ *   - scannedEmails:  dintre acestea, câte au fost scanate (sub-mulțime ⇒ ≤ synced)
+ *   - safe/suspicious/likelyPhishing: împărțirea emailurilor scanate după ultimul verdict
+ *   - quarantined:    ultimul verdict = likely_phishing ȚI încă nu a fost revizuit de user
  */
+// Pașii de $lookup care atașează la fiecare email cea mai recentă scanare
+// a lui (sortată după scannedAt, apoi updatedAt, apoi createdAt — cea mai
+// proaspătă primă), redenumită `latestScan`.
 const buildLatestScanLookupStages = () => [
     {
         $lookup: {
@@ -155,23 +191,27 @@ const buildLatestScanLookupStages = () => [
             as: 'latestScan',
         },
     },
+    // $lookup întoarce mereu un array; îl transformăm într-un singur obiect
+    // (sau undefined dacă emailul nu are nicio scanare).
     { $addFields: { latestScan: { $arrayElemAt: ['$latestScan', 0] } } },
 ];
 
-// `$userVerdict` is neither 'safe' nor 'phishing': the user has not reviewed the email,
-// so its scan verdict still decides the effective bucket.
+// `$userVerdict` nu e nici 'safe', nici 'phishing': userul nu a revizuit încă
+// emailul, deci verdictul scanului decide în continuare găleata efectivă.
 const isUnreviewedExpr = { $not: [{ $in: ['$userVerdict', ['safe', 'phishing']] }] };
 
-// True when the email has a latest scan attached.
+// Adevărat dacă emailul are o scanare recentă atașată (vezi buildLatestScanLookupStages).
 const hasLatestScanExpr = { $ifNull: ['$latestScan', false] };
 
-// Sum 1 for every document where `expr` is truthy, 0 otherwise.
+// Adună 1 pentru fiecare document unde `expr` e adevărat, altfel 0 — practic
+// un "COUNT WHERE" în limbajul de agregare Mongo.
 const countWhere = (expr) => ({ $sum: { $cond: [expr, 1, 0] } });
 
-// Count documents whose latest scan carries the given raw verdict.
+// Numără documentele a căror ultimă scanare are verdictul brut dat.
 const countWhereScanVerdict = (verdict) =>
     countWhere({ $eq: ['$latestScan.verdict', verdict] });
 
+// Etapa $group care calculează toate numerele de bază ale ferestrei.
 const windowCountsFacet = [
     {
         $group: {
@@ -180,12 +220,13 @@ const windowCountsFacet = [
             scannedEmails: countWhere(hasLatestScanExpr),
             safe: countWhereScanVerdict('safe'),
             /*
-             * Effective-verdict split: the user's review overrides the scan,
-             * exactly like the dashboard buckets. Every scanned email lands in
-             * exactly one of the four (no double counting):
-             *   marked safe            -> effectiveSafe
-             *   marked phishing        -> effectiveMarkedPhishing
-             *   unreviewed             -> its scan verdict bucket
+             * Împărțirea pe VERDICT EFECTIV: decizia userului are prioritate
+             * față de scan, exact ca în gălețile dashboard-ului. Fiecare email
+             * scanat ajunge în EXACT UNA dintre cele patru găleți (fără
+             * dublură):
+             *   marcat safe (de user)     -> effectiveSafe
+             *   marcat phishing (de user) -> effectiveMarkedPhishing
+             *   nerevizuit                 -> găleata după verdictul scanului
              */
             effectiveSafe: countWhere({
                 $and: [
@@ -227,9 +268,11 @@ const windowCountsFacet = [
     },
 ];
 
-// Top warning signs across the window's emails, one latest scan each.
+// Cele mai frecvente "semnale de alarmă" (reguli declanșate) din emailurile
+// ferestrei, câte o scanare (cea mai recentă) per email.
 const topTriggeredRulesFacet = [
     { $match: { latestScan: { $ne: null } } },
+    // "Despachetează" array-ul triggeredRules: un document per regulă declanșată.
     { $unwind: '$latestScan.triggeredRules' },
     {
         $group: {
@@ -243,17 +286,23 @@ const topTriggeredRulesFacet = [
     { $project: { _id: 0, rule: '$_id', count: 1, totalPoints: 1 } },
 ];
 
-// AI coverage across the window's scanned emails.
+// Acoperirea AI (câte scanări au folosit AI cu succes / au eșuat / au avut AI dezactivat)
+// pentru emailurile scanate din fereastră.
 const aiCoverageFacet = [
     { $match: { latestScan: { $ne: null } } },
     { $group: { _id: '$latestScan.aiStatus', count: { $sum: 1 } } },
 ];
 
+// Rulează pipeline-ul de agregare central: pentru toate emailurile userului
+// din fereastra [from, to) (pe câmpul `dateField`), atașează ultima scanare a
+// fiecăruia și calculează în paralel (via $facet) cele 3 seturi de numere de
+// mai sus: counts, topTriggeredRules și ai.
 const getWindowScanAggregates = async ({ userObjectId, from, to, dateField = 'createdAt' }) => {
     const [result] = await Email.aggregate([
-        // Base set = emails inside the window. Month mode keys on `createdAt`
-        // (first stored on a sync); range mode keys on `receivedAt` so the
-        // report matches what the inbox shows for the same range.
+        // Setul de bază = emailurile din fereastră. Modul "month" se bazează pe
+        // `createdAt` (prima sincronizare); modul "range" se bazează pe
+        // `receivedAt`, ca raportul să corespundă cu ce arată inbox-ul pentru
+        // același interval.
         { $match: { userId: userObjectId, [dateField]: buildDateRange({ from, to }) } },
         ...buildLatestScanLookupStages(),
         {
@@ -295,8 +344,9 @@ const getWindowScanAggregates = async ({ userObjectId, from, to, dateField = 'cr
 
 const DAILY_RISKY_EMAILS_LIMIT = 5;
 
-// The actual emails from the window that still need the user's attention
-// (suspicious or likely phishing, not yet reviewed). Highest risk first.
+// Emailurile concrete din fereastră care încă mai au nevoie de atenția userului
+// (verdict suspicious sau likely_phishing, nerevizuite încă). Cele cu risc mai
+// mare primele.
 const getRecentRiskyEmails = async ({ userObjectId, from, to }) =>
     Scan.aggregate([
         {
@@ -306,6 +356,8 @@ const getRecentRiskyEmails = async ({ userObjectId, from, to }) =>
                 scannedAt: buildDateRange({ from, to }),
             },
         },
+        // Sortăm înainte de $group ca $first să prindă scanarea cu scorul cel
+        // mai mare (și cea mai recentă, la egalitate de scor).
         { $sort: { score: -1, scannedAt: -1 } },
         {
             $group: {
@@ -324,6 +376,7 @@ const getRecentRiskyEmails = async ({ userObjectId, from, to }) =>
         },
         { $unwind: '$email' },
         {
+            // Păstrăm doar emailurile încă nerevizuite de user (fără userVerdict).
             $match: {
                 'email.userId': userObjectId,
                 $or: [
@@ -346,8 +399,8 @@ const getRecentRiskyEmails = async ({ userObjectId, from, to }) =>
         },
     ]);
 
-// Shared subset of the counts object built by both the daily and monthly
-// summaries. Each caller spreads this and adds its own extra fields.
+// Sub-setul comun de numere folosit atât de rezumatul zilnic, cât și de cel
+// lunar. Fiecare apelant "spreadează" acest obiect și adaugă propriile câmpuri.
 const toBaseCounts = (aggregates) => ({
     syncedEmails: aggregates.syncedEmails,
     scannedEmails: aggregates.scannedEmails,
@@ -356,6 +409,9 @@ const toBaseCounts = (aggregates) => ({
     likelyPhishing: aggregates.verdictCounts.likelyPhishing,
 });
 
+// Rezumat pentru ultimele 24 de ore — folosit, de exemplu, pentru notificări/digest zilnic.
+// Calculează numerele de bază, câte emailuri au fost marcate "phishing" de user
+// în acest interval, și lista emailurilor riscante care încă au nevoie de atenție.
 export const getDailySummaryForUser = async ({ userId }) => {
     const userObjectId = toUserObjectId(userId);
     const to = new Date();
@@ -387,10 +443,16 @@ export const getDailySummaryForUser = async ({ userId }) => {
     };
 };
 
+// Rezumatul folosit de dashboard pentru raportul periodic (lunar sau pe
+// intervalul from/to ales de user). Combină numerele de agregare cu câteva
+// numărători directe pe Email (câte emailuri au fost revizuite/marcate
+// safe/marcate phishing de user în fereastră).
 export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
     const userObjectId = toUserObjectId(userId);
     const period = parseMonthlySummaryPeriod(query);
     const { from, to } = period;
+    // Modul "range" filtrează după data primirii (receivedAt), ca să se
+    // alinieze cu inbox-ul; modul "month" legacy rămâne pe createdAt.
     const dateField = period.mode === 'range' ? 'receivedAt' : 'createdAt';
 
     const [aggregates, reviewed, markedSafe, markedPhishing] = await Promise.all([
@@ -431,6 +493,10 @@ export const getMonthlySummaryForUser = async ({ userId, query = {} }) => {
     };
 };
 
+// Construiește rezumatul lunar/pe interval și îl trimite pe email userului.
+// Dacă trimiterea emailului eșuează, NU aruncă eroare — întoarce un obiect cu
+// `sent: false` și detaliile erorii, ca raportul să poată fi totuși generat
+// (de ex. afișat în UI) chiar dacă emailul nu a putut fi livrat.
 export const sendMonthlySummaryForUser = async ({ user, query = {} }) => {
     const summary = await getMonthlySummaryForUser({
         userId: user._id,

@@ -1,26 +1,33 @@
 import { cn } from '@/lib/utils';
 
-function Card({ className, interactive = false, ...props }) {
+function Card({ className, interactive = false, style, ...props }) {
   return (
     <div
       className={cn(
-        'rounded-sm border border-border bg-card text-card-foreground surface-raised',
+        'rounded-lg border bg-card text-card-foreground surface-raised',
         interactive &&
           'transition-[transform,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/10',
         className
       )}
+      style={{ borderColor: '#1e2a45', ...style }}
       {...props}
     />
   );
 }
 
 function CardHeader({ className, ...props }) {
-  return <div className={cn('flex flex-col gap-1.5 p-5', className)} {...props} />;
+  return (
+    <div
+      className={cn('flex flex-col gap-1.5 border-b p-5', className)}
+      style={{ borderColor: '#2a3755' }}
+      {...props}
+    />
+  );
 }
 
 function CardTitle({ className, ...props }) {
   return (
-    <h3
+    <h2
       className={cn('text-base font-semibold leading-none tracking-tight', className)}
       {...props}
     />
@@ -34,7 +41,7 @@ function CardDescription({ className, ...props }) {
 }
 
 function CardContent({ className, ...props }) {
-  return <div className={cn('p-5 pt-0', className)} {...props} />;
+  return <div className={cn('p-5', className)} {...props} />;
 }
 
 function CardFooter({ className, ...props }) {
