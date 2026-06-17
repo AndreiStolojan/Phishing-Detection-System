@@ -1,3 +1,18 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// auto-sync.service.js — sincronizarea automată a tuturor conturilor Gmail.
+//
+// Ce face, pe scurt: pornit periodic de scheduler.service.js (cron, la fiecare
+// SYNC_INTERVAL_MINUTES minute), parcurge TOATE conturile Gmail active din baza
+// de date și, pentru fiecare, cere emailurile noi + rulează scanul automat
+// (prin syncGmailEmailsForUser). Așa userul e protejat fără să deschidă
+// aplicația ("conectează o dată și uită" — feedback coordonator).
+//
+// Tot aici: dacă după sync apar emailuri noi cu verdict "likely_phishing" și
+// userul a activat alertele, se trimite un email de avertizare instant.
+//
+// Detalii: docs/EXPLICATIE_BACKEND.md §5.2 și §6.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import MailAccount from '../models/mail-account.model.js';
 import User from '../models/user.model.js';
 import Scan from '../models/scan.model.js';
@@ -5,6 +20,9 @@ import Email from '../models/email.model.js';
 import { syncGmailEmailsForUser } from './mail-account.service.js';
 import { sendPhishingAlertEmail } from '../../extras/notifications/send-email.js';
 
+// Pentru o listă de id-uri de emailuri (de obicei emailuri NOU inserate la
+// acest sync), găsește care dintre ele au scor "likely_phishing" și aduce
+// datele necesare pentru emailul de alertă (subiect, expeditor, scor, reguli).
 const findPhishingEmailsFromIds = async ({ userId, emailIds }) => {
     if (!emailIds || emailIds.length === 0) {
         return [];
@@ -42,6 +60,9 @@ const findPhishingEmailsFromIds = async ({ userId, emailIds }) => {
     });
 };
 
+// Trimite emailul de alertă de phishing, dar doar dacă userul a activat
+// alertele (alertsEnabled) și există efectiv emailuri de phishing de raportat.
+// Eroarea de trimitere e doar logată — nu trebuie să strice tot sync-ul.
 const sendAlertIfEnabled = async ({ user, phishingEmails }) => {
     if (!user.settings?.alertsEnabled || phishingEmails.length === 0) {
         return;
@@ -61,7 +82,13 @@ const sendAlertIfEnabled = async ({ user, phishingEmails }) => {
     }
 };
 
+// Funcția principală, apelată de cron (scheduler.service.js) la fiecare
+// SYNC_INTERVAL_MINUTES minute. Sincronizează pe rând TOATE conturile Gmail
+// active, scanează emailurile noi și trimite alerte de phishing dacă e cazul.
+// Erorile per-cont sunt prinse și numărate — un cont stricat nu blochează
+// sincronizarea pentru restul userilor.
 export const runAutoSyncForAllUsers = async () => {
+    // Toate conturile Gmail conectate și active (userul nu le-a deconectat).
     const activeMailAccounts = await MailAccount.find({
         provider: 'gmail',
         status: 'active',
@@ -74,12 +101,14 @@ export const runAutoSyncForAllUsers = async () => {
 
     console.log(`[auto-sync] Starting sync for ${activeMailAccounts.length} Gmail account(s)`);
 
+    // Contoare globale pentru logul final de la sfârșitul rulării.
     let totalNewEmails = 0;
     let totalPhishingAlerts = 0;
     let totalErrors = 0;
 
     for (const mailAccount of activeMailAccounts) {
         try {
+            // Sincronizare + scanare automată pentru acest cont (vezi §5.2).
             const syncResult = await syncGmailEmailsForUser({
                 userId: mailAccount.userId,
                 mailAccountId: mailAccount._id,
@@ -88,6 +117,8 @@ export const runAutoSyncForAllUsers = async () => {
             const newEmails = syncResult.insertedCount || 0;
             totalNewEmails += newEmails;
 
+            // Dacă au apărut emailuri noi, verificăm dacă userul vrea alerte
+            // și dacă printre cele noi există vreun "likely_phishing".
             if (newEmails > 0 && syncResult.insertedEmailIds?.length > 0) {
                 const user = await User.findById(mailAccount.userId).select('email name settings').lean();
 
@@ -112,6 +143,8 @@ export const runAutoSyncForAllUsers = async () => {
                 scannedCount: syncResult.scanSummary?.scannedCount ?? 0,
             });
         } catch (error) {
+            // Un cont cu eroare (ex: token expirat) NU oprește bucla — trecem
+            // la următorul cont și raportăm eroarea în log.
             totalErrors += 1;
             console.error('[auto-sync] Sync failed for account', {
                 userId: String(mailAccount.userId),
@@ -130,6 +163,9 @@ export const runAutoSyncForAllUsers = async () => {
     });
 };
 
+// Variantă folosită pentru un sync MANUAL (declanșat de user din UI, nu de
+// cron): după sync, verifică emailurile noi inserate și trimite alertă de
+// phishing dacă userul a activat opțiunea și au apărut emailuri riscante.
 export const sendPhishingAlertForNewEmails = async ({ userId, user, syncResult }) => {
     if (!syncResult?.insertedEmailIds?.length) return;
     const phishingEmails = await findPhishingEmailsFromIds({

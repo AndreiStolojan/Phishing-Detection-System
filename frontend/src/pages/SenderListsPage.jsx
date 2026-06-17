@@ -185,7 +185,7 @@ export function SenderListsPage() {
                       className={cn(
                         'relative overflow-hidden rounded-sm px-2.5 py-1 text-xs font-medium outline-none transition-colors',
                         filter === f.key
-                          ? 'text-primary'
+                          ? 'text-foreground'
                           : 'text-muted-foreground hover:text-foreground'
                       )}
                     >

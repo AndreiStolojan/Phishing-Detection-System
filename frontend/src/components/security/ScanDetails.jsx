@@ -1,3 +1,15 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ScanDetails.jsx — panoul cu rezultatul scanării unui email.
+//
+// Ce face, pe scurt: primește obiectul `scan` (rezultatul ultimei scanări, vezi
+// scan.model.js / scan.service.js din backend) și afișează: bannere despre
+// listele userului (allow/block) sau brandul verificat, explicația AI/automată,
+// bara de scor (total + reguli + AI) și componenta `ThreatSignals` cu regulile
+// declanșate. E folosit în EmailDetailPage, sub detaliile emailului.
+//
+// Detalii: docs/EXPLICATIE_FRONTEND.md §6.3.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { motion } from 'framer-motion';
 import { Sparkles, Gauge, Info, Bot, Shield, ShieldCheck, ShieldOff } from 'lucide-react';
 
@@ -8,6 +20,9 @@ import { AI_SCORE_MAX, RULE_SCORE_MAX, SCORE_MAX, getAiStatus } from '@/lib/scor
 import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
+// O bară de progres animată, pentru un singur scor (total, reguli sau AI).
+// `value` = scorul curent, `max` = scorul maxim posibil pentru acel tip,
+// `color` = culoarea barei. Procentul e limitat (clamp) între 0 și 100.
 function ScoreBar({ label, value, max = 100, color }) {
   const pct = Math.max(0, Math.min(100, (Number(value) / max) * 100 || 0));
   return (
@@ -17,6 +32,7 @@ function ScoreBar({ label, value, max = 100, color }) {
         <span className="font-medium tabular-nums">{value ?? 0}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        {/* motion.div animă lățimea barei de la 0% la procentul calculat */}
         <motion.div
           className="h-full rounded-full"
           style={{ backgroundColor: color }}
@@ -29,6 +45,9 @@ function ScoreBar({ label, value, max = 100, color }) {
   );
 }
 
+// Eticheta mică ("badge") care arată daca emailul a fost detectat de regulile
+// fixe ("Security checks"), de AI ("AI detected"), de amândouă, sau de niciuna
+// (caz în care nu afișăm nimic — return null).
 function DetectionBadge({ ruleScore, aiScore }) {
   const hasRule = (ruleScore ?? 0) > 0;
   const hasAi = (aiScore ?? 0) > 0;
@@ -42,7 +61,7 @@ function DetectionBadge({ ruleScore, aiScore }) {
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-        hasAi ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+        hasAi ? 'bg-primary/10 text-link' : 'bg-muted text-muted-foreground'
       )}
     >
       <Icon className="h-3 w-3" />
@@ -52,20 +71,27 @@ function DetectionBadge({ ruleScore, aiScore }) {
 }
 
 export function ScanDetails({ scan }) {
+  // Dacă nu există un scan (emailul nu a fost încă scanat), nu afișăm nimic.
   if (!scan) return null;
 
+  // `getVerdictMeta` traduce verdictul (safe / suspicious / likely_phishing)
+  // în culori și texte pentru UI.
   const verdictMeta = getVerdictMeta(scan.verdict);
   const summary = scan.aiExplanation?.summary;
+  // `getAiStatus` interpretează starea motorului AI (ok / dezactivat / eroare / timeout)
+  // și oferă un mesaj prietenos de afișat userului.
   const ai = getAiStatus(scan);
   const ollamaUnavailable = ai.state !== 'ok';
 
+  // Dacă scanul a folosit o intrare din lista userului (allow/block), `senderListMatch`
+  // conține tipul listei (allow/block) și dacă regula a fost pe expeditor sau pe domeniu.
   const listMatch = scan.senderListMatch;
   const listTarget = listMatch?.kind === 'domain' ? 'domain' : 'sender';
 
   return (
     <div className="space-y-4">
-      {/* User list banner — the user explicitly trusted or blocked this sender/domain,
-          and that decision was applied by this scan. */}
+      {/* Banner pentru lista userului — userul a marcat explicit acest expeditor/domeniu
+          ca "trusted" (allow) sau "blocked" (block), iar decizia a fost aplicată de scan. */}
       {listMatch?.listType === 'block' && (
         <div className="flex items-start gap-2 rounded-lg border border-risk-quarantine/30 bg-risk-quarantine-soft px-3 py-2.5 text-sm text-risk-quarantine">
           <ShieldOff className="mt-0.5 h-4 w-4 shrink-0" />
@@ -86,8 +112,9 @@ export function ScanDetails({ scan }) {
         </div>
       )}
 
-      {/* Verified-brand banner — the sender is on an official brand domain, so
-          brand-typical signals were intentionally weighted down. */}
+      {/* Banner brand verificat — expeditorul vine de pe un domeniu oficial al brandului,
+          deci semnalele tipice pentru acel brand (urgență, link-uri, login) au fost
+          contate cu pondere mai mică. */}
       {scan.senderVerifiedBrand && (
         <div className="flex items-start gap-2 rounded-lg border border-risk-safe/30 bg-risk-safe-soft px-3 py-2.5 text-sm text-risk-safe">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
@@ -99,7 +126,9 @@ export function ScanDetails({ scan }) {
         </div>
       )}
 
-      {/* AI / rule-based explanation — primary panel */}
+      {/* Panoul principal cu explicația — generată de AI (Ollama) sau, dacă AI
+          nu e disponibil, o explicație automată ("fallback") construită din regulile
+          declanșate (vezi scan-explanation.service.js din backend). */}
       {summary && (
         <Card className={ollamaUnavailable ? 'border-border' : 'border-primary/25 bg-primary/[0.06]'}>
           <CardHeader className="flex-row items-center gap-2 space-y-0 pb-2">
@@ -121,7 +150,8 @@ export function ScanDetails({ scan }) {
         </Card>
       )}
 
-      {/* AI status note — specific message per failure mode; calm/neutral when simply off */}
+      {/* Notă despre starea AI — mesaj specific pentru fiecare mod de eșec
+          (dezactivat, timeout, eroare); ton neutru când AI e simplu dezactivat. */}
       {ai.message && (
         <div
           className={cn(
@@ -136,7 +166,8 @@ export function ScanDetails({ scan }) {
         </div>
       )}
 
-      {/* Score breakdown — always visible */}
+      {/* Detalierea scorului — vizibilă mereu, indiferent de verdict.
+          Scorul total = min(100, scorReguli + scorAI), vezi scan.service.js. */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <span className="label-overline flex items-center gap-1.5">
@@ -152,12 +183,13 @@ export function ScanDetails({ scan }) {
         </div>
         <ScoreBar label="Total" value={scan.score} max={SCORE_MAX} color={verdictMeta.tone.hex} />
         <div className="grid grid-cols-2 gap-4">
+          {/* Cele două componente ale scorului total: regulile fixe și scorul AI */}
           <ScoreBar label="Security checks" value={scan.ruleScore} max={RULE_SCORE_MAX} color="var(--color-chart-3)" />
           <ScoreBar label="AI" value={scan.aiScore} max={AI_SCORE_MAX} color="var(--color-chart-1)" />
         </div>
       </div>
 
-      {/* Threat signals — always visible below score */}
+      {/* Lista regulilor/semnalelor declanșate — afișată mereu sub scor */}
       <ThreatSignals scan={scan} />
     </div>
   );

@@ -1,4 +1,17 @@
-import mongoose from 'mongoose';
+// ─────────────────────────────────────────────────────────────────────────────
+// scan.service.js — INIMA aplicației: motorul de scanare a emailurilor.
+//
+// Ce face, pe scurt: ia un email deja salvat în baza de date, îi calculează un
+// SCOR de risc (reguli fixe + semnale AI), îl traduce într-un VERDICT
+// (safe / suspicious / likely_phishing), îi atașează o explicație și salvează
+// rezultatul ca un "scan". Folosit atât la sincronizare (automat), cât și la
+// apăsarea butonului "Scan again" (manual).
+//
+// Modelul de scor: scorFinal = min(100, scorReguli + scorAI), apoi pragurile din
+// scoring.config.js dau verdictul. Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import mongoose from 'mongoose'; // utilitar pentru a valida id-urile MongoDB
 
 import createError from '../common/errors/create-error.js';
 import Email from '../models/email.model.js';
@@ -22,8 +35,9 @@ import {
     applyScoreContextModifiers,
 } from '../config/scoring.config.js';
 
-// Bumped v6 -> v7 with the user sender-list layer (allowlist / blocklist). Old scans
-// keep their v6 score until the email is rescanned (no retroactive bulk rescoring).
+// Versiunea motorului. Urcată v6 -> v7 când s-a adăugat stratul listelor userului
+// (allowlist / blocklist). Scanările vechi își păstrează scorul v6 până la o
+// rescanare (nu rescorăm retroactiv toată baza de date).
 export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v7';
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
@@ -51,7 +65,8 @@ const ARCHIVE_ATTACHMENT_EXTENSIONS = new Set([
     'tar',
 ]);
 
-// Points come from the central config (RULE_WEIGHTS); only the copy lives here.
+// Tiparele de link suspecte și textele lor. Punctele vin din configul central
+// (RULE_WEIGHTS); aici stă doar maparea tipar -> mesaj.
 const LINK_PATTERN_RULES = {
     ip_address_link: {
         points: RULE_WEIGHTS.ip_address_link,
@@ -98,6 +113,8 @@ const toPublicScan = (scan) => ({
     updatedAt: scan.updatedAt,
 });
 
+// Traduce un scor numeric (0–100) într-un verdict text, comparându-l cu pragurile.
+// >= 60 => likely_phishing, >= 30 => suspicious, restul => safe.
 export const mapScoreToVerdict = (score) => {
     if (score >= RISK_THRESHOLDS.likelyPhishing) {
         return 'likely_phishing';
@@ -110,15 +127,18 @@ export const mapScoreToVerdict = (score) => {
     return 'safe';
 };
 
+// Aplică REGULILE DETERMINISTE (faptele dure) pe un email și adună punctele.
+// `scanContext` aduce contextul (brand verificat / liste user) care poate REDUCE
+// punctele anumitor reguli. Întoarce scorul, motivele și lista regulilor declanșate.
 export const calculateRulesForEmail = (email, scanContext = {}) => {
-    let score = 0;
-    const reasons = [];
-    const triggeredRules = [];
+    let score = 0; // scorul acumulat din reguli
+    const reasons = []; // motive în limbaj uman (pentru explicație)
+    const triggeredRules = []; // regulile care s-au aprins, cu punctele lor
 
-    // modifierKey defaults to the rule id. For the rules that the context layers
-    // discount (reply_to_mismatch, too_many_links_*), the rule id already equals the
-    // modifier key, so the default is correct; the suspicious_link_pattern:* rules are
-    // not in the modifier tables and therefore keep full weight.
+    // Helper care "aprinde" o regulă: aplică reducerile de context pe puncte și, dacă
+    // mai rămân puncte (>0), le adună la scor și reține regula. `modifierKey` zice ce
+    // cheie de reducere se folosește (implicit chiar id-ul regulii); regulile
+    // suspicious_link_pattern:* nu sunt în tabelele de reduceri, deci rămân la greutate plină.
     const triggerRule = ({ rule, modifierKey, points, details, reason }) => {
         const effectivePoints = applyScoreContextModifiers(
             modifierKey || rule,
@@ -139,9 +159,9 @@ export const calculateRulesForEmail = (email, scanContext = {}) => {
         });
     };
 
-    // User blocklist — explicit user decision, exempt from context modifiers by
-    // design. Contributes exactly the likely_phishing threshold, so the verdict is
-    // guaranteed regardless of what the other rules add.
+    // Lista de BLOCARE a userului — decizie explicită, nu o euristică, deci e
+    // scutită de reducerile de context. Adaugă fix pragul de phishing (60), deci
+    // verdictul "likely_phishing" e GARANTAT, oricât ar adăuga celelalte reguli.
     if (scanContext.senderBlocklisted) {
         const match = scanContext.listMatch || {};
         const matchLabel =
@@ -245,15 +265,18 @@ export const calculateRulesForEmail = (email, scanContext = {}) => {
     };
 };
 
+// Transformă semnalele venite de la AI (urgență, cerere de date sensibile etc.)
+// în puncte. La final scorul AI este PLAFONAT (AI_SCORE_MAX = 50), ca AI-ul să
+// poată ridica suspiciunea, dar niciodată să declare singur phishing.
 export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
     let aiScore = 0;
     const aiTriggeredRules = [];
     const aiReasons = [];
 
-    // modifierKey is the context modifier table key (without the ai_semantic:
-    // prefix). When the sender is a verified brand or user-allowlisted the points are
-    // discounted; a signal discounted to 0 (e.g. brand_impersonation_suspected) is
-    // dropped entirely so it neither scores nor shows up as a triggered warning.
+    // La fel ca triggerRule, dar pentru semnalele AI. `modifierKey` e cheia din tabelul
+    // de reduceri (fără prefixul ai_semantic:). Dacă expeditorul e brand verificat sau
+    // pe allowlist, punctele se reduc; un semnal redus la 0 (ex. impersonare de brand)
+    // e eliminat complet, ca să nu apară nici ca avertisment.
     const triggerAiRule = ({ rule, modifierKey, points, reason, details }) => {
         const effectivePoints = applyScoreContextModifiers(modifierKey, points, scanContext);
 
@@ -344,8 +367,8 @@ export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
         });
     }
 
-    // AI is a secondary signal: capped so it can escalate risk but never, alone,
-    // declare phishing (AI_SCORE_MAX < the likely_phishing threshold).
+    // Plafonarea AI: AI e un semnal SECUNDAR. Tăiem scorul la AI_SCORE_MAX (50),
+    // care e sub pragul de phishing (60), deci AI singur nu poate da verdictul.
     aiScore = Math.min(aiScore, AI_SCORE_MAX);
 
     return {
@@ -577,8 +600,9 @@ const upsertCurrentScanForEmail = async ({
     return currentScan;
 };
 
-// Decide which explanation to store: the AI text when it generated cleanly, a controlled
-// fallback when AI was asked but failed, or the already-built fallback when AI was off.
+// Decide ce explicație se salvează: textul AI când s-a generat corect, un fallback
+// controlat când AI a fost cerut dar a eșuat, sau fallback-ul deja construit când AI
+// era oprit. Așa aplicația nu rămâne niciodată fără explicație.
 const resolveExplanationResult = ({
     shouldGenerateNaturalExplanation,
     explanationResult,
@@ -614,21 +638,27 @@ const resolveExplanationResult = ({
     return explanationResult;
 };
 
+// Funcția principală: scanează UN email și salvează rezultatul. Pașii (vezi
+// docs/EXPLICATIE_BACKEND.md §4.5): 1) ia emailul; 2) context liste user;
+// 3) context brand; 4) input pentru AI; 5) reguli; 6) semnale AI; 7) scor final
+// + verdict; 8) explicație; 9) salvare (un singur scan curent per email).
 export const scanEmailWithRules = async ({
     userId,
     emailId,
-    scanSource = 'manual',
-    skipIfCurrentEngineExists = false,
+    scanSource = 'manual', // de unde vine scanarea: 'manual' (buton) sau 'sync'
+    skipIfCurrentEngineExists = false, // la sync: sări dacă scanul e deja la zi
 }) => {
-    const email = await findOwnedEmail({ emailId, userId });
+    const email = await findOwnedEmail({ emailId, userId }); // doar emailul userului
+    // Context: e expeditorul pe lista de încredere/blocare a userului?
     const listContext = await getSenderListContextForEmail({
         userId,
         senderAddress: email.from,
         senderDomain: email.senderDomain,
     });
+    // Context: vine emailul chiar de pe domeniul oficial al unui brand cunoscut?
     const brandContext = verifySenderBrand({ senderDomain: email.senderDomain });
-    // A blocked sender never surfaces as a "verified brand": the user's block wins,
-    // and no discount layer applies on top of the hard blocklist rule.
+    // Un expeditor blocat nu apare niciodată ca "brand verificat": blocarea userului
+    // învinge, și niciun strat de reducere nu se aplică peste regula dură de blocare.
     const scanContext = listContext.senderBlocklisted
         ? { ...listContext, senderVerifiedBrand: false, brandName: null }
         : { ...brandContext, ...listContext };
@@ -653,7 +683,8 @@ export const scanEmailWithRules = async ({
         };
     }
 
-    const rulesResult = calculateRulesForEmail(email, scanContext);
+    const rulesResult = calculateRulesForEmail(email, scanContext); // pasul reguli
+    // Semnale AI doar dacă userul are AI pornit; altfel un obiect "disabled".
     const aiSignals = aiEnabled
         ? await analyzeEmailSemanticsWithOllama({
               analysisInput: aiInput,
@@ -662,6 +693,7 @@ export const scanEmailWithRules = async ({
           })
         : buildAiDisabledSignals();
     const aiScoreResult = calculateAiScoreFromSignals(aiSignals, scanContext);
+    // Scor final = reguli + AI, dar niciodată peste 100 (SCORE_MAX).
     const finalScore = Math.min(SCORE_MAX, rulesResult.ruleScore + aiScoreResult.aiScore);
     const finalResult = {
         score: finalScore,
@@ -721,10 +753,14 @@ export const scanEmailWithRules = async ({
     };
 };
 
+// Rulează scanarea pentru toate emailurile aduse la o sincronizare. Emailurile
+// noi se scanează mereu; cele actualizate doar dacă scanul nu e deja la zi; cele
+// pe care userul le-a marcat manual sunt SĂRITE (nu-i suprascriem decizia).
+// Întoarce un sumar cu numărători (câte scanate / sărite / eșuate).
 export const runSyncScanPipeline = async ({
     userId,
-    insertedEmailIds = [],
-    updatedEmailIds = [],
+    insertedEmailIds = [], // id-urile emailurilor nou-inserate
+    updatedEmailIds = [], // id-urile emailurilor actualizate
 }) => {
     const uniqueInsertedIds = [...new Set(insertedEmailIds.map((id) => String(id)))];
     const uniqueUpdatedIds = [...new Set(updatedEmailIds.map((id) => String(id)))];

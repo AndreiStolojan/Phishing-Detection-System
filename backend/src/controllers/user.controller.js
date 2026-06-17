@@ -1,3 +1,15 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// user.controller.js — rutele pentru profilul userului, setări și ștergerea contului.
+//
+// Ce face, pe scurt: leagă rutele din `/users/*` de funcțiile din
+// user.service.js. Controllerul nu conține logică de business — doar
+// extrage datele din cerere (req), apelează serviciul corespunzător și
+// trimite răspunsul HTTP (res) sau pasează eroarea către next(err) (care
+// e prins de middleware-ul de erori).
+//
+// Detalii: docs/EXPLICATIE_BACKEND.md §2 (cum curge o cerere prin backend).
+// ─────────────────────────────────────────────────────────────────────────────
+
 import {
     deleteCurrentUser,
     getAllUsers,
@@ -8,6 +20,7 @@ import {
     updateCurrentUserNotificationSettings,
 } from '../services/user.service.js';
 
+// GET /users — listă cu toți userii. Doar pentru admin (vezi role.middleware.js).
 export const getUsers = async (req, res, next) => {
     try {
         const users = await getAllUsers();
@@ -18,6 +31,7 @@ export const getUsers = async (req, res, next) => {
     }
 };
 
+// GET /users/:id — un user după id. Doar pentru admin.
 export const getUser = async (req, res, next) => {
     try {
         const user = await getUserById(req.params.id);
@@ -28,6 +42,8 @@ export const getUser = async (req, res, next) => {
     }
 };
 
+// GET /users/me — profilul userului autentificat curent.
+// req.user._id vine din token-ul JWT (pus pe req de auth.middleware.js).
 export const getMe = async (req, res, next) => {
     try {
         const user = await getCurrentUser(req.user._id);
@@ -38,6 +54,7 @@ export const getMe = async (req, res, next) => {
     }
 };
 
+// PATCH /users/me — actualizează profilul userului curent (ex. numele).
 export const updateMe = async (req, res, next) => {
     try {
         const user = await updateCurrentUser(req.user._id, req.body);
@@ -48,6 +65,8 @@ export const updateMe = async (req, res, next) => {
     }
 };
 
+// DELETE /users/me — șterge definitiv contul curent + toate datele lui
+// (cascadă: emailuri, scanări, conturi de mail, liste de expeditori).
 export const deleteMe = async (req, res, next) => {
     try {
         const result = await deleteCurrentUser(req.user._id);
@@ -58,6 +77,8 @@ export const deleteMe = async (req, res, next) => {
     }
 };
 
+// PATCH /users/me/ai-settings — activează/dezactivează AI-ul local (Ollama)
+// pentru scanarea emailurilor acestui user.
 export const updateMeAiSettings = async (req, res, next) => {
     try {
         const aiSettings = await updateCurrentUserAiSettings(req.user._id, req.body);
@@ -68,6 +89,8 @@ export const updateMeAiSettings = async (req, res, next) => {
     }
 };
 
+// PATCH /users/me/notification-settings — setări de notificări: alerte
+// instant, digest zilnic și ora la care se trimite digest-ul.
 export const updateMeNotificationSettings = async (req, res, next) => {
     try {
         const notificationSettings = await updateCurrentUserNotificationSettings(req.user._id, req.body);

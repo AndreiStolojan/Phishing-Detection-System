@@ -1,3 +1,17 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// mail-account.service.js — conectarea la Gmail și sincronizarea emailurilor.
+//
+// Ce face, pe scurt: gestionează tot ciclul de viață al legăturii cu Gmail —
+// (1) conectarea contului prin OAuth (userul aprobă accesul în Google, fără să
+// dea parola), (2) criptarea/decriptarea tokenilor Gmail salvați în baza de
+// date, (3) reîmprospătarea automată a tokenului de acces când expiră,
+// (4) sincronizarea propriu-zisă (syncGmailEmailsForUser — descarcă emailurile
+// din INBOX, le salvează în colecția Email, apoi declanșează scanarea lor),
+// (5) setări de sincronizare (câte emailuri se aduc) și deconectarea contului.
+//
+// Detalii: docs/EXPLICATIE_BACKEND.md §5.1 (OAuth) și §5.2 (sincronizare).
+// ─────────────────────────────────────────────────────────────────────────────
+
 import crypto from 'crypto';
 import MailAccount from '../models/mail-account.model.js';
 import Email from '../models/email.model.js';
@@ -18,13 +32,20 @@ import { JWT_SECRET, MAIL_TOKEN_ENCRYPTION_KEY } from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
 import { runSyncScanPipeline } from './scan.service.js';
 
+// Câte emailuri se aduc la o sincronizare, dacă userul nu a setat altă valoare.
 const SYNC_MAX_RESULTS_DEFAULT = 10;
+// Limitele permise pentru setarea syncMaxResults (validate la salvare).
 const SYNC_MAX_RESULTS_MIN = 1;
 const SYNC_MAX_RESULTS_MAX = 50;
+// Câte erori per-mesaj se țin în lista syncErrors (ca să nu crească necontrolat răspunsul).
 const SYNC_ERRORS_MAX_ITEMS = 5;
+// Lungimea maximă a unui mesaj de eroare salvat (taie mesajele lungi de la Gmail).
 const SYNC_ERROR_MESSAGE_MAX_LENGTH = 180;
+// Algoritmul folosit pentru criptarea tokenilor Gmail la repaus (în baza de date).
 const MAIL_TOKEN_ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 
+// Derivă cheia de criptare din MAIL_TOKEN_ENCRYPTION_KEY (variabilă de mediu).
+// Cheia e transformată cu SHA-256 ca să aibă mereu lungimea corectă pentru AES-256.
 const getMailTokenEncryptionKey = () => {
     if (!MAIL_TOKEN_ENCRYPTION_KEY) {
         throw createError(
@@ -36,6 +57,11 @@ const getMailTokenEncryptionKey = () => {
     return crypto.createHash('sha256').update(MAIL_TOKEN_ENCRYPTION_KEY).digest();
 };
 
+// Criptează un token (access/refresh) cu AES-256-GCM înainte de a-l salva în baza de
+// date. GCM = un mod de criptare care produce și un "tag" de autentificare — astfel,
+// la decriptare se poate verifica dacă datele au fost alterate. IV (Initialization
+// Vector) = o valoare aleatoare unică pentru fiecare criptare, necesară pentru
+// securitate. De ce: dacă cineva ar fura baza de date, nu poate citi tokenii Gmail.
 const encryptMailToken = (token) => {
     if (typeof token !== 'string' || token.length === 0) {
         return token ?? null;
@@ -51,6 +77,8 @@ const encryptMailToken = (token) => {
     const encryptedValue = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
     const authTag = cipher.getAuthTag();
 
+    // Salvăm totul ca JSON: versiunea formatului (v), IV-ul, tag-ul de autentificare
+    // și datele criptate — toate codate în base64 ca să fie text simplu.
     return JSON.stringify({
         v: 1,
         iv: iv.toString('base64'),
@@ -59,6 +87,11 @@ const encryptMailToken = (token) => {
     });
 };
 
+// Inversul lui encryptMailToken: ia textul JSON salvat în baza de date și recuperează
+// tokenul original. Dacă formatul nu e cel criptat (de exemplu un token vechi, salvat
+// necriptat înainte de a se introduce criptarea) sau decriptarea eșuează (date alterate,
+// cheie greșită), returnăm valoarea brută ca să nu blocăm aplicația — sincronizarea va
+// eșua mai târziu cu o eroare clară de la Gmail, în loc de o eroare obscură aici.
 const decryptMailToken = (storedToken) => {
     if (typeof storedToken !== 'string' || storedToken.length === 0) {
         return null;
@@ -95,6 +128,8 @@ const decryptMailToken = (storedToken) => {
     }
 };
 
+// Wrapper folosit la salvare: tratează explicit null/undefined (nu există token de
+// reîmprospătare, de exemplu) ca null, fără să încerce să le cripteze.
 const encryptMailTokenForStorage = (token) => {
     if (token === null || token === undefined) {
         return null;
@@ -103,8 +138,11 @@ const encryptMailTokenForStorage = (token) => {
     return encryptMailToken(token);
 };
 
+// Wrapper folosit la citire, cu nume mai descriptiv la locul de apel.
 const getDecryptedMailToken = (storedToken) => decryptMailToken(storedToken);
 
+// Transformă un document MailAccount din baza de date într-un obiect "public" — fără
+// accessToken/refreshToken (criptate sau nu, nu trebuie să ajungă în frontend).
 const toPublicMailAccount = (mailAccount) => ({
     _id: mailAccount._id,
     userId: mailAccount.userId,
@@ -118,6 +156,9 @@ const toPublicMailAccount = (mailAccount) => ({
     updatedAt: mailAccount.updatedAt,
 });
 
+// Validează și normalizează valoarea syncMaxResults (câte emailuri se aduc la sync).
+// Acceptă number sau string numeric (din formular), respinge orice altceva sau
+// valori în afara intervalului SYNC_MAX_RESULTS_MIN..SYNC_MAX_RESULTS_MAX.
 export const normalizeSyncMaxResults = (value) => {
     if (value === undefined || value === null) {
         return SYNC_MAX_RESULTS_DEFAULT;
@@ -147,6 +188,9 @@ export const normalizeSyncMaxResults = (value) => {
     return normalizedValue;
 };
 
+// Curăță mesajul de eroare înainte de a-l salva în syncErrors: înlocuiește spațiile
+// multiple/newline-urile cu un singur spațiu și taie mesajele prea lungi (de exemplu
+// erori HTML returnate de Gmail), ca răspunsul către frontend să rămână mic și citibil.
 const sanitizeSyncErrorMessage = (error) => {
     const rawMessage = typeof error?.message === 'string' ? error.message : 'Unexpected sync error';
     const normalizedMessage = rawMessage.replace(/\s+/g, ' ').trim();
@@ -158,6 +202,8 @@ const sanitizeSyncErrorMessage = (error) => {
     return `${normalizedMessage.slice(0, SYNC_ERROR_MESSAGE_MAX_LENGTH)}...`;
 };
 
+// Construiește un obiect de eroare "public", într-un format stabil, pentru un mesaj
+// (email) care a eșuat la procesare în timpul sincronizării.
 const toSyncErrorItem = ({ messageId, stage, error }) => ({
     messageId,
     stage,
@@ -166,6 +212,8 @@ const toSyncErrorItem = ({ messageId, stage, error }) => ({
     message: sanitizeSyncErrorMessage(error),
 });
 
+// Scrie eroarea în consolă (server-side), cu context complet — util la depanare,
+// dar nu se trimite tot acest obiect către frontend (doar varianta din toSyncErrorItem).
 const logSyncItemFailure = ({ mailAccount, syncSource, messageId, stage, error }) => {
     console.error('[gmail-sync] Message processing failed', {
         userId: String(mailAccount.userId),
@@ -180,6 +228,8 @@ const logSyncItemFailure = ({ mailAccount, syncSource, messageId, stage, error }
     });
 };
 
+// Adaugă o eroare în lista syncErrors, dar nu peste limita SYNC_ERRORS_MAX_ITEMS.
+// Returnează false dacă era deja plină (eroarea nu a fost adăugată = "omisă").
 const pushCappedSyncError = ({ syncErrors, messageId, stage, error }) => {
     if (syncErrors.length >= SYNC_ERRORS_MAX_ITEMS) {
         return false;
@@ -196,8 +246,10 @@ const pushCappedSyncError = ({ syncErrors, messageId, stage, error }) => {
     return true;
 };
 
-// Log a per-message sync failure and store it (capped). Returns 1 when the error was
-// dropped because the cap was reached, 0 otherwise, so the caller can tally omissions.
+// Înregistrează (în consolă) o eroare de procesare pentru un mesaj și o stochează,
+// dacă încă e loc (vezi pushCappedSyncError). Returnează 1 dacă eroarea a fost
+// "omisă" (pentru că s-a atins limita), 0 altfel — apelantul adună aceste valori
+// pentru a raporta câte erori nu au putut fi incluse în răspuns.
 const recordSyncItemError = ({ mailAccount, syncSource, messageId, stage, error, syncErrors }) => {
     logSyncItemFailure({ mailAccount, syncSource, messageId, stage, error });
     const isStored = pushCappedSyncError({ syncErrors, messageId, stage, error });
@@ -205,9 +257,13 @@ const recordSyncItemError = ({ mailAccount, syncSource, messageId, stage, error,
     return isStored ? 0 : 1;
 };
 
-// After an upsert, re-read the email's _id so the scan pipeline can target it. A lookup
-// failure is recorded (not thrown) and yields no id. Returns { id, omitted } so the caller
-// can push the id and add `omitted` to its dropped-error tally.
+// "Upsert" = insert sau update, după caz (dacă documentul există deja, e actualizat;
+// altfel e creat). Mongoose nu ne dă direct _id-ul rezultat dintr-un updateOne, așa
+// că, după upsert, recitim emailul ca să obținem _id-ul — pipeline-ul de scanare are
+// nevoie de el ca să țintească exact acel email. Dacă citirea eșuează, eroarea e
+// înregistrată (nu aruncată) și nu se returnează niciun id. Returnează { id, omitted },
+// astfel încât apelantul să poată adăuga id-ul în listă și să adune valorile `omitted`
+// pentru a raporta câte erori au fost omise.
 const findUpsertedEmailId = async ({
     mailAccount,
     syncSource,
@@ -236,12 +292,22 @@ const findUpsertedEmailId = async ({
     }
 };
 
+// Returnează toate conturile de mail conectate de un user (de obicei unul singur,
+// Gmail), în formă "publică" (fără tokeni), cele mai recente primele.
 export const getMailAccountsForUser = async (userId) => {
     const mailAccounts = await MailAccount.find({ userId }).sort({ createdAt: -1 });
 
     return mailAccounts.map(toPublicMailAccount);
 };
 
+// Pasul 1 din OAuth: construiește URL-ul către pagina de consimțământ Google
+// (folosit de GET /mail-accounts/google/start). Verifică mai întâi că variabilele
+// de mediu pentru OAuth (client id/secret/redirect) sunt configurate.
+//
+// "state" = un JWT de scurtă durată (10 minute) care leagă răspunsul Google de
+// userul care a inițiat conectarea și împiedică atacuri CSRF (cineva care ar
+// trimite userului un link de "callback" fals, ca să-i conecteze contul lui Gmail
+// la al lui).
 export const getGoogleConnectUrl = async (userId) => {
     assertGoogleOAuthConfig();
 
@@ -259,6 +325,8 @@ export const getGoogleConnectUrl = async (userId) => {
     };
 };
 
+// Încearcă să parseze body-ul unui răspuns HTTP ca JSON; dacă nu e JSON valid
+// (de exemplu un răspuns vid sau HTML), returnează un obiect gol în loc să arunce.
 const parseJsonSafely = async (response) => {
     try {
         return await response.json();
@@ -267,6 +335,9 @@ const parseJsonSafely = async (response) => {
     }
 };
 
+// Verifică JWT-ul "state" primit înapoi de la Google (callback-ul OAuth). Dacă e
+// lipsă, invalid sau expirat, aruncă o eroare 400 — apelul de conectare se oprește
+// aici, fără să se mai ajungă la schimbul de token.
 const verifyGoogleOAuthState = (state) => {
     if (!state) {
         throw createError('Missing Google OAuth state', 400, [], 'GOOGLE_STATE_MISSING');
@@ -294,6 +365,9 @@ const verifyGoogleOAuthState = (state) => {
     }
 };
 
+// Pasul 2 din OAuth: schimbă "code"-ul de autorizare primit de la Google (după ce
+// userul a aprobat accesul) pe tokenii efectivi (access_token + refresh_token),
+// printr-o cerere POST către endpoint-ul de token al Google.
 const exchangeGoogleCodeForTokens = async (code) => {
     try {
         const response = await fetch(GOOGLE_OAUTH_TOKEN_URL, {
@@ -328,6 +402,10 @@ const exchangeGoogleCodeForTokens = async (code) => {
     }
 };
 
+// Reîmprospătează tokenul de acces Gmail folosind refresh_token-ul salvat, atunci
+// când tokenul de acces a expirat (Gmail răspunde cu 401). Salvează noii tokeni
+// (criptați) în baza de date și actualizează și obiectul `mailAccount` din memorie,
+// ca apelantul să poată continua imediat cu tokenul nou, fără să-l recitească din DB.
 const refreshGoogleAccessToken = async (mailAccount) => {
     const refreshToken = getDecryptedMailToken(mailAccount.refreshToken);
 
@@ -400,6 +478,11 @@ const refreshGoogleAccessToken = async (mailAccount) => {
     }
 };
 
+// Helper central pentru toate cererile către API-ul Gmail: trimite cererea cu
+// tokenul de acces curent, iar dacă Gmail răspunde 401 (token expirat), îl
+// reîmprospătează automat (refreshGoogleAccessToken) și reîncearcă o singură dată.
+// Astfel, restul codului nu se ocupă de expirarea tokenului — e transparent pentru
+// apelant.
 const requestGoogleJson = async ({
     mailAccount,
     url,
@@ -411,6 +494,7 @@ const requestGoogleJson = async ({
 }) => {
     let accessToken = getDecryptedMailToken(mailAccount.accessToken);
 
+    // attempt 0 = cu tokenul curent; attempt 1 = după reîmprospătare (dacă a fost 401).
     for (let attempt = 0; attempt < 2; attempt += 1) {
         let response;
 
@@ -435,6 +519,7 @@ const requestGoogleJson = async ({
         const payload = await parseJsonSafely(response);
 
         if (response.status === 401 && attempt === 0) {
+            // Tokenul a expirat -> îl reîmprospătăm și reluăm bucla (attempt 1).
             accessToken = await refreshGoogleAccessToken(mailAccount);
             continue;
         }
@@ -451,6 +536,8 @@ const requestGoogleJson = async ({
         return payload;
     }
 
+    // Ambele tentative au dat 401 -> reîmprospătarea nu a ajutat (refresh token
+    // invalid/expirat). Userul trebuie să reconecteze contul Gmail.
     throw createError(
         'Google access token is invalid or expired',
         401,
@@ -459,6 +546,9 @@ const requestGoogleJson = async ({
     );
 };
 
+// Cere lista de mesaje din INBOX (ids), limitată la syncMaxResults. Gmail returnează
+// doar id-uri scurte aici — detaliile complete (subiect, corp etc.) se aduc separat,
+// per mesaj, în fetchGmailMessageDetails.
 const fetchGmailMessagesList = async (mailAccount) => {
     const syncMaxResults = normalizeSyncMaxResults(mailAccount.syncMaxResults);
     const query = new URLSearchParams({
@@ -480,6 +570,8 @@ const fetchGmailMessagesList = async (mailAccount) => {
     return payload.messages || [];
 };
 
+// Endpoint pentru ecranul de setări: actualizează câte emailuri se aduc la o
+// sincronizare (syncMaxResults), pentru un cont de mail al userului curent.
 export const updateMailAccountSettingsForUser = async ({
     userId,
     mailAccountId,
@@ -519,6 +611,11 @@ export const updateMailAccountSettingsForUser = async ({
     return toPublicMailAccount(mailAccount);
 };
 
+// Acțiune declanșată din UI ("marchează ca spam și în Gmail"): mută mesajul în
+// folderul Spam din Gmail (adaugă label-ul SPAM, scoate INBOX). Toate verificările
+// de mai jos returnează un rezultat "skipped"/"failed" cu cod, în loc să arunce —
+// mutarea în Gmail e o acțiune secundară, care nu trebuie să blocheze restul
+// fluxului (de exemplu marcarea verdictului local) dacă nu se poate efectua.
 export const moveGmailMessageToSpam = async ({ userId, email }) => {
     if (email.provider !== 'gmail') {
         return {
@@ -593,6 +690,9 @@ export const moveGmailMessageToSpam = async ({ userId, email }) => {
     };
 };
 
+// Aduce detaliile complete ale unui mesaj Gmail (format=full -> include anteturile,
+// corpul și atașamentele), pe baza id-ului scurt obținut din fetchGmailMessagesList.
+// Rezultatul e dat mai departe la parseGmailMessageToEmailPayload.
 const fetchGmailMessageDetails = async ({ mailAccount, messageId }) => {
     const query = new URLSearchParams({
         format: 'full',
@@ -609,6 +709,9 @@ const fetchGmailMessageDetails = async ({ mailAccount, messageId }) => {
     });
 };
 
+// Cere adresa de email a contului Gmail conectat (din endpoint-ul de profil Gmail).
+// Folosit imediat după schimbul de tokeni, ca să știm CU CE cont Gmail s-a conectat
+// userul (salvat în câmpul accountEmail al MailAccount).
 const fetchGoogleAccountEmail = async (accessToken) => {
     try {
         const response = await fetch(GMAIL_PROFILE_URL, {
@@ -644,9 +747,19 @@ const fetchGoogleAccountEmail = async (accessToken) => {
     }
 };
 
+// Pasul 3 din OAuth, apelat de callback-ul GET /mail-accounts/google/callback după
+// ce userul a aprobat accesul în Google: validează "state"-ul (anti-CSRF), schimbă
+// "code"-ul pe tokeni, află adresa contului Gmail și salvează/actualizează contul
+// de mail al userului (upsert — creează dacă nu există, actualizează dacă există).
+//
+// Notă despre refresh_token: Google îl trimite DOAR la prima autorizare (sau când
+// userul revocă și reautorizează accesul). La reconectări ulterioare, dacă Google nu
+// trimite un refresh_token nou, păstrăm refresh_token-ul existent (existingMailAccount),
+// ca să nu pierdem accesul de reîmprospătare automată a tokenului.
 export const connectGoogleMailAccount = async ({ code, state, googleError }) => {
     assertGoogleOAuthConfig();
 
+    // Userul a refuzat / a anulat ecranul de consimțământ Google.
     if (googleError) {
         throw createError(
             'Google authorization failed',
@@ -673,6 +786,8 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
         ? new Date(Date.now() + tokenPayload.expires_in * 1000)
         : null;
 
+    // Citim contul existent (dacă există) ca să putem păstra vechiul refresh_token
+    // atunci când Google nu trimite unul nou la această reconectare.
     const existingMailAccount = await MailAccount.findOne({
         userId: decodedState.userId,
         provider: 'gmail',
@@ -706,6 +821,18 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
     return toPublicMailAccount(mailAccount);
 };
 
+// FUNCȚIA PRINCIPALĂ DE SINCRONIZARE — apelată manual (buton "Sync") sau automat
+// (auto-sync.service.js, la fiecare SYNC_INTERVAL_MINUTES). Pașii:
+// 1. Verifică că contul există, e Gmail și are token de acces.
+// 2. Ia lista de mesaje din INBOX (limitată la syncMaxResults).
+// 3. Pentru fiecare mesaj: aduce detaliile complete, le parsează într-un payload de
+//    Email, apoi face upsert în colecția Email (inserare dacă e nou, actualizare
+//    dacă există deja — pe baza indexului unic userId+providerMessageId).
+// 4. La final, declanșează pipeline-ul de scanare (runSyncScanPipeline) pentru
+//    emailurile noi/actualizate.
+//
+// Erorile per-mesaj sunt prinse și contorizate (syncErrors), NU aruncate — un singur
+// email cu probleme nu trebuie să oprească sincronizarea întregii liste.
 export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     const mailAccount = await MailAccount.findOne({
         _id: mailAccountId,
@@ -735,6 +862,9 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     }
 
     const gmailMessages = await fetchGmailMessagesList(mailAccount);
+    // Dacă e prima sincronizare a acestui cont (lastSyncedAt nu există încă), marcăm
+    // sursa ca "initial_sync" — util pentru loguri și pentru orice logică ulterioară
+    // care tratează diferit prima sincronizare.
     const syncSource = mailAccount.lastSyncedAt ? 'gmail_manual_sync' : 'gmail_initial_sync';
 
     let insertedCount = 0;
@@ -745,6 +875,9 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     const syncErrors = [];
     let omittedSyncErrorsCount = 0;
 
+    // Procesăm fiecare mesaj din listă, pas cu pas. Orice eroare la un mesaj e
+    // prinsă local (try/catch), contorizată în syncErrors, iar bucla continuă cu
+    // următorul mesaj — un email "stricat" nu blochează restul sincronizării.
     for (const gmailMessage of gmailMessages) {
         if (!gmailMessage.id) {
             skippedCount += 1;
@@ -755,6 +888,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
 
         let messageDetails;
 
+        // Pas 1: detaliile complete ale mesajului (subiect, corp, anteturi, atașamente).
         try {
             messageDetails = await fetchGmailMessageDetails({
                 mailAccount,
@@ -776,6 +910,9 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
 
         let emailPayload;
 
+        // Pas 2: parsăm răspunsul brut de la Gmail într-un payload pregătit pentru
+        // modelul Email (extrage expeditor, link-uri suspecte, atașamente etc. —
+        // vezi email-parser.service.js și link-analysis.service.js).
         try {
             emailPayload = parseGmailMessageToEmailPayload({
                 gmailMessage: messageDetails,
@@ -800,6 +937,11 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
 
         let updateResult;
 
+        // Pas 3: upsert în colecția Email. Filtrul (userId + providerMessageId) e unic
+        // (vezi indexul din model), deci dacă emailul există deja, e ACTUALIZAT ($set)
+        // — de exemplu, dacă userul l-a citit/șters în Gmail de la ultima sincronizare.
+        // Dacă nu există, e INSERAT (upsert), iar $setOnInsert pune createdAt o singură
+        // dată, la creare.
         try {
             updateResult = await Email.updateOne(
                 {
@@ -843,6 +985,8 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         });
         omittedSyncErrorsCount += omitted;
 
+        // upsertedCount === 1 înseamnă că documentul a fost CREAT (inserare nouă);
+        // altfel, documentul exista deja și a fost actualizat.
         if (updateResult.upsertedCount === 1) {
             insertedCount += 1;
             if (upsertedEmailId) {
@@ -856,6 +1000,9 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         }
     }
 
+    // Dacă au existat mai multe erori decât SYNC_ERRORS_MAX_ITEMS, cele care nu au
+    // încăput în syncErrors sunt totuși logate aici, sumarizat, ca să nu se piardă
+    // complet informația din loguri.
     if (omittedSyncErrorsCount > 0) {
         console.warn('[gmail-sync] syncErrors cap reached', {
             userId: String(mailAccount.userId),
@@ -869,6 +1016,8 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
 
     const syncedAt = new Date();
 
+    // Marchează contul ca sincronizat acum și activ (status 'active' — confirmă că
+    // accesul Gmail funcționează).
     await MailAccount.updateOne(
         { _id: mailAccount._id },
         {
@@ -879,6 +1028,8 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         }
     );
 
+    // Pas 4: scanează emailurile noi/actualizate (din scan.service.js). Emailurile pe
+    // care userul le-a marcat deja manual sunt sărite acolo — nu le suprascriem decizia.
     const scanSummary = await runSyncScanPipeline({
         userId: mailAccount.userId,
         insertedEmailIds,
@@ -901,6 +1052,9 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     };
 };
 
+// Deconectează contul de mail: șterge documentul MailAccount (inclusiv tokenii
+// criptați salvați pe el). Emailurile deja sincronizate rămân în baza de date — doar
+// legătura cu Gmail (și posibilitatea de a sincroniza din nou) e eliminată.
 export const disconnectMailAccountForUser = async ({ userId, mailAccountId }) => {
     const mailAccount = await MailAccount.findOne({
         _id: mailAccountId,

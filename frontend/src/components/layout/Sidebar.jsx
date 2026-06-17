@@ -39,7 +39,7 @@ function NavItem({ to, label, icon: Icon, onNavigate }) {
       className={({ isActive }) =>
         cn(
           'block rounded-sm outline-none transition-colors',
-          isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+          isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
         )
       }
     >
@@ -56,7 +56,7 @@ function NavItem({ to, label, icon: Icon, onNavigate }) {
               <motion.span
                 layoutId="sidebar-active"
                 transition={springSoft}
-                className="absolute inset-0 rounded-sm bg-primary/12 ring-1 ring-inset ring-primary/15"
+                className="absolute inset-0 rounded-sm bg-[#0d2654]"
               />
               <motion.span
                 layoutId="sidebar-accent"
@@ -125,12 +125,12 @@ export function SidebarContent({ onNavigate }) {
         {NAV.map((item) => (
           <NavItem key={item.to} {...item} onNavigate={onNavigate} />
         ))}
-      </nav>
 
-      {/* Secondary — kept below the primary nav so it doesn't read as a 5th page */}
-      <div className="px-3 py-2">
+        {/* Thin divider, matching the sidebar border, separating Support
+            from the primary pages so it doesn't read as a 5th page */}
+        <div className="my-2 border-t border-border" />
         <SidebarSupport onNavigate={onNavigate} />
-      </div>
+      </nav>
 
       {/* Gmail connection status */}
       <div className="px-3 py-2.5">
@@ -167,7 +167,7 @@ export function SidebarContent({ onNavigate }) {
 
 export function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 overflow-y-auto bg-background md:block">
+    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 overflow-y-auto border-r border-border bg-background md:block">
       <SidebarContent />
     </aside>
   );

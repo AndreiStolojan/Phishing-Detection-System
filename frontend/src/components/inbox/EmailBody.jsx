@@ -30,7 +30,7 @@ export function EmailBody({ htmlBody, textBody, riskBucket }) {
             </span>
             <button
               onClick={() => setImagesLoaded(true)}
-              className="font-medium text-primary transition-colors hover:text-primary-hover"
+              className="font-medium text-link transition-colors hover:text-link/80"
             >
               Load images
             </button>

@@ -1,108 +1,126 @@
-/*
- * Central scoring configuration — the single source of truth for every weight,
- * cap and threshold used by the phishing scan engine.
- *
- * Rationale and the full before/after reasoning live in
- * docs/SCORING_WEIGHTS_REVIEW.md. Each weight below carries a one-line rationale.
- *
- * Model: finalScore = min(SCORE_MAX, ruleScore + aiScore), then RISK_THRESHOLDS
- * map the score to a verdict. The scale is 0–100 (stands in for a normalized 1.0).
- *
- * Invariants the numbers must preserve (see review doc §4):
- *   1. No single signal reaches HIGH_RISK (60) alone.
- *   2. No single weak signal exceeds the MEDIUM band (>=30) alone.
- *   3. AI alone can never declare phishing (AI_SCORE_MAX < HIGH_RISK threshold);
- *      rules reach 60 only via two independent strong rules (corroboration).
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// scoring.config.js — REGULILE de detecție: singura sursă de adevăr pentru
+// puncte, plafoane și praguri.
+//
+// Ce face, pe scurt: definește TOATE numerele folosite de motorul de scanare
+// (scan.service.js) pentru a calcula scorul de risc al unui email și a-l
+// transforma într-un verdict (safe / suspicious / likely_phishing). Conține:
+//   - praguri de verdict (RISK_THRESHOLDS),
+//   - punctele fiecărei reguli deterministe (RULE_WEIGHTS),
+//   - punctele fiecărui semnal AI (AI_SIGNAL_WEIGHTS) + plafonul AI (AI_SCORE_MAX),
+//   - două straturi de "context" care pot REDUCE (niciodată crește) punctele:
+//     brand verificat (VERIFIED_BRAND_MODIFIERS) și liste ale userului
+//     (USER_ALLOWLIST_MODIFIERS / USER_BLOCKLIST_RULE_POINTS).
+//
+// Modelul de scor: scorFinal = min(SCORE_MAX, scorReguli + scorAI), apoi
+// RISK_THRESHOLDS traduce scorul în verdict. Scala e 0–100 (echivalent cu 1.0
+// normalizat).
+//
+// Cele trei invariante (regulile de aur) care trebuie păstrate de orice modificare
+// a numerelor de mai jos (vezi și docs/SCORING_WEIGHTS_REVIEW.md §4):
+//   1. Niciun semnal singur nu atinge pragul HIGH_RISK (60).
+//   2. Niciun semnal slab singur nu trece de banda MEDIUM (>=30).
+//   3. AI singur nu poate declara phishing (AI_SCORE_MAX < pragul de 60);
+//      pragul de 60 se atinge prin reguli doar dacă DOUĂ reguli forte se
+//      confirmă reciproc (corroborare).
+//
+// Detalii: docs/EXPLICATIE_BACKEND.md §4.1, §4.3, §4.4.
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Top of the 0–100 scale. Final score is clamped to this.
+// Capătul de sus al scalei 0–100. Scorul final e plafonat (clamp) la această valoare.
 export const SCORE_MAX = 100;
 
-// Verdict thresholds (locked by tests/unit/schema-contract.test.js).
+// Pragurile care transformă scorul numeric în verdict. Sunt "blocate" de
+// tests/unit/schema-contract.test.js — nu le schimbăm fără să actualizăm și testul.
 export const RISK_THRESHOLDS = {
-    suspicious: 30, // >= 30 -> suspicious (medium risk)
-    likelyPhishing: 60, // >= 60 -> likely_phishing (high risk)
+    suspicious: 30, // scor >= 30 -> "suspicious" (risc mediu)
+    likelyPhishing: 60, // scor >= 60 -> "likely_phishing" (risc mare)
 };
 
-// Deterministic rule weights (points added to ruleScore when the rule triggers).
+// Punctele regulilor deterministe (se adună la scorReguli când regula se declanșează).
+// Fiecare valoare are un motiv concret — comentariile de pe fiecare linie explică
+// de ce e "tare" (multe puncte) sau "slabă" (puține puncte) o regulă.
 export const RULE_WEIGHTS = {
-    high_risk_attachment_extension: 35, // strong: executable attachments are near-certain abuse
-    ip_address_link: 25, // strong: legit services never link to a raw IP
-    embedded_credentials: 25, // strong: user:pass@host is highly abnormal in real mail
-    reply_to_mismatch: 18, // medium: common in legit ESP/marketing mail, so demoted from strong
-    punycode_domain: 20, // strong: visual-spoofing signal, small IDN false-positive tail
-    shortened_url_detected: 15, // medium: dual-use; newsletters use shorteners too
-    too_many_links_high: 18, // weak heuristic (>=10 links): must not alone reach "suspicious"
-    too_many_links_medium: 10, // weak heuristic (6–9 links): a nudge, not a near-verdict
-    archive_attachment_extension: 12, // weak-medium: archives are dual-use
-    very_long_url: 8, // weak: long tracking URLs are common in legit mail
+    high_risk_attachment_extension: 35, // tare: atașamente executabile (.exe, .scr...) = abuz aproape sigur
+    ip_address_link: 25, // tare: serviciile reale nu trimit linkuri către o adresă IP brută
+    embedded_credentials: 25, // tare: "user:pass@host" e extrem de anormal în email real
+    reply_to_mismatch: 18, // mediu: apare și la marketing/ESP legitim, de-aia e coborâtă de la "tare"
+    punycode_domain: 20, // tare: semnal de "spoofing vizual" (ex: paypaI.com), puține fals-pozitive
+    shortened_url_detected: 15, // mediu: dual-use — și newsletterele folosesc bit.ly etc.
+    too_many_links_high: 18, // slabă (euristică, >=10 linkuri): nu trebuie să ajungă singură la "suspect"
+    too_many_links_medium: 10, // slabă (euristică, 6-9 linkuri): doar un mic semnal, nu aproape-verdict
+    archive_attachment_extension: 12, // slab-mediu: arhivele (.zip etc.) sunt dual-use
+    very_long_url: 8, // slabă: link-uri lungi de tracking sunt comune în email legitim
 };
 
-// AI semantic signal weights (points added to aiScore). Secondary and conservative.
+// Punctele semnalelor AI (se adună la scorAI). Sunt secundare și mai conservatoare
+// decât regulile — un LLM poate "halucina", așa că nu-i dăm puncte la fel de mari.
 export const AI_SIGNAL_WEIGHTS = {
     urgency_high: 8,
     urgency_medium: 4,
-    sensitive_data_request: 20, // strongest AI signal: password/OTP/card request
+    sensitive_data_request: 20, // cel mai puternic semnal AI: cerere de parolă/OTP/card
     login_or_action_request: 8,
     social_engineering_high: 12,
     social_engineering_medium: 6,
     brand_impersonation_suspected: 10,
 };
 
-/*
- * Hard cap on the AI contribution. Kept strictly below RISK_THRESHOLDS.likelyPhishing
- * so the semantic layer can escalate risk and corroborate the rules, but can NEVER
- * declare "likely_phishing" on its own without the deterministic rules agreeing.
- */
+// Plafonul (cap) strict pentru contribuția AI la scorul final. Ținut sub
+// RISK_THRESHOLDS.likelyPhishing (60) ca AI să poată RIDICA suspiciunea și
+// confirma regulile, dar NICIODATĂ să nu poată declara singur "likely_phishing"
+// fără ca regulile deterministe să fie de acord. Asta e invarianta #3 de mai sus.
 export const AI_SCORE_MAX = 50;
 
-/*
- * Reference maximum for the rule-score progress bar in the UI. The rule score is not
- * individually clamped in the engine, but it shares the same 0–100 scale as the final
- * score, so the bar is drawn against SCORE_MAX. Exposed here so the UI never hardcodes it.
- */
+// Valoarea maximă de referință pentru bara de progres "scor reguli" din UI.
+// scorReguli nu e plafonat individual în motor, dar folosește aceeași scală
+// 0–100 ca scorul final — deci bara se desenează relativ la SCORE_MAX. Expus
+// aici ca frontendul să nu "hardcodeze" o valoare separat.
 export const RULE_SCORE_MAX = SCORE_MAX;
 
 /*
- * ── Verified-brand context modifier layer ──────────────────────────────────────
+ * ── Stratul de modificatori pentru "brand verificat" ───────────────────────────
  *
- * These are CONTEXT MULTIPLIERS, not new base weights. They are applied on top of
- * the base weights above ONLY when sender-brand verification succeeds
- * (senderVerifiedBrand === true — see brand-verification.service.js). The base
- * weights in RULE_WEIGHTS / AI_SIGNAL_WEIGHTS are never mutated; the engine reads
- * the base weight and multiplies it through applyVerifiedBrandModifier() at the
- * moment a rule fires.
+ * Acestea sunt MULTIPLICATORI DE CONTEXT, nu greutăți noi. Se aplică PESTE
+ * greutățile de bază de mai sus, DOAR când verificarea de brand a expeditorului
+ * a reușit (senderVerifiedBrand === true — vezi brand-verification.service.js).
+ * Greutățile de bază din RULE_WEIGHTS / AI_SIGNAL_WEIGHTS nu sunt modificate
+ * niciodată; motorul citește greutatea de bază și o înmulțește prin
+ * applyVerifiedBrandModifier() în momentul în care o regulă se declanșează.
  *
- * Reasoning: when an email genuinely comes from a brand's own domain, the signals
- * that look phishy in the abstract (urgency, lots of links, a "Sign in" button,
- * replies routed to a support/ESP domain) are exactly what real transactional and
- * marketing mail looks like. They are much weaker evidence here, so we discount
- * them. A multiplier keyed per signal keeps the discount auditable and in one place.
+ * Raționament: când un email vine cu adevărat de pe domeniul propriu al unui
+ * brand, semnale care par suspecte în abstract (urgență, multe linkuri, un
+ * buton "Sign in", reply-uri redirecționate către un domeniu de suport/ESP)
+ * sunt EXACT cum arată mailul real, tranzacțional sau de marketing, al acelui
+ * brand. Aici sunt dovezi mult mai slabe, deci le reducem. Un multiplicator pe
+ * fiecare semnal ține reducerea auditabilă și într-un singur loc.
  *
- *   key                         multiplier  effect on a verified-brand email
- *   ─────────────────────────── ──────────  ─────────────────────────────────────
- *   brand_impersonation_suspected  0.0   suppressed — it came from the real brand
- *   login_or_action_request        0.3   CTA buttons are standard in brand mail
- *   too_many_links_high            0.4   brand newsletters are link-heavy by design
- *   too_many_links_medium          0.4   same
- *   urgency_high                   0.5   real companies do send account/security alerts
- *   urgency_medium                 0.5   same
- *   social_engineering_high        0.5   overlaps with the "account alert" framing above
- *   social_engineering_medium      0.5   same
- *   reply_to_mismatch              0.5   verified brands commonly split send/reply domains
+ *   cheie                         multiplicator  efect pe un email de brand verificat
+ *   ───────────────────────────── ─────────────  ───────────────────────────────────────
+ *   brand_impersonation_suspected  0.0   anulat — a venit chiar de la brandul real
+ *   login_or_action_request        0.3   butoanele CTA sunt standard în mailul de brand
+ *   too_many_links_high            0.4   newsletterele de brand au, în mod normal, multe linkuri
+ *   too_many_links_medium          0.4   la fel
+ *   urgency_high                   0.5   companiile reale trimit și alerte de cont/securitate
+ *   urgency_medium                 0.5   la fel
+ *   social_engineering_high        0.5   se suprapune cu "alerta de cont" de mai sus
+ *   social_engineering_medium      0.5   la fel
+ *   reply_to_mismatch              0.5   brandurile verificate despart frecvent domeniul de trimitere de cel de reply
  *
- * Signals intentionally LEFT AT FULL WEIGHT for verified brands (NOT listed here):
- *   - sensitive_data_request — a real brand never asks for your password/OTP/card by
- *     email; this stays a top signal even from a "verified" sender (covers compromised
- *     accounts and any spoofing the domain check can't catch).
- *   - shortened_url_detected — brand-controlled mail rarely needs a bit.ly wrapper.
+ * Semnale lăsate INTENȚIONAT la greutate plină pentru branduri verificate (NU apar
+ * în tabelul de mai jos):
+ *   - sensitive_data_request — un brand real nu cere parola/OTP/cardul prin email;
+ *     rămâne semnal de top chiar și de la un expeditor "verificat" (acoperă conturi
+ *     compromise și orice spoofing pe care verificarea de domeniu nu-l prinde).
+ *   - shortened_url_detected — mailul controlat de brand rareori are nevoie de un
+ *     link scurtat (bit.ly).
  *   - ip_address_link, embedded_credentials, punycode_domain, very_long_url,
- *     high_risk_attachment_extension, archive_attachment_extension — payload/transport
- *     signals that are abnormal regardless of who claims to be sending.
+ *     high_risk_attachment_extension, archive_attachment_extension — semnale de
+ *     transport/payload care sunt anormale indiferent cine pretinde că trimite.
  *
- * There is no HTML-heavy / image-ratio rule or generic-greeting rule in this engine,
- * so the task's rows for those have no weight to modify (documented, not invented —
- * adding such a penalty would only create NEW false positives for unverified mail).
+ * Nu există în acest motor o regulă "mult HTML / multe imagini" sau "salut generic",
+ * deci rândurile pentru ele din cerință nu au o greutate de modificat (documentat,
+ * nu inventat — a adăuga o astfel de penalizare ar crea doar fals-pozitive noi
+ * pentru mailul neverificat).
  */
 export const VERIFIED_BRAND_MODIFIERS = {
     brand_impersonation_suspected: 0,
@@ -117,11 +135,13 @@ export const VERIFIED_BRAND_MODIFIERS = {
 };
 
 /*
- * Apply the verified-brand context modifier to a base weight.
- *   - Not a verified-brand email → base points unchanged.
- *   - Verified, signal not in the modifier table → base points unchanged (full weight).
- *   - Verified, signal in the table → rounded, discounted points (0 = suppressed).
- * Base weights are read-only here; this only scales the points a rule contributes.
+ * Aplică modificatorul de context "brand verificat" peste o greutate de bază.
+ *   - Nu e email de brand verificat → punctele de bază rămân neschimbate.
+ *   - Verificat, dar semnalul nu e în tabelul de modificatori → punctele de bază
+ *     rămân neschimbate (greutate plină).
+ *   - Verificat și semnalul e în tabel → puncte reduse, rotunjite (0 = anulat).
+ * Greutățile de bază sunt citite doar (read-only) aici; funcția doar scalează
+ * punctele pe care le contribuie o regulă.
  */
 export const applyVerifiedBrandModifier = (signalKey, basePoints, { senderVerifiedBrand } = {}) => {
     if (!senderVerifiedBrand) {
@@ -138,29 +158,30 @@ export const applyVerifiedBrandModifier = (signalKey, basePoints, { senderVerifi
 };
 
 /*
- * ── User sender-list layer (allowlist / blocklist) ─────────────────────────────
+ * ── Stratul listelor de expeditori ale userului (allowlist / blocklist) ────────
  *
- * Unlike every weight above, these encode an EXPLICIT USER DECISION, not a
- * heuristic. That is why the blocklist weight lives outside RULE_WEIGHTS: the
- * invariant "no single signal reaches HIGH_RISK alone" applies to detection
- * heuristics, which can be wrong; a user saying "block this sender" is not a
- * heuristic and is allowed to decide the verdict by itself.
+ * Diferit de toate greutățile de mai sus, acestea codifică o DECIZIE EXPLICITĂ A
+ * USERULUI, nu o euristică. De aceea greutatea blocklist-ului trăiește separat de
+ * RULE_WEIGHTS: invarianta "niciun semnal singur nu atinge HIGH_RISK" se aplică
+ * euristicilor de detecție, care pot greși; dar un user care spune "blochează acest
+ * expeditor" nu e o euristică — i se permite să decidă singur verdictul.
  *
- * Blocklist — hard floor. The rule contributes exactly the likely_phishing
- * threshold, so a blocklisted sender/domain is GUARANTEED that verdict by
- * construction (tying it to RISK_THRESHOLDS keeps the guarantee if thresholds
- * ever move). Real signals still add on top, so the score remains informative.
+ * Blocklist — prag minim garantat (hard floor). Regula contribuie EXACT pragul
+ * likely_phishing, deci un expeditor/domeniu blocat are GARANTAT acest verdict
+ * prin construcție (legarea de RISK_THRESHOLDS păstrează garanția chiar dacă
+ * pragurile se schimbă vreodată). Semnalele reale se adună tot pe deasupra, deci
+ * scorul rămâne informativ.
  *
- * Allowlist — strong discount, NOT a hard "safe". The user trusts the sender,
- * so contextual signals (urgency, link counts, CTAs, reply-to splits) are muted.
- * Payload signals that indicate a compromised or spoofed trusted account keep
- * full weight:
- *   - sensitive_data_request (a trusted sender still never asks for passwords/OTP)
+ * Allowlist — reducere puternică, dar NU "sigur" garantat. Userul are încredere în
+ * expeditor, deci semnalele CONTEXTUALE (urgență, număr de linkuri, butoane CTA,
+ * discrepanțe reply-to) sunt reduse. Semnalele de PAYLOAD care indică un cont de
+ * încredere compromis sau falsificat rămân la greutate plină:
+ *   - sensitive_data_request (un expeditor de încredere tot nu cere parole/OTP)
  *   - high_risk_attachment_extension, ip_address_link, embedded_credentials,
- *     punycode_domain — abnormal transport/payload regardless of trust.
- * This is deliberately STRONGER than the verified-brand layer (user intent beats
- * domain reputation) but never weaker than it: the engine takes the minimum
- * multiplier when both apply.
+ *     punycode_domain — anormale la nivel de transport/payload, indiferent de încredere.
+ * Acest strat e intenționat MAI PUTERNIC decât stratul "brand verificat" (intenția
+ * userului bate reputația domeniului), dar niciodată mai slab decât el: motorul
+ * folosește multiplicatorul MINIM când ambele se aplică.
  */
 export const USER_BLOCKLIST_RULE_POINTS = RISK_THRESHOLDS.likelyPhishing;
 
@@ -180,21 +201,26 @@ export const USER_ALLOWLIST_MODIFIERS = {
 };
 
 /*
- * Combined context modifier: applies the verified-brand and user-allowlist layers
- * together by taking the minimum multiplier (discounts never stack multiplicatively,
- * and a layer can only lower a weight, never raise it).
+ * Modificatorul de context combinat: aplică straturile "brand verificat" și
+ * "allowlist al userului" împreună, luând multiplicatorul MINIM (reducerile nu
+ * se cumulează multiplicativ, iar un strat poate doar reduce o greutate, niciodată
+ * să o crească).
  */
 export const applyScoreContextModifiers = (signalKey, basePoints, context = {}) => {
     let multiplier = 1;
 
+    // Dacă emailul e de la un brand verificat și acest semnal are un modificator
+    // definit, folosim modificatorul (dar doar dacă e mai mic decât ce avem deja).
     if (context.senderVerifiedBrand && VERIFIED_BRAND_MODIFIERS[signalKey] !== undefined) {
         multiplier = Math.min(multiplier, VERIFIED_BRAND_MODIFIERS[signalKey]);
     }
 
+    // Același lucru pentru allowlist-ul userului.
     if (context.senderAllowlisted && USER_ALLOWLIST_MODIFIERS[signalKey] !== undefined) {
         multiplier = Math.min(multiplier, USER_ALLOWLIST_MODIFIERS[signalKey]);
     }
 
+    // Niciun strat nu s-a aplicat → punctele de bază rămân neschimbate.
     if (multiplier === 1) {
         return basePoints;
     }

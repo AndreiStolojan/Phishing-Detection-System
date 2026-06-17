@@ -120,7 +120,7 @@ export function LoginPage() {
         transition={springSoft}
         className="relative w-full max-w-[400px]"
       >
-        <div className="rounded-2xl border border-border bg-card/80 p-8 shadow-2xl backdrop-blur-xl">
+        <div className="rounded-2xl border border-border bg-card p-8 shadow-2xl">
           <motion.div {...staggerParent(0.06)}>
             {/* Brand header */}
             <motion.div {...staggerChild} className="mb-6 flex flex-col items-center text-center">
@@ -297,7 +297,7 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={toggleMode}
-                className="font-medium text-primary hover:underline"
+                className="font-medium text-link hover:underline"
               >
                 {isRegistering ? 'Sign in' : 'Create one'}
               </button>

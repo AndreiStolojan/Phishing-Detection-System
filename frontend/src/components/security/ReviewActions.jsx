@@ -1,3 +1,21 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ReviewActions.jsx — butoanele "Mark safe" / "Mark phishing" de pe pagina de detaliu.
+//
+// Ce face, pe scurt: permite userului să suprascrie manual verdictul automat
+// al scanului ("e sigur" sau "e phishing"). "Mark phishing" mută emailul și în
+// folderul Spam din Gmail (acțiune făcută de backend). Decizia userului devine
+// noul "effectiveVerdict" peste tot în aplicație.
+//
+// Important — pattern "optimist" (optimistic update): când userul apasă un
+// buton, UI-ul se schimbă INSTANT (nu așteptăm răspunsul serverului). Dacă
+// cererea către backend reușește, rămâne așa și se arată un toast de succes.
+// Dacă cererea eșuează, starea se dă înapoi ("rollback") la valoarea de
+// dinainte și se arată o eroare. Astfel aplicația pare rapidă, dar tot se
+// corectează singură dacă ceva nu merge.
+//
+// Detalii: docs/EXPLICATIE_FRONTEND.md §6.4.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, ShieldX, Loader2, Check } from 'lucide-react';
@@ -10,6 +28,8 @@ import { emailId } from '@/lib/email';
 import { springSnappy } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
+// Mică animație: o bifă (✓) care "sare" în vizibilitate, afișată când userul
+// a marcat un email ca "safe" sau "phishing" (confirmare vizuală a acțiunii).
 function AnimatedCheck() {
   return (
     <motion.span
@@ -28,12 +48,21 @@ function AnimatedCheck() {
  * move the Gmail message to Spam (handled by the backend). State flips
  * optimistically and rolls back if the request fails.
  */
+// Componenta principală: cele două butoane de revizuire manuală a unui email.
+// - email: emailul curent (din care citim verdictul deja salvat de user, dacă există).
+// - onReviewed: callback apelat după ce backend-ul confirmă acțiunea, ca pagina
+//   părinte să poată invalida cache-urile (lista, dashboard-ul etc.).
 export function ReviewActions({ email, onReviewed }) {
+  // useAsyncAction e un hook care "împachetează" o cerere API, oferind
+  // .run() (execută cererea) și .loading (true cât timp e în curs).
   const safe = useAsyncAction(markEmailSafe);
   const phishing = useAsyncAction(markEmailPhishing);
   const busy = safe.loading || phishing.loading;
 
+  // Starea locală a verdictului userului ('safe', 'phishing' sau null = nedecis).
   const [verdict, setVerdict] = useState(email?.userVerdict ?? null);
+  // Dacă se schimbă emailul afișat (navigare cu ← / →) sau verdictul lui din server,
+  // resetăm starea locală ca să reflecte emailul nou.
   useEffect(() => {
     setVerdict(email?.userVerdict ?? null);
   }, [email?.userVerdict, email?.id, email?._id]);
@@ -41,18 +70,20 @@ export function ReviewActions({ email, onReviewed }) {
   const reviewedSafe = verdict === 'safe';
   const reviewedPhishing = verdict === 'phishing';
 
+  // Funcția apelată la click pe unul din butoane. kind = 'safe' sau 'phishing'.
   const handle = async (kind) => {
     const previous = verdict;
-    setVerdict(kind); // optimistic
+    setVerdict(kind); // actualizare optimistă: schimbăm UI-ul imediat, înainte de răspunsul serverului
     try {
       const action = kind === 'safe' ? safe : phishing;
       const result = await action.run(emailId(email));
       toast.success(
         kind === 'safe' ? 'Marked as safe' : 'Marked as phishing · Moved to Gmail Spam'
       );
+      // Anunțăm pagina-părinte că review-ul s-a salvat, ca să poată reîmprospăta datele.
       onReviewed?.(result);
     } catch (err) {
-      setVerdict(previous); // roll back
+      setVerdict(previous); // cererea a eșuat -> revenim la starea de dinainte (rollback)
       toast.error(err.message || 'Action failed. Please try again.');
     }
   };

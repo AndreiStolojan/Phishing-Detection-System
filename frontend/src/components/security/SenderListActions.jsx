@@ -1,3 +1,20 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// SenderListActions.jsx — meniul "Trust / Block" pentru expeditorul emailului.
+//
+// Ce face, pe scurt: afișează un buton cu meniu (dropdown) care permite
+// userului să adauge expeditorul (adresa exactă) și/sau domeniul lui în
+// lista de încredere (allowlist) sau în lista de blocare (blocklist) —
+// vezi sender-list.service.js / controller din backend. O regulă pe expeditor
+// are prioritate față de o regulă pe domeniu la momentul scanării, deci nu se
+// pot adăuga reguli contradictorii (sender vs. domeniu). Modificările afectează
+// doar scanările viitoare, de aceea componenta-părinte arată un mesaj
+// "Scan again" după fiecare schimbare.
+//
+// Folosit în EmailDetailPage, lângă detaliile expeditorului.
+//
+// Detalii: docs/EXPLICATIE_FRONTEND.md §6.3.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -30,13 +47,27 @@ import { cn } from '@/lib/utils';
  * domain entry at scan time). List changes only affect future scans, so the
  * parent shows a "Scan again" prompt after each change.
  */
+// Props:
+// - senderAddress / senderDomain = adresa și domeniul expeditorului emailului curent
+// - senderEntry / domainEntry = intrările existente (dacă există) din lista
+//   userului pentru acel sender/domeniu — { id, listType: 'allow'|'block', ... }
+// - onChanged = callback apelat după ce o operație (adăugare/ștergere) a reușit,
+//   ca să anunțe pagina-părinte să reîmprospăteze datele
 export function SenderListActions({ senderAddress, senderDomain, senderEntry, domainEntry, onChanged }) {
+  // Stare locală: blocăm butoanele cât timp o cerere e în curs (spinner)
   const [busy, setBusy] = useState(false);
 
+  // Normalizăm adresa și domeniul (ex: lowercase, trim) ca să se compare corect
+  // cu valorile salvate în baza de date.
   const address = normalizeAddress(senderAddress);
   const domain = normalizeDomain(senderDomain);
+  // `match` = orice intrare existentă (pe sender SAU pe domeniu), folosită pentru
+  // a decide ce text/iconiță arată butonul principal
   const match = senderEntry || domainEntry;
 
+  // Helper generic: rulează o acțiune asincronă (apel API), arată starea de
+  // "busy", anunță părintele la succes (cu un mesaj) sau arată un toast de
+  // eroare la eșec.
   const run = async (action, message) => {
     setBusy(true);
     try {
@@ -49,20 +80,25 @@ export function SenderListActions({ senderAddress, senderDomain, senderEntry, do
     }
   };
 
+  // Adaugă o intrare nouă în listă: listType = 'allow'/'block', kind = 'sender'/'domain'
   const addEntry = (listType, kind, value) =>
     run(
       () => addSenderListEntry({ listType, kind, value }),
       `${kind === 'sender' ? 'Sender' : 'Domain'} ${listType === 'allow' ? 'trusted' : 'blocked'}.`
     );
 
+  // Șterge o intrare existentă din listă (după id-ul ei)
   const removeEntry = (entry) =>
     run(
       () => removeSenderListEntry(entry.id),
       `Removed from ${entry.listType === 'allow' ? 'trusted' : 'blocked'} list.`
     );
 
+  // Dacă nu avem nici adresă, nici domeniu valid, nu are sens să arătăm meniul.
   if (!address && !domain) return null;
 
+  // Textul și iconița butonului principal: dacă există deja o regulă (match),
+  // arătăm starea ei ("Trusted" / "Blocked"); altfel, textul generic "Trust / Block".
   const triggerLabel = match
     ? match.listType === 'allow'
       ? 'Trusted'
@@ -76,6 +112,8 @@ export function SenderListActions({ senderAddress, senderDomain, senderEntry, do
 
   return (
     <DropdownMenu>
+      {/* Butonul care deschide meniul — schimbă culoare/iconiță în funcție
+          de regula deja existentă (allow = verde, block = roșu) */}
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
@@ -93,6 +131,7 @@ export function SenderListActions({ senderAddress, senderDomain, senderEntry, do
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
+        {/* ── Secțiunea pentru adresa exactă a expeditorului ── */}
         {address && (
           <>
             <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
@@ -100,18 +139,21 @@ export function SenderListActions({ senderAddress, senderDomain, senderEntry, do
               <span className="truncate">{address}</span>
             </DropdownMenuLabel>
             {senderEntry ? (
+              // Există deja o regulă pe acest sender -> oferim doar opțiunea de ștergere
               <DropdownMenuItem onClick={() => removeEntry(senderEntry)}>
                 <X className="h-4 w-4" />
                 Remove from {senderEntry.listType === 'allow' ? 'trusted' : 'blocked'} list
               </DropdownMenuItem>
             ) : domainEntry ? (
-              // The domain rule already covers this sender; a contradicting sender
-              // rule is rejected by the backend, so don't offer it.
+              // Regula de pe domeniu deja acoperă acest sender; o regulă pe sender
+              // care ar contrazice regula de domeniu este respinsă de backend
+              // (conflict 409 LIST_CONFLICT), deci nu o mai oferim ca opțiune.
               <p className="px-2 py-1.5 text-xs text-muted-foreground">
                 Already {domainEntry.listType === 'allow' ? 'trusted' : 'blocked'} through the
                 domain rule below.
               </p>
             ) : (
+              // Nu există nicio regulă -> oferim ambele opțiuni: trust sau block
               <>
                 <DropdownMenuItem onClick={() => addEntry('allow', 'sender', address)}>
                   <ShieldCheck className="h-4 w-4 text-risk-safe" />
@@ -125,7 +167,10 @@ export function SenderListActions({ senderAddress, senderDomain, senderEntry, do
             )}
           </>
         )}
+        {/* Separator vizual între secțiunea "sender" și secțiunea "domeniu",
+            afișat doar dacă avem ambele */}
         {address && domain && <DropdownMenuSeparator />}
+        {/* ── Secțiunea pentru întregul domeniu al expeditorului ── */}
         {domain && (
           <>
             <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
@@ -133,14 +178,16 @@ export function SenderListActions({ senderAddress, senderDomain, senderEntry, do
               <span className="truncate">{domain}</span>
             </DropdownMenuLabel>
             {domainEntry ? (
+              // Există deja o regulă pe acest domeniu -> oferim doar ștergerea
               <DropdownMenuItem onClick={() => removeEntry(domainEntry)}>
                 <X className="h-4 w-4" />
                 Remove from {domainEntry.listType === 'allow' ? 'trusted' : 'blocked'} list
               </DropdownMenuItem>
             ) : (
               <>
-                {/* A domain rule may not contradict an existing sender rule — only
-                    offer the direction that matches it. */}
+                {/* O regulă pe domeniu nu poate contrazice o regulă deja existentă
+                    pe sender — oferim doar direcția care este compatibilă cu ea
+                    (sau ambele, dacă nu există nicio regulă pe sender). */}
                 {senderEntry?.listType !== 'block' && (
                   <DropdownMenuItem onClick={() => addEntry('allow', 'domain', domain)}>
                     <ShieldCheck className="h-4 w-4 text-risk-safe" />
