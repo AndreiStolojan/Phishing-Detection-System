@@ -64,10 +64,15 @@ dist/
 
 # IDE
 .idea/*
+**/.DS_Store
 manual-tests/*
 extras/*
 scripts/*
 /.postman/
 /postman/
 .claude/*
+.design-sync/
+.ds-sync/
+*.mp4
+*.mov
 .env

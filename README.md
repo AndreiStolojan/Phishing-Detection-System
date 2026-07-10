@@ -1,161 +1,138 @@
 # SecureInbox
 
-SecureInbox is a Gmail-only phishing triage application built as a bachelor thesis MVP. It lets a user connect Gmail, manually sync recent Inbox messages, read synced email, inspect phishing/security signals, and mark messages as safe or phishing.
+[![Quality](https://github.com/AndreiStolojan/SecureInbox/actions/workflows/quality.yml/badge.svg)](https://github.com/AndreiStolojan/SecureInbox/actions/workflows/quality.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-The project is intentionally not a full Gmail replacement. It is a security-first inbox that demonstrates email ingestion, explainable rule-based phishing detection, optional local AI explainability, and a practical frontend for review actions.
+**Explainable phishing triage for Gmail.** SecureInbox is a security-focused
+inbox that synchronizes Gmail messages, scores suspicious signals, and shows
+the evidence behind each verdict before a user takes action.
 
-## Current State
+Developed as a bachelor thesis project, it is deliberately not a Gmail
+replacement. The focus is a transparent detection workflow: deterministic
+rules first, optional local AI as a secondary source of semantic signals, and
+manual review actions for the final decision.
 
-- Backend exists in `backend/`.
-- Frontend exists in `frontend/` and has been rebuilt as SecureInbox.
-- Gmail is the only provider for the MVP.
-- Phishing detection runs in the backend.
-- Frontend UI copy is English.
-- Logout is local to the frontend: the JWT token is deleted from browser storage.
+<p align="center">
+  <img src="assets/screenshots/dashboard.png" alt="SecureInbox dashboard with threat activity and risk distribution" width="900" />
+</p>
 
-## Main Features
+<p align="center">
+  <img src="assets/screenshots/scan-evidence.png" alt="Explainable phishing score split and triggered warning rules" width="430" />
+  <img src="assets/screenshots/manual-review.png" alt="Manual phishing review flow" width="720" />
+</p>
 
-- JWT register/login.
-- Gmail OAuth connection.
-- Manual Gmail sync from Inbox.
-- Email parsing for sender, reply-to, subject, body, links, domains, attachments, and received date.
-- Rule-based phishing scoring with explicit reasons and triggered rules.
-- Optional Ollama semantic signals and explanation fallback.
-- Email list with security filters.
-- Sanitized HTML email rendering with remote images blocked.
-- Manual actions: mark safe and mark phishing.
-- Best-effort Gmail move-to-spam after explicit phishing confirmation.
-- Monthly phishing/security summary.
-- Backend and frontend unit test commands.
+## Why it is explainable
 
-## Project Structure
+- **Deterministic rules decide first.** The scanner records every triggered
+  rule, its points, and a controlled explanation.
+- **Scores are auditable.** The interface separates `ruleScore` from
+  `aiScore`, then presents the final 0-100 score and evidence.
+- **AI is optional and bounded.** Local Ollama signals are capped at 50 points;
+  the `likely_phishing` threshold is 60, so AI cannot produce that verdict on
+  its own.
+- **Context is controlled.** Verified-brand logic and user-managed trusted or
+  blocked sender lists reduce false positives without suppressing critical
+  payload signals.
+
+## Features
+
+- Gmail OAuth 2.0 connection, manual sync, and scheduled polling.
+- Parsing for sender, reply-to address, links, domains, attachments, and dates.
+- Rule-based phishing analysis for URL, attachment, and header signals.
+- Optional local semantic analysis through Ollama.
+- Sanitized email HTML with remote images blocked by default.
+- Inbox triage, score explanations, trusted/blocked sender lists, and manual
+  safe/phishing decisions.
+- Monthly security summary, email notifications, and account deletion.
+
+## Architecture
 
 ```text
-backend/
-  src/
-    app.js
-    server.js
-    config/
-    controllers/
-    middlewares/
-    models/
-    routes/
-    services/
-    validations/
-  tests/unit/
-  package.json
-
-frontend/
-  src/
-    api/
-    components/
-      auth/
-      layout/
-      inbox/
-      security/
-      reports/
-      common/
-    context/
-    hooks/
-    pages/
-    styles/
-    utils/
-  tests/unit/
-  package.json
-
-docs/
-  PROJECT_STATE.md
+React + Vite -> Express API -> MongoDB
+                    |
+                    +-> Gmail API / OAuth 2.0
+                    +-> Optional local Ollama
 ```
 
-## Local Setup
+The application is a modular monolith. The React frontend renders server-side
+scan results; the Express backend owns authentication, Gmail integration,
+scoring, reporting, and persistence.
 
-Install backend dependencies:
+Read more about the [architecture](docs/architecture.md) and the
+[explainable detection engine](docs/detection-engine.md).
+
+## Tech stack
+
+| Area | Technologies |
+| --- | --- |
+| Frontend | React 19, Vite, Tailwind CSS, shadcn/ui, Radix, Recharts |
+| Backend | Node.js, Express, MongoDB, Mongoose |
+| Security | JWT, bcrypt, Joi, Helmet, CORS, Arcjet |
+| Integrations | Gmail API, OAuth 2.0, node-cron, Nodemailer, Ollama |
+| Testing | Node test runner, Vitest, Testing Library |
+
+## Run locally
+
+### Prerequisites
+
+- Node.js 20 or newer
+- MongoDB instance
+- Google Cloud OAuth client with the Gmail API enabled
+- Ollama is optional; the application works with semantic analysis disabled
+
+### Configuration
 
 ```bash
+cp backend/.env.example backend/.env.development.local
+cp frontend/.env.example frontend/.env.local
 npm --prefix backend install
-```
-
-Install frontend dependencies:
-
-```bash
 npm --prefix frontend install
 ```
 
-Create the backend local env file:
+Set the MongoDB, JWT, encryption-key, and Google OAuth values in
+`backend/.env.development.local`. For local Gmail OAuth, configure this exact
+redirect URI in Google Cloud:
 
 ```text
-backend/.env.development.local
+http://localhost:5500/api/v1/mail-accounts/google/callback
 ```
 
-Required backend variables:
-
-```text
-PORT=5500
-DB_URI=<mongodb-uri>
-JWT_SECRET=<jwt-secret>
-JWT_EXPIRES_IN=7d
-MAIL_TOKEN_ENCRYPTION_KEY=<mail-token-key>
-```
-
-Required for Gmail:
-
-```text
-GOOGLE_CLIENT_ID=<google-client-id>
-GOOGLE_CLIENT_SECRET=<google-client-secret>
-GOOGLE_REDIRECT_URI=http://localhost:5500/api/v1/mail-accounts/google/callback
-FRONTEND_APP_URL=http://localhost:5173
-```
-
-Optional for Ollama:
-
-```text
-AI_SEMANTIC_ENABLED=true
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen2.5:3b
-OLLAMA_TIMEOUT_MS=30000
-OLLAMA_PROMPT_VERSION=semantic-v1
-```
-
-## Run Locally
-
-Backend:
+### Start the application
 
 ```bash
 npm --prefix backend run dev
-```
-
-Frontend:
-
-```bash
 npm --prefix frontend run dev
 ```
 
-Default URLs:
-
-- API: `http://localhost:5500/api/v1`
 - Frontend: `http://localhost:5173`
+- API: `http://localhost:5500/api/v1`
 
-## Test Commands
-
-Backend:
+## Verify quality
 
 ```bash
 npm --prefix backend run lint
 npm --prefix backend test
-```
-
-Frontend:
-
-```bash
 npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-## MVP Limits
+The same checks run through GitHub Actions for every pull request and push to
+`main`.
 
-SecureInbox does not include compose, reply, forward, archive, delete, read/unread, labels, full threading, real-time Gmail push sync, multi-provider support, or AI as the primary detector.
+## Limitations
 
-For current context, read:
+- SecureInbox is a local/demo project; it is not publicly deployed and Google
+  OAuth verification for a public production deployment has not been pursued.
+- It does not train a machine-learning model and does not claim precision,
+  recall, or F1 metrics without a labeled dataset.
+- SPF, DKIM, and DMARC verification are future work.
+- Gmail synchronization uses polling rather than Gmail Push Notifications.
 
-1. `AGENTS.md`
-2. `docs/PROJECT_STATE.md`
+## Author
+
+Andrei Stolojan<br>
+[GitHub](https://github.com/AndreiStolojan) · [LinkedIn](https://www.linkedin.com/in/andrei-stolojan/)
+
+## License
+
+Released under the [MIT License](LICENSE).

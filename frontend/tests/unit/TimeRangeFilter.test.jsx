@@ -1,25 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { TimeRangeProvider } from '../../src/context/TimeRangeContext.jsx';
 import { TimeRangeFilter } from '../../src/components/common/TimeRangeFilter.jsx';
 
-// Smoke test: the dashboard mounts this on load, so a render-time throw here
-// blanks the whole page. Mounting it must not crash and must expose the two
-// From/To date inputs seeded with the default (last 30 days) window.
 describe('TimeRangeFilter', () => {
-  it('renders From and To date inputs with from <= to', () => {
+  it('opens the range picker and exposes its custom calendar controls', async () => {
+    const user = userEvent.setup();
     render(
       <TimeRangeProvider>
         <TimeRangeFilter />
       </TimeRangeProvider>
     );
 
-    const from = screen.getByLabelText('From');
-    const to = screen.getByLabelText('To');
+    await user.click(screen.getByRole('button', { name: /last 30 days/i }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
 
-    expect(from).toBeTruthy();
-    expect(to).toBeTruthy();
-    expect(from.value <= to.value).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Custom' }));
+
+    expect(screen.getAllByLabelText('Month')).toHaveLength(2);
+    expect(screen.getAllByLabelText('Year')).toHaveLength(2);
   });
 });

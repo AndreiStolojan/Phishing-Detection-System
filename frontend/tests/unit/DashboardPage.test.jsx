@@ -24,6 +24,7 @@ vi.mock('../../src/api/reportsApi.js', () => ({
 }));
 
 import { TimeRangeProvider } from '../../src/context/TimeRangeContext.jsx';
+import { AuthProvider } from '../../src/context/AuthContext.jsx';
 import { DashboardPage } from '../../src/pages/DashboardPage.jsx';
 
 // Guards against a render-time crash in the dashboard (e.g. a dropped hook
@@ -33,11 +34,13 @@ describe('DashboardPage', () => {
   it('renders the loaded dashboard without crashing', async () => {
     render(
       <MemoryRouter>
-        <TimeRangeProvider>
-          <DashboardPage />
-        </TimeRangeProvider>
+        <AuthProvider>
+          <TimeRangeProvider>
+            <DashboardPage />
+          </TimeRangeProvider>
+        </AuthProvider>
       </MemoryRouter>
     );
-    expect(await screen.findByText(/Security overview/)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Welcome back, there!' })).toBeTruthy();
   });
 });
