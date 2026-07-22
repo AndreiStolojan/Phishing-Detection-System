@@ -53,6 +53,7 @@ export const {
     OLLAMA_MODEL,
     OLLAMA_TIMEOUT_MS,
     OLLAMA_PROMPT_VERSION,
+    SCAN_CONCURRENCY,
     SYNC_INTERVAL_MINUTES,
 } = process.env;
 

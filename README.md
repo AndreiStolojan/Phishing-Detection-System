@@ -125,17 +125,19 @@ The production Compose stack is designed for a 64-bit Raspberry Pi host:
 
 ```text
 Cloudflare Tunnel -> nginx / React -> Express -> MongoDB Atlas
+                                      |
+                                      +-> local Ollama (Qwen2.5 1.5B)
 ```
 
-No application port is published on the host and Ollama is disabled by
-default for the Raspberry Pi deployment. Follow the complete
+No application or Ollama port is published on the host. The Pi deployment uses
+the CPU-only Qwen2.5 1.5B model with bounded scan concurrency. Follow the complete
 [Raspberry Pi deployment guide](docs/raspberry-pi-deployment.md) for hardware,
 Cloudflare, Google OAuth, secrets, startup, verification, updates, and backup.
 
 ## Limitations
 
-- SecureInbox is a local/demo project; it is not publicly deployed and Google
-  OAuth verification for a public production deployment has not been pursued.
+- SecureInbox is a portfolio/demo deployment without an availability SLA;
+  Google OAuth remains limited to configured test users until verification.
 - It does not train a machine-learning model and does not claim precision,
   recall, or F1 metrics without a labeled dataset.
 - SPF, DKIM, and DMARC verification are future work.
