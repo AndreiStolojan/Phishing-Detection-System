@@ -35,14 +35,8 @@ const apiRateLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   skip: (req) => req.path === '/health' || req.path === '/ready',
-  handler: (req, res) => {
-    res.status(429).json({
-      success: false,
-      statusCode: 429,
-      message: 'Too many requests. Please try again later.',
-      code: 'RATE_LIMIT_EXCEEDED',
-    });
-  },
+  handler: (req, res) =>
+    sendErrorResponse(res, 429, 'Too many requests. Please try again later.', 'RATE_LIMIT_EXCEEDED'),
 });
 
 app.use('/api/v1', apiRateLimiter);
