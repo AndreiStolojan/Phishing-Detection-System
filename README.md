@@ -75,7 +75,7 @@ Read more about the [architecture](docs/architecture.md) and the
 
 ### Prerequisites
 
-- Node.js 24 LTS
+- Node.js 24.5.0 or newer (LTS)
 - MongoDB instance
 - Google Cloud OAuth client with the Gmail API enabled
 - Ollama is optional; the application works with semantic analysis disabled
