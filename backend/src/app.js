@@ -21,7 +21,9 @@ import { ARCJET_KEY, FRONTEND_APP_URL } from './config/env.js';
 const app = express();
 
 // In production Express is reached through the internal nginx container.
-app.set('trust proxy', 1);
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 app.use(helmet());
 app.use(cors({ origin: FRONTEND_APP_URL, credentials: true }));
