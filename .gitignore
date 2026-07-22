@@ -76,3 +76,6 @@ scripts/*
 *.mp4
 *.mov
 .env
+
+# Private thesis material
+/materiale-licenta/

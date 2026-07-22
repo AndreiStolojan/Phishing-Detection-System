@@ -75,7 +75,7 @@ Read more about the [architecture](docs/architecture.md) and the
 
 ### Prerequisites
 
-- Node.js 20 or newer
+- Node.js 24 LTS
 - MongoDB instance
 - Google Cloud OAuth client with the Gmail API enabled
 - Ollama is optional; the application works with semantic analysis disabled
@@ -118,6 +118,19 @@ npm --prefix frontend run build
 
 The same checks run through GitHub Actions for every pull request and push to
 `main`.
+
+## Deploy on Raspberry Pi
+
+The production Compose stack is designed for a 64-bit Raspberry Pi host:
+
+```text
+Cloudflare Tunnel -> nginx / React -> Express -> MongoDB Atlas
+```
+
+No application port is published on the host and Ollama is disabled by
+default for the Raspberry Pi deployment. Follow the complete
+[Raspberry Pi deployment guide](docs/raspberry-pi-deployment.md) for hardware,
+Cloudflare, Google OAuth, secrets, startup, verification, updates, and backup.
 
 ## Limitations
 

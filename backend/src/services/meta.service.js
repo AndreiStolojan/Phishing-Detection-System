@@ -12,17 +12,11 @@
 // Detalii: docs/EXPLICATIE_BACKEND.md §1-2 (variabile de mediu, modele, "me").
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { AI_SEMANTIC_ENABLED } from '../config/env.js';
+import { isAiSemanticGloballyEnabled } from '../config/env.js';
 import Email from '../models/email.model.js';
 import MailAccount from '../models/mail-account.model.js';
 import Scan from '../models/scan.model.js';
 import User from '../models/user.model.js';
-
-// Variabilele de mediu (.env) sunt mereu string-uri (ex. "true" sau "false" ca
-// text, nu ca boolean). Funcția asta verifică dacă un astfel de string
-// înseamnă "da" (true/1/yes/on, indiferent de litere mari/mici sau spații).
-const isTruthyEnvValue = (value) =>
-    typeof value === 'string' && ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
 
 // Calculează statusul pentru userul dat: numere (counts) + steaguri (flags).
 export const getStatusForUser = async (userId) => {
@@ -48,7 +42,7 @@ export const getStatusForUser = async (userId) => {
         },
         flags: {
             hasGmailConnected: Boolean(activeGmailAccount),
-            aiSemanticEnabled: isTruthyEnvValue(AI_SEMANTIC_ENABLED),
+            aiSemanticEnabled: isAiSemanticGloballyEnabled(),
             aiEnabled: Boolean(user?.settings?.aiEnabled),
         },
         generatedAt: new Date().toISOString(),
