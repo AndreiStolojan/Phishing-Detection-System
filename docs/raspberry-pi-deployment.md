@@ -3,10 +3,13 @@
 This guide deploys SecureInbox on a 64-bit Raspberry Pi through a remotely
 managed Cloudflare Tunnel. The public hostname points to the internal
 `frontend` container, nginx serves the React application and proxies `/api/`
-to the Express container. MongoDB remains on Atlas and Ollama is disabled.
+to the Express container. MongoDB remains on Atlas. Ollama runs CPU-only in the
+same private Docker network and stores its model in a persistent Docker volume.
 
 ```text
 Browser -> Cloudflare -> cloudflared -> nginx -> Express -> MongoDB Atlas
+                                                |
+                                                +-> Ollama / Qwen2.5 1.5B
 ```
 
 The Compose file publishes no host ports. Do not configure router port
@@ -20,6 +23,7 @@ forwarding for ports 80, 443, 5500, or 11434.
 - a domain whose DNS is managed by Cloudflare
 - a MongoDB Atlas database and application database user
 - a Google Cloud OAuth web client with the Gmail API enabled
+- at least 5 GB of free Docker storage for the Ollama image, model, and runtime data
 
 Verify the host before continuing:
 
@@ -83,8 +87,12 @@ FRONTEND_APP_URL=https://YOUR_HOSTNAME
 EMAIL_FROM=...
 EMAIL_PASSWORD=...
 SUPPORT_EMAIL=...
-AI_SEMANTIC_ENABLED=false
-OLLAMA_BASE_URL=
+AI_SEMANTIC_ENABLED=true
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=qwen2.5:1.5b-instruct-q4_K_M
+OLLAMA_TIMEOUT_MS=90000
+OLLAMA_PROMPT_VERSION=semantic-v3
+SCAN_CONCURRENCY=1
 SYNC_INTERVAL_MINUTES=15
 ```
 
@@ -147,14 +155,26 @@ docker compose up -d
 docker compose ps
 ```
 
-All three services should become healthy/running: `backend`, `frontend`, and
-`cloudflared`.
+All four services should become healthy/running: `backend`, `frontend`,
+`ollama`, and `cloudflared`.
+
+Pull the pinned model into the persistent Ollama volume:
+
+```bash
+docker compose exec ollama ollama pull qwen2.5:1.5b-instruct-q4_K_M
+docker compose exec ollama ollama list
+```
+
+The model is approximately 986 MB. The named `ollama-data` volume keeps it
+across container replacement and reboots. Ollama is reachable only as
+`http://ollama:11434` inside the Compose network; do not publish port `11434`.
 
 Inspect bounded logs when troubleshooting:
 
 ```bash
 docker compose logs --tail=100 backend
 docker compose logs --tail=100 frontend
+docker compose logs --tail=100 ollama
 docker compose logs --tail=100 cloudflared
 ```
 
@@ -181,15 +201,17 @@ Complete these browser checks:
 
 1. register and log in;
 2. connect a Google test account;
-3. synchronize the default batch of 10 messages;
-4. open a message and verify its score and explanation;
-5. mark a message safe or phishing;
-6. restart the Pi and verify that all containers return automatically.
+3. enable local AI in Settings and set the sync batch to 1 or 2 messages;
+4. synchronize the small batch and verify AI signals and an AI explanation;
+5. use **Scan again** on one message and note the AI latency;
+6. mark a message safe or phishing;
+7. restart the Pi and verify that all containers return automatically.
 
 The current manual synchronization request is synchronous. Keep the batch at
-the default of 10 messages and AI disabled on the Pi. Before increasing the
-batch substantially, move synchronization to a background job with status
-polling so the request cannot exceed Cloudflare's proxy timeout.
+1 or 2 messages while AI is enabled on the Pi. `SCAN_CONCURRENCY=1` prevents
+several CPU-heavy model calls from running at once, but a large sequential batch
+can still exceed Cloudflare's request timeout. Before increasing the batch,
+move synchronization to a background job with status polling.
 
 ## 9. Update safely
 
@@ -221,6 +243,7 @@ Useful checks:
 ```bash
 docker compose ps
 docker stats
+docker compose exec ollama ollama ps
 df -h
 free -h
 vcgencmd measure_temp
