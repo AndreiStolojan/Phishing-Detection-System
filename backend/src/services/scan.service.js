@@ -25,6 +25,7 @@ import {
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 import { verifySenderBrand } from './brand-verification.service.js';
 import { getSenderListContextForEmail } from './sender-list.service.js';
+import { isAiSemanticGloballyEnabled } from '../config/env.js';
 import {
     AI_SCORE_MAX,
     AI_SIGNAL_WEIGHTS,
@@ -404,6 +405,10 @@ const getCurrentScanForEmail = async ({ userId, emailId }) =>
     Scan.findOne({ userId, emailId }).sort({ updatedAt: -1, scannedAt: -1 });
 
 const getUserAiEnabled = async (userId) => {
+    if (!isAiSemanticGloballyEnabled()) {
+        return false;
+    }
+
     const user = await User.findById(userId).select('settings.aiEnabled');
 
     return Boolean(user?.settings?.aiEnabled);

@@ -6,7 +6,14 @@ const resolvedEnvFilePath = `.env.${nodeEnv}.local`;
 config({ path: resolvedEnvFilePath });
 
 const requiredEnvVars = ['PORT', 'DB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'MAIL_TOKEN_ENCRYPTION_KEY'];
-const requiredInProduction = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'EMAIL_FROM', 'EMAIL_PASSWORD'];
+const requiredInProduction = [
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'GOOGLE_REDIRECT_URI',
+    'FRONTEND_APP_URL',
+    'EMAIL_FROM',
+    'EMAIL_PASSWORD',
+];
 
 if (nodeEnv === 'production') {
     const missingProd = requiredInProduction.filter((v) => !process.env[v]);
@@ -51,3 +58,10 @@ export const {
 
 export const FRONTEND_APP_URL = process.env.FRONTEND_APP_URL || 'http://localhost:5173';
 export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || EMAIL_FROM || '';
+
+export const isTruthyEnvValue = (value) =>
+    typeof value === 'string' &&
+    ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+
+export const isAiSemanticGloballyEnabled = () =>
+    isTruthyEnvValue(AI_SEMANTIC_ENABLED);

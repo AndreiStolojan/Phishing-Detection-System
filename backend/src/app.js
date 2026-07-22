@@ -1,6 +1,8 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import helmet from 'helmet';
 import cors from 'cors';
+import { rateLimit } from 'express-rate-limit';
 import userRouter from './routes/user.routes.js';
 import authRouter from './routes/auth.routes.js';
 import mailAccountRouter from './routes/mail-account.routes.js';
@@ -18,11 +20,26 @@ import { ARCJET_KEY, FRONTEND_APP_URL } from './config/env.js';
 
 const app = express();
 
+// In production Express is reached through the internal nginx container.
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(cors({ origin: FRONTEND_APP_URL, credentials: true }));
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+const apiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health' || req.path === '/ready',
+  handler: (req, res) =>
+    sendErrorResponse(res, 429, 'Too many requests. Please try again later.', 'RATE_LIMIT_EXCEEDED'),
+});
+
+app.use('/api/v1', apiRateLimiter);
 
 const healthCheck = (req, res) => {
   res.status(200).json({
@@ -31,6 +48,28 @@ const healthCheck = (req, res) => {
       status: 'ok',
     },
   });
+};
+
+const readinessCheck = async (req, res) => {
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
+    return res.status(503).json({
+      success: false,
+      data: { status: 'not_ready' },
+    });
+  }
+
+  try {
+    await mongoose.connection.db.admin().ping();
+    return res.status(200).json({
+      success: true,
+      data: { status: 'ready' },
+    });
+  } catch {
+    return res.status(503).json({
+      success: false,
+      data: { status: 'not_ready' },
+    });
+  }
 };
 
 const authGuards = ARCJET_KEY ? [arcjetMiddleware] : [];
@@ -46,6 +85,7 @@ app.use('/api/v1/contact', contactRouter);
 app.use('/api/v1/sender-lists', senderListRouter);
 
 app.get('/api/v1/health', healthCheck);
+app.get('/api/v1/ready', readinessCheck);
 
 app.use((req, res) => {
   return sendErrorResponse(
