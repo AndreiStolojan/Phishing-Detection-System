@@ -44,7 +44,7 @@ temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT
 env_file="${temp_dir}/.env"
 PROVISION_ENV_FILE="${env_file}" bash -c 'source ./provision; create_env; load_runtime_values'
-test "$(stat -f %Lp "${env_file}" 2>/dev/null || stat -c %a "${env_file}")" = 600
+test "$(stat -c %a "${env_file}" 2>/dev/null || stat -f %Lp "${env_file}")" = 600
 first_hash="$(shasum -a 256 "${env_file}" | awk '{print $1}')"
 PROVISION_ENV_FILE="${env_file}" bash -c 'source ./provision; create_env; load_runtime_values'
 test "${first_hash}" = "$(shasum -a 256 "${env_file}" | awk '{print $1}')"
