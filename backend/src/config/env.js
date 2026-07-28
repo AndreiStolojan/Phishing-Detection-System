@@ -6,7 +6,24 @@ const resolvedEnvFilePath = `.env.${nodeEnv}.local`;
 config({ path: resolvedEnvFilePath });
 
 const requiredEnvVars = ['PORT', 'DB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'MAIL_TOKEN_ENCRYPTION_KEY'];
+const requiredInProduction = [
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'GOOGLE_REDIRECT_URI',
+    'FRONTEND_APP_URL',
+    'EMAIL_FROM',
+    'EMAIL_PASSWORD',
+];
+const missingProductionEnvVars = nodeEnv === 'production'
+    ? requiredInProduction.filter((envName) => !process.env[envName])
+    : [];
 const missingEnvVars = requiredEnvVars.filter((envName) => !process.env[envName]);
+
+if (missingProductionEnvVars.length > 0) {
+    throw new Error(
+        `Missing required production env vars: ${missingProductionEnvVars.join(', ')}`
+    );
+}
 
 if (missingEnvVars.length > 0) {
     throw new Error(

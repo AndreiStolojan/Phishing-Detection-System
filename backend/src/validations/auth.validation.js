@@ -4,10 +4,19 @@ const lowerCasePattern = /[a-z]/;
 const upperCasePattern = /[A-Z]/;
 const numberPattern = /\d/;
 const specialCharacterPattern = /[^A-Za-z\d]/;
+const localEmailSyntax = Joi.string().email({ tlds: { allow: false } });
+const publicEmailSyntax = Joi.string().email({ tlds: { allow: true } });
 
-// Local development uses the reserved `.test` domain for the demo account.
-// Syntax validation is still enforced, without requiring a public DNS TLD.
-const emailField = Joi.string().trim().lowercase().email({ tlds: { allow: false } }).required().messages({
+// Local development uses the reserved `.test` domain for the demo account;
+// all other domains must have an IANA-recognized public suffix.
+const emailField = Joi.string().trim().lowercase().custom((value, helpers) => {
+  if (value.endsWith('.test')) {
+    const { error } = localEmailSyntax.validate(value);
+    return error ? helpers.error('string.email') : value;
+  }
+  const { error } = publicEmailSyntax.validate(value);
+  return error ? helpers.error('string.email') : value;
+}).required().messages({
   "string.empty": "Email is required",
   "string.email": "Please provide a valid email address",
   "any.required": "Email is required",

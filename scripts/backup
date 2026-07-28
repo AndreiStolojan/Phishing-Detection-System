@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/dotenv.sh"
 
 fail() { printf 'Backup error: %s\n' "$1" >&2; exit 1; }
 checksum() {
@@ -14,14 +16,13 @@ checksum() {
 }
 
 [[ -f .env ]] || fail "Run ./provision first."
-docker info >/dev/null 2>&1 || fail "Docker is not running."
-docker compose ps --status running --services | grep -qx mongodb ||
+docker_command info >/dev/null 2>&1 || fail "Docker is not running."
+docker_command compose ps --status running --services | grep -qx mongodb ||
   fail "The mongodb service is not running."
 
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
+MONGO_DATABASE="$(dotenv_get MONGO_DATABASE .env)"
+MONGO_ROOT_USERNAME="$(dotenv_get MONGO_ROOT_USERNAME .env)"
+MONGO_ROOT_PASSWORD="$(dotenv_get MONGO_ROOT_PASSWORD .env)"
 
 mkdir -p backups
 umask 077
@@ -38,25 +39,25 @@ cleanup() {
     rm -f "${archive}" "${manifest}"
   fi
   if [[ "${backend_was_running}" == true ]]; then
-    docker compose start backend >/dev/null || true
+    docker_command compose start backend >/dev/null || true
   fi
 }
 trap cleanup EXIT
 
-if docker compose ps --status running --services | grep -qx backend; then
+if docker_command compose ps --status running --services | grep -qx backend; then
   backend_was_running=true
-  docker compose stop backend >/dev/null
+  docker_command compose stop backend >/dev/null
 fi
 
 counts="$(
-  docker compose exec -T mongodb mongosh --quiet \
+  docker_command compose exec -T mongodb mongosh --quiet \
     --username "${MONGO_ROOT_USERNAME}" \
     --password "${MONGO_ROOT_PASSWORD}" \
     --authenticationDatabase admin \
     --eval "const d=db.getSiblingDB('${MONGO_DATABASE}'); print(JSON.stringify({users:d.users.countDocuments({}),emails:d.emails.countDocuments({}),scans:d.scans.countDocuments({})}));"
 )"
 
-docker compose exec -T mongodb mongodump --quiet \
+docker_command compose exec -T mongodb mongodump --quiet \
   --username "${MONGO_ROOT_USERNAME}" \
   --password "${MONGO_ROOT_PASSWORD}" \
   --authenticationDatabase admin \
@@ -65,7 +66,7 @@ docker compose exec -T mongodb mongodump --quiet \
 [[ -s "${partial}" ]] || fail "mongodump produced an empty archive."
 mv "${partial}" "${archive}"
 
-docker compose exec -T mongodb mongorestore --quiet --dryRun \
+docker_command compose exec -T mongodb mongorestore --quiet --dryRun \
   --username "${MONGO_ROOT_USERNAME}" \
   --password "${MONGO_ROOT_PASSWORD}" \
   --authenticationDatabase admin \
@@ -86,7 +87,7 @@ EOF
 
 completed=true
 if [[ "${backend_was_running}" == true ]]; then
-  docker compose start backend >/dev/null
+  docker_command compose start backend >/dev/null
   backend_was_running=false
 fi
 

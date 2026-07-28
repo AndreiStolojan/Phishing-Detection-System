@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/dotenv.sh"
 
 usage() { echo "Usage: ./scripts/restore <backup.archive.gz> --confirm-replace"; }
 fail() { printf 'Restore error: %s\n' "$1" >&2; exit 1; }
@@ -16,14 +18,14 @@ checksum() {
 
 [[ "$#" -eq 2 && "$2" == "--confirm-replace" ]] || { usage >&2; exit 2; }
 [[ -f .env ]] || fail "Run ./provision first."
-docker info >/dev/null 2>&1 || fail "Docker is not running."
-docker compose ps --status running --services | grep -qx mongodb ||
+docker_command info >/dev/null 2>&1 || fail "Docker is not running."
+docker_command compose ps --status running --services | grep -qx mongodb ||
   fail "The mongodb service is not running."
 
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
+MONGO_DATABASE="$(dotenv_get MONGO_DATABASE .env)"
+MONGO_ROOT_USERNAME="$(dotenv_get MONGO_ROOT_USERNAME .env)"
+MONGO_ROOT_PASSWORD="$(dotenv_get MONGO_ROOT_PASSWORD .env)"
+APP_PORT="$(dotenv_get APP_PORT .env)"
 
 if [[ "$1" = /* ]]; then archive="$1"; else archive="${ROOT}/$1"; fi
 manifest="${archive}.manifest.json"
@@ -43,7 +45,7 @@ expected_scans="$(sed -nE 's/.*"scans":[[:space:]]*([0-9]+).*/\1/p' "${manifest}
 [[ "$(checksum "${archive}")" == "${expected_sha}" ]] || fail "Archive checksum mismatch."
 
 restore_archive() {
-  docker compose exec -T mongodb mongorestore --quiet "$@" \
+  docker_command compose exec -T mongodb mongorestore --quiet "$@" \
     --username "${MONGO_ROOT_USERNAME}" \
     --password "${MONGO_ROOT_PASSWORD}" \
     --authenticationDatabase admin \
@@ -58,19 +60,19 @@ restore_completed=false
 cleanup() {
   [[ "${backend_was_running}" == true ]] || return 0
   if [[ "${database_dropped}" == false || "${restore_completed}" == true ]]; then
-    docker compose start backend >/dev/null || true
+    docker_command compose start backend >/dev/null || true
   else
     echo "Restore failed after the database was dropped; backend remains stopped." >&2
   fi
 }
 trap cleanup EXIT
 
-if docker compose ps --status running --services | grep -qx backend; then
+if docker_command compose ps --status running --services | grep -qx backend; then
   backend_was_running=true
-  docker compose stop backend >/dev/null
+  docker_command compose stop backend >/dev/null
 fi
 
-docker compose exec -T mongodb mongosh --quiet \
+docker_command compose exec -T mongodb mongosh --quiet \
   --username "${MONGO_ROOT_USERNAME}" \
   --password "${MONGO_ROOT_PASSWORD}" \
   --authenticationDatabase admin \
@@ -80,7 +82,7 @@ database_dropped=true
 restore_archive < "${archive}"
 
 actual_counts="$(
-  docker compose exec -T mongodb mongosh --quiet \
+  docker_command compose exec -T mongodb mongosh --quiet \
     --username "${MONGO_ROOT_USERNAME}" \
     --password "${MONGO_ROOT_PASSWORD}" \
     --authenticationDatabase admin \
@@ -91,7 +93,7 @@ expected_counts="{\"users\":${expected_users},\"emails\":${expected_emails},\"sc
 
 restore_completed=true
 if [[ "${backend_was_running}" == true ]]; then
-  docker compose start backend >/dev/null
+  docker_command compose start backend >/dev/null
   backend_was_running=false
   for _ in {1..30}; do
     if curl --fail --silent "http://127.0.0.1:${APP_PORT}/api/v1/ready" >/dev/null 2>&1; then

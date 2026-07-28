@@ -5,9 +5,11 @@ import {
 } from './metrics.js';
 
 const normalizeRoute = (req) => {
-  const path = req.route?.path
-    ? `${req.baseUrl || ''}${req.route.path}`
-    : req.path;
+  // `req.path` is attacker-controlled for a 404 and is still available after
+  // rate limiting. Never use it as a Prometheus label value.
+  if (!req.route?.path) return 'unmatched';
+
+  const path = `${req.baseUrl || ''}${req.route.path}`;
 
   return path
     .replace(/\b[0-9a-f]{24}\b/gi, ':id')

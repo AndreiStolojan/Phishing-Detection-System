@@ -29,9 +29,18 @@ jobs:
       - run: npm test --prefix frontend
       - run: npm run build --prefix frontend
       - name: Validate local scripts
-        run: bash -n provision scripts/backup scripts/restore
+        run: bash -n provision scripts/dotenv.sh scripts/backup scripts/restore
+      - name: Smoke-test fresh local configuration
+        run: |
+          test_env="$RUNNER_TEMP/secureinbox.env"
+          PROVISION_ENV_FILE="$test_env" bash -c 'source ./provision; create_env; load_runtime_values; test -n "$DEMO_USER_EMAIL"; test -n "$DEMO_USER_PASSWORD"; test -n "$GRAFANA_ADMIN_USER"; test -n "$GRAFANA_ADMIN_PASSWORD"'
+          test -f "$test_env"
+          test "$(stat -c %a "$test_env")" = 600
+          docker compose --env-file "$test_env" config --quiet
+          grep -Fx 'DEMO_USER_NAME="Demo User"' "$test_env"
       - name: Validate Grafana dashboard
-        run: node -e "JSON.parse(require('fs').readFileSync('monitoring/grafana/dashboards/secureinbox-local.json'))"
+        run: |
+          node -e "const d=JSON.parse(require('fs').readFileSync('monitoring/grafana/dashboards/secureinbox-local.json')); if (!d.panels.every(({gridPos}) => Number.isInteger(gridPos?.x) && Number.isInteger(gridPos?.y) && Number.isInteger(gridPos?.w) && Number.isInteger(gridPos?.h))) process.exit(1)"
       - name: Validate Docker Compose
         env:
           MONGO_ROOT_PASSWORD: ci-mongo-password
@@ -41,11 +50,21 @@ jobs:
           GRAFANA_ADMIN_PASSWORD: ci-grafana-password
         run: |
           docker compose config
+      - name: Validate production Compose and nginx
+        run: |
+          cp backend/.env.production.local.example backend/.env.production.local
+          TUNNEL_TOKEN=ci-tunnel-token docker compose -f docker-compose.prod.yml config --quiet
+          docker run --rm --add-host backend:127.0.0.1 --add-host cloudflared:127.0.0.2 -v "$PWD/frontend/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro" nginx:stable-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46 nginx -t
+          (
+            cd backend
+            NODE_ENV=production PORT=5500 DB_URI=mongodb://example.test/secureinbox JWT_SECRET=ci-jwt JWT_EXPIRES_IN=1h MAIL_TOKEN_ENCRYPTION_KEY=ci-key GOOGLE_CLIENT_ID=ci-client GOOGLE_CLIENT_SECRET=ci-secret GOOGLE_REDIRECT_URI=https://example.test/api/v1/mail-accounts/google/callback FRONTEND_APP_URL=https://example.test EMAIL_FROM=no-reply@example.test EMAIL_PASSWORD=ci-password node --input-type=module -e "await import('./src/config/env.js')"
+          )
+          rm backend/.env.production.local
       - name: Validate Prometheus configuration
         run: |
           docker run --rm --entrypoint /bin/promtool \
             -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" \
-            prom/prometheus:v3.12.0 \
+            prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac \
             check config /etc/prometheus/prometheus.yml
       - name: Build application containers
         run: docker compose --env-file .env.example build backend frontend

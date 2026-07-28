@@ -65,6 +65,10 @@ Demo email: `demo@secureinbox.test`
 Run `./provision` again at any time. It preserves `.env`, database contents,
 Grafana data, Prometheus data, and the downloaded Ollama model.
 
+For the Raspberry Pi / public Cloudflare deployment, use the separate
+[`prod` branch and production Compose guide](docs/raspberry-pi-deployment.md).
+Never run the local Compose file or `./provision` on that deployment.
+
 ## Optional Gmail connection
 
 The local application starts without Google, email, or Arcjet credentials.
@@ -103,6 +107,9 @@ Restore one explicitly:
 ```bash
 ./scripts/restore backups/secureinbox-TIMESTAMP.archive.gz --confirm-replace
 ```
+
+Keep an encrypted backup of `.env` with every MongoDB backup. In particular,
+`MAIL_TOKEN_ENCRYPTION_KEY` is required to decrypt restored Gmail tokens.
 
 To erase all local data, including MongoDB, Grafana, Prometheus, and the Ollama
 model:

@@ -3,11 +3,38 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT}"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/dotenv.sh"
+ENV_FILE="${PROVISION_ENV_FILE:-${ROOT}/.env}"
 
 log() { printf '\n==> %s\n' "$1"; }
 fail() { printf 'Provisioning error: %s\n' "$1" >&2; exit 1; }
 
 DOCKER=(docker)
+
+compose() {
+  "${DOCKER[@]}" compose --env-file "${ENV_FILE}" "$@"
+}
+
+load_required_env_value() {
+  local key="$1" value
+  value="$(dotenv_get "${key}" "${ENV_FILE}" || true)"
+  [[ -n "${value}" ]] || fail "Missing required local configuration value: ${key}"
+  printf -v "${key}" '%s' "${value}"
+}
+
+load_runtime_values() {
+  local key
+  for key in \
+    APP_PORT \
+    OLLAMA_MODEL \
+    DEMO_USER_EMAIL \
+    DEMO_USER_PASSWORD \
+    GRAFANA_ADMIN_USER \
+    GRAFANA_ADMIN_PASSWORD; do
+    load_required_env_value "${key}"
+  done
+}
 
 wait_for_docker() {
   for _ in {1..60}; do
@@ -83,54 +110,44 @@ create_env() {
   command -v openssl >/dev/null 2>&1 || fail "OpenSSL is required to generate local secrets."
   umask 077
 
-  if [[ ! -f .env ]]; then
+  if [[ ! -f "${ENV_FILE}" ]]; then
     log "Generating local configuration"
-    cp .env.example .env
+    cp .env.example "${ENV_FILE}"
   else
     log "Keeping existing .env and filling missing local values"
   fi
 
-  set_env_value() {
-    local key="$1" value="$2" current temporary_file
-    current="$(sed -nE "s/^${key}=(.*)$/\1/p" .env | tail -n 1)"
-    [[ -n "${current}" && "${current}" != replace-with-a-generated-value ]] && return
+  dotenv_set_if_missing APP_PORT 8080 "${ENV_FILE}"
+  dotenv_set_if_missing MONGO_DATABASE secureinbox "${ENV_FILE}"
+  dotenv_set_if_missing MONGO_ROOT_USERNAME secureinbox_root "${ENV_FILE}"
+  dotenv_set_if_missing MONGO_ROOT_PASSWORD "$(openssl rand -hex 32)" "${ENV_FILE}"
+  dotenv_set_if_missing JWT_SECRET "$(openssl rand -hex 32)" "${ENV_FILE}"
+  dotenv_set_if_missing JWT_EXPIRES_IN 8h "${ENV_FILE}"
+  dotenv_set_if_missing MAIL_TOKEN_ENCRYPTION_KEY "$(openssl rand -hex 32)" "${ENV_FILE}"
+  dotenv_set_if_missing DEMO_USER_NAME '"Demo User"' "${ENV_FILE}"
+  dotenv_set_if_missing DEMO_USER_EMAIL demo@secureinbox.test "${ENV_FILE}"
+  dotenv_set_if_missing DEMO_USER_PASSWORD "$(openssl rand -hex 12)" "${ENV_FILE}"
+  dotenv_set_if_missing GRAFANA_ADMIN_USER admin "${ENV_FILE}"
+  dotenv_set_if_missing GRAFANA_ADMIN_PASSWORD "$(openssl rand -hex 16)" "${ENV_FILE}"
+  dotenv_set_if_missing AI_SEMANTIC_ENABLED true "${ENV_FILE}"
+  dotenv_set_if_missing OLLAMA_MODEL qwen2.5:1.5b-instruct-q4_K_M "${ENV_FILE}"
+  dotenv_set_if_missing OLLAMA_TIMEOUT_MS 90000 "${ENV_FILE}"
+  dotenv_set_if_missing OLLAMA_PROMPT_VERSION semantic-v3 "${ENV_FILE}"
+  dotenv_set_if_missing SCAN_CONCURRENCY 1 "${ENV_FILE}"
+  dotenv_set_if_missing SYNC_INTERVAL_MINUTES 15 "${ENV_FILE}"
+  dotenv_set_if_missing ARCJET_ENV development "${ENV_FILE}"
 
-    temporary_file="$(mktemp "${ROOT}/.env.tmp.XXXXXX")"
-    awk -v key="${key}" -v value="${value}" '
-      BEGIN { found = 0 }
-      index($0, key "=") == 1 {
-        if (!found) print key "=" value
-        found = 1
-        next
-      }
-      { print }
-      END { if (!found) print key "=" value }
-    ' .env > "${temporary_file}"
-    chmod 0600 "${temporary_file}"
-    mv "${temporary_file}" .env
-  }
-
-  set_env_value APP_PORT 8080
-  set_env_value MONGO_DATABASE secureinbox
-  set_env_value MONGO_ROOT_USERNAME secureinbox_root
-  set_env_value MONGO_ROOT_PASSWORD "$(openssl rand -hex 32)"
-  set_env_value JWT_SECRET "$(openssl rand -hex 32)"
-  set_env_value JWT_EXPIRES_IN 8h
-  set_env_value MAIL_TOKEN_ENCRYPTION_KEY "$(openssl rand -hex 32)"
-  set_env_value DEMO_USER_NAME '"Demo User"'
-  set_env_value DEMO_USER_EMAIL demo@secureinbox.test
-  set_env_value DEMO_USER_PASSWORD "$(openssl rand -hex 12)"
-  set_env_value GRAFANA_ADMIN_USER admin
-  set_env_value GRAFANA_ADMIN_PASSWORD "$(openssl rand -hex 16)"
-  set_env_value AI_SEMANTIC_ENABLED true
-  set_env_value OLLAMA_MODEL qwen2.5:1.5b-instruct-q4_K_M
-  set_env_value OLLAMA_TIMEOUT_MS 90000
-  set_env_value OLLAMA_PROMPT_VERSION semantic-v3
-  set_env_value SCAN_CONCURRENCY 1
-  set_env_value SYNC_INTERVAL_MINUTES 15
-  set_env_value GOOGLE_REDIRECT_URI http://localhost:8080/api/v1/mail-accounts/google/callback
-  set_env_value ARCJET_ENV development
-  chmod 0600 .env
+  local app_port redirect_uri default_redirect_uri
+  app_port="$(dotenv_get APP_PORT "${ENV_FILE}")"
+  redirect_uri="$(dotenv_get GOOGLE_REDIRECT_URI "${ENV_FILE}" || true)"
+  default_redirect_uri="http://localhost:8080/api/v1/mail-accounts/google/callback"
+  if [[ -z "${redirect_uri}" || "${redirect_uri}" == "${default_redirect_uri}" ]]; then
+    dotenv_set_if_missing GOOGLE_REDIRECT_URI "http://localhost:${app_port}/api/v1/mail-accounts/google/callback" "${ENV_FILE}"
+    if [[ "${redirect_uri}" == "${default_redirect_uri}" && "${app_port}" != 8080 ]]; then
+      dotenv_set GOOGLE_REDIRECT_URI "http://localhost:${app_port}/api/v1/mail-accounts/google/callback" "${ENV_FILE}"
+    fi
+  fi
+  chmod 0600 "${ENV_FILE}"
 }
 
 wait_for_url() {
@@ -142,26 +159,26 @@ wait_for_url() {
     fi
     sleep 2
   done
-  "${DOCKER[@]}" compose ps
-  "${DOCKER[@]}" compose logs --no-color --tail=80
+  compose ps
+  compose logs --no-color --tail=80
   fail "${name} did not become available at ${url}"
 }
 
 wait_for_service_health() {
   local service="$1" container_id status
   for _ in {1..60}; do
-    container_id="$("${DOCKER[@]}" compose ps -q "${service}")"
+    container_id="$(compose ps -q "${service}")"
     if [[ -n "${container_id}" ]]; then
       status="$("${DOCKER[@]}" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}")"
       [[ "${status}" == "healthy" ]] && return
       if [[ "${status}" == "unhealthy" || "${status}" == "exited" || "${status}" == "dead" ]]; then
-        "${DOCKER[@]}" compose logs --no-color --tail=80 "${service}"
+        compose logs --no-color --tail=80 "${service}"
         fail "${service} entered state: ${status}"
       fi
     fi
     sleep 2
   done
-  "${DOCKER[@]}" compose logs --no-color --tail=80 "${service}"
+  compose logs --no-color --tail=80 "${service}"
   fail "${service} did not become healthy."
 }
 
@@ -170,28 +187,25 @@ main() {
   command -v curl >/dev/null 2>&1 || fail "curl is required."
   create_env
 
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  load_runtime_values
 
   log "Validating and building the local stack"
-  "${DOCKER[@]}" compose config --quiet
-  "${DOCKER[@]}" compose build --pull
-  "${DOCKER[@]}" compose up -d
+  compose config --quiet
+  compose build --pull
+  compose up -d
 
   log "Waiting for SecureInbox"
   wait_for_url "Application" "http://127.0.0.1:${APP_PORT}/api/v1/ready"
 
   log "Preparing the local Ollama model"
-  if ! "${DOCKER[@]}" compose exec -T ollama ollama list |
+  if ! compose exec -T ollama ollama list |
     awk 'NR > 1 { print $1 }' |
     grep -Fxq "${OLLAMA_MODEL}"; then
-    "${DOCKER[@]}" compose exec -T ollama ollama pull "${OLLAMA_MODEL}"
+    compose exec -T ollama ollama pull "${OLLAMA_MODEL}"
   fi
 
   log "Creating the local demo account and inbox"
-  "${DOCKER[@]}" compose exec -T backend npm run seed:local
+  compose exec -T backend npm run seed:local
 
   log "Checking monitoring"
   wait_for_url "Prometheus" "http://127.0.0.1:9090/-/ready"
@@ -199,7 +213,7 @@ main() {
   for service in mongodb ollama backend frontend prometheus grafana; do
     wait_for_service_health "${service}"
   done
-  "${DOCKER[@]}" compose ps
+  compose ps
 
   cat <<EOF
 
@@ -219,4 +233,6 @@ Password:     ${GRAFANA_ADMIN_PASSWORD}
 EOF
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
