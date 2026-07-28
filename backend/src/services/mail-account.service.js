@@ -599,7 +599,7 @@ export const updateMailAccountSettingsForUser = async ({
             },
         },
         {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         }
     );
@@ -811,7 +811,7 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
             tokenExpiryDate,
         },
         {
-            new: true,
+            returnDocument: 'after',
             upsert: true,
             runValidators: true,
             setDefaultsOnInsert: true,

@@ -2,7 +2,7 @@ import { ARCJET_KEY } from '../../src/config/env.js';
 import aj from './arcjet.config.js';
 
 const arcjetMiddleware = async (req, res, next) => {
-    if (!ARCJET_KEY) return next();
+    if (!ARCJET_KEY || !aj) return next();
     try {
         const decision = await aj.protect(req, { requested: 1 });
 

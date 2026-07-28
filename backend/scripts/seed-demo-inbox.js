@@ -184,7 +184,7 @@ for (const demo of DEMO_EMAILS) {
             syncSource: 'gmail_manual_sync',
             ...demo,
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
     inserted += 1;
 }

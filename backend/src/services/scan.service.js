@@ -14,6 +14,7 @@
 import mongoose from 'mongoose'; // utilitar pentru a valida id-urile MongoDB
 
 import createError from '../common/errors/create-error.js';
+import { mapWithConcurrency } from '../common/async/map-with-concurrency.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
 import User from '../models/user.model.js';
@@ -25,7 +26,7 @@ import {
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 import { verifySenderBrand } from './brand-verification.service.js';
 import { getSenderListContextForEmail } from './sender-list.service.js';
-import { isAiSemanticGloballyEnabled } from '../config/env.js';
+import { isAiSemanticGloballyEnabled, SCAN_CONCURRENCY } from '../config/env.js';
 import {
     AI_SCORE_MAX,
     AI_SIGNAL_WEIGHTS,
@@ -40,6 +41,19 @@ import {
 // (allowlist / blocklist). Scanările vechi își păstrează scorul v6 până la o
 // rescanare (nu rescorăm retroactiv toată baza de date).
 export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v7';
+
+const DEFAULT_SCAN_CONCURRENCY = 4;
+const MAX_SCAN_CONCURRENCY = 10;
+
+const getScanConcurrency = () => {
+    const parsedValue = Number.parseInt(String(SCAN_CONCURRENCY || ''), 10);
+
+    if (!Number.isFinite(parsedValue)) {
+        return DEFAULT_SCAN_CONCURRENCY;
+    }
+
+    return Math.min(Math.max(parsedValue, 1), MAX_SCAN_CONCURRENCY);
+};
 
 const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
     'exe',
@@ -562,7 +576,7 @@ const upsertCurrentScanForEmail = async ({
         },
     };
     const options = {
-        new: true,
+        returnDocument: 'after',
         upsert: true,
         runValidators: true,
         setDefaultsOnInsert: true,
@@ -582,7 +596,7 @@ const upsertCurrentScanForEmail = async ({
         }
 
         currentScan = await Scan.findOneAndUpdate(filter, { $set: update.$set }, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
             sort: {
                 scannedAt: -1,
@@ -786,8 +800,11 @@ export const runSyncScanPipeline = async ({
         failedCount: 0,
     };
 
-    const insertedResults = await Promise.all(
-        uniqueInsertedIds.map(async (emailId) => {
+    const scanConcurrency = getScanConcurrency();
+    const insertedResults = await mapWithConcurrency(
+        uniqueInsertedIds,
+        scanConcurrency,
+        async (emailId) => {
             if (reviewedEmailIds.has(emailId)) return { outcome: 'skipped_reviewed' };
             try {
                 const result = await scanEmailWithRules({
@@ -800,11 +817,13 @@ export const runSyncScanPipeline = async ({
             } catch {
                 return { outcome: 'failed' };
             }
-        }),
+        },
     );
 
-    const updatedResults = await Promise.all(
-        uniqueUpdatedIds.map(async (emailId) => {
+    const updatedResults = await mapWithConcurrency(
+        uniqueUpdatedIds,
+        scanConcurrency,
+        async (emailId) => {
             if (reviewedEmailIds.has(emailId)) return { outcome: 'skipped_reviewed' };
             try {
                 const result = await scanEmailWithRules({
@@ -817,7 +836,7 @@ export const runSyncScanPipeline = async ({
             } catch {
                 return { outcome: 'failed' };
             }
-        }),
+        },
     );
 
     for (const { outcome } of insertedResults) {

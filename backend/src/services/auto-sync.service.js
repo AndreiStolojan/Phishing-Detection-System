@@ -96,7 +96,7 @@ export const runAutoSyncForAllUsers = async () => {
 
     if (activeMailAccounts.length === 0) {
         console.log('[auto-sync] No active Gmail accounts found, skipping run');
-        return;
+        return { totalErrors: 0 };
     }
 
     console.log(`[auto-sync] Starting sync for ${activeMailAccounts.length} Gmail account(s)`);
@@ -161,6 +161,7 @@ export const runAutoSyncForAllUsers = async () => {
         phishingAlerts: totalPhishingAlerts,
         errors: totalErrors,
     });
+    return { totalErrors };
 };
 
 // Variantă folosită pentru un sync MANUAL (declanșat de user din UI, nu de
