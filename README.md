@@ -42,6 +42,7 @@ Requirements:
 
 - Docker Engine or Docker Desktop with the Docker Compose plugin, running and
   accessible without `sudo`.
+- OpenSSL, used to generate the local secrets.
 
 ```bash
 git clone https://github.com/AndreiStolojan/SecureInbox.git
@@ -49,10 +50,10 @@ cd SecureInbox
 ./provision
 ```
 
-The first run builds the images and downloads the local Ollama model. It also
-creates an idempotent demo account with six pre-scanned emails. The generated
-demo and Grafana passwords are printed when provisioning completes and remain
-in the local `.env` file.
+`./provision` creates `.env`, generates the local secrets, builds and starts all
+containers, downloads the Ollama model, and creates a demo account with six
+scanned emails. Leave the script running until it prints `SecureInbox is
+ready`.
 
 | Service | Address |
 | --- | --- |
@@ -62,8 +63,21 @@ in the local `.env` file.
 
 Demo email: `demo@secureinbox.test`
 
-Run `./provision` again at any time. It preserves `.env`, database contents,
-Grafana data, Prometheus data, and the downloaded Ollama model.
+The generated demo and Grafana passwords are printed at the end and stored in
+`.env`.
+
+Verify the installation:
+
+```bash
+docker compose ps
+curl --fail http://127.0.0.1:8080/api/v1/ready
+curl --fail http://127.0.0.1:9090/-/ready
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+All six services should be healthy. You can safely run `./provision` again:
+existing configuration, database contents, monitoring data, and the Ollama
+model are preserved.
 
 For the Raspberry Pi / public Cloudflare deployment, use the separate
 [`prod` branch and production Compose guide](docs/raspberry-pi-deployment.md).
@@ -83,36 +97,62 @@ GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/mail-accounts/google/callback
 ```
 
 Add the same redirect URI to the OAuth client in Google Cloud, then run
-`./provision` again. SMTP and Arcjet variables are documented in `.env.example`
-and are optional.
+`./provision` again:
+
+```bash
+nano .env
+./provision
+```
+
+SMTP and Arcjet variables are documented in `.env.example` and are optional.
 
 ## Local operations
+
+Show status and logs:
 
 ```bash
 docker compose ps
 docker compose logs --tail=100
-docker compose stop
-docker compose start
-docker compose down
+docker compose logs --follow backend
 ```
 
-Create and validate a local MongoDB backup:
+Restart the application:
+
+```bash
+docker compose restart
+```
+
+Update the local installation:
+
+```bash
+git pull --ff-only origin main
+./provision
+```
+
+Create a validated MongoDB backup:
 
 ```bash
 ./scripts/backup
+ls -lh backups
 ```
 
-Restore one explicitly:
+Restore the latest backup:
 
 ```bash
-./scripts/restore backups/secureinbox-TIMESTAMP.archive.gz --confirm-replace
+LATEST_BACKUP="$(find backups -name '*.archive.gz' -type f | sort | tail -1)"
+./scripts/restore "$LATEST_BACKUP" --confirm-replace
 ```
 
 Keep an encrypted backup of `.env` with every MongoDB backup. In particular,
 `MAIL_TOKEN_ENCRYPTION_KEY` is required to decrypt restored Gmail tokens.
 
-To erase all local data, including MongoDB, Grafana, Prometheus, and the Ollama
-model:
+Stop the application while preserving all data:
+
+```bash
+docker compose down
+```
+
+To erase MongoDB, Grafana, Prometheus, and the downloaded Ollama model:
 
 ```bash
 docker compose down --volumes
