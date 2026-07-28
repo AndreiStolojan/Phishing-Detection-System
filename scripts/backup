@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT}"
+
+fail() { printf 'Backup error: %s\n' "$1" >&2; exit 1; }
+checksum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+[[ -f .env ]] || fail "Run ./provision first."
+docker info >/dev/null 2>&1 || fail "Docker is not running."
+docker compose ps --status running --services | grep -qx mongodb ||
+  fail "The mongodb service is not running."
+
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
+
+mkdir -p backups
+umask 077
+timestamp="$(date -u +'%Y-%m-%dT%H%M%SZ')"
+archive="backups/${MONGO_DATABASE}-${timestamp}.archive.gz"
+partial="${archive}.partial"
+manifest="${archive}.manifest.json"
+backend_was_running=false
+completed=false
+
+cleanup() {
+  rm -f "${partial}"
+  if [[ "${completed}" == false ]]; then
+    rm -f "${archive}" "${manifest}"
+  fi
+  if [[ "${backend_was_running}" == true ]]; then
+    docker compose start backend >/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+if docker compose ps --status running --services | grep -qx backend; then
+  backend_was_running=true
+  docker compose stop backend >/dev/null
+fi
+
+counts="$(
+  docker compose exec -T mongodb mongosh --quiet \
+    --username "${MONGO_ROOT_USERNAME}" \
+    --password "${MONGO_ROOT_PASSWORD}" \
+    --authenticationDatabase admin \
+    --eval "const d=db.getSiblingDB('${MONGO_DATABASE}'); print(JSON.stringify({users:d.users.countDocuments({}),emails:d.emails.countDocuments({}),scans:d.scans.countDocuments({})}));"
+)"
+
+docker compose exec -T mongodb mongodump --quiet \
+  --username "${MONGO_ROOT_USERNAME}" \
+  --password "${MONGO_ROOT_PASSWORD}" \
+  --authenticationDatabase admin \
+  --db "${MONGO_DATABASE}" --archive --gzip > "${partial}"
+
+[[ -s "${partial}" ]] || fail "mongodump produced an empty archive."
+mv "${partial}" "${archive}"
+
+docker compose exec -T mongodb mongorestore --quiet --dryRun \
+  --username "${MONGO_ROOT_USERNAME}" \
+  --password "${MONGO_ROOT_PASSWORD}" \
+  --authenticationDatabase admin \
+  --nsInclude "${MONGO_DATABASE}.*" --archive --gzip < "${archive}"
+
+sha256="$(checksum "${archive}")"
+cat > "${manifest}" <<EOF
+{
+  "schemaVersion": 1,
+  "database": "${MONGO_DATABASE}",
+  "createdAt": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+  "archive": "$(basename "${archive}")",
+  "sizeBytes": $(wc -c < "${archive}" | tr -d ' '),
+  "sha256": "${sha256}",
+  "counts": ${counts}
+}
+EOF
+
+completed=true
+if [[ "${backend_was_running}" == true ]]; then
+  docker compose start backend >/dev/null
+  backend_was_running=false
+fi
+
+echo "Backup created: ${archive}"
+echo "Manifest: ${manifest}"

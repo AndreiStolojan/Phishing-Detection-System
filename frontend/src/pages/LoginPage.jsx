@@ -8,26 +8,30 @@ import {
   Loader2,
   Lock,
   Mail,
-  Sparkles,
   User,
   X,
 } from 'lucide-react';
 
 import { useAuth } from '@/hooks/useAuth';
-import { ease, springSnappy, springSoft, staggerChild, staggerParent } from '@/lib/motion';
+import { ease } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import './LoginPage.css';
 
 const THEME = {
   id: 'graphite',
-  eyebrow: 'AI security for every message',
-  description: 'SecureInbox uses AI to flag risky messages, suspicious links, and hidden trackers before you act. Connect Gmail, get a clear safety check, and handle every message with confidence.',
+  description: 'Your inbox should feel simple and safe. SecureInbox highlights what deserves your attention before you open, click, or reply.',
   loginKicker: 'Protected session',
   loginTitle: 'Return to your inbox',
   loginIntro: 'Continue to an AI-reviewed, sanitized view of every message.',
   submitLabel: 'Open protected inbox',
   registerLabel: 'Create protected account',
 };
+
+const SECURITY_BENEFITS = [
+  'Spot suspicious emails before they catch you off guard',
+  'Know which links and senders you can trust',
+  'Stay focused with a clear next step for every message',
+];
 
 const PASSWORD_RULES = [
   { label: '8+ characters', test: (value) => value.length >= 8 },
@@ -160,58 +164,43 @@ export function LoginPage() {
       data-theme="graphite"
     >
       <div className="si-noise" aria-hidden="true" />
-      <motion.div
-        className="si-theme-scene"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.45, ease }}
-        aria-hidden="true"
-      >
+      <div className="si-theme-scene" aria-hidden="true">
         <div className="si-grid-layer" />
         <div className="si-orb si-orb-one" />
         <div className="si-orb si-orb-two" />
-      </motion.div>
+      </div>
 
-      <motion.header
-        className="si-topbar"
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...springSoft, delay: 0.05 }}
-      >
-        <motion.div {...staggerChild} className="si-brand si-brand-code">
+      <header className="si-topbar">
+        <div className="si-brand si-brand-code">
           <span className="si-code-logo">
             <strong>SecureInbox</strong>
           </span>
-        </motion.div>
-      </motion.header>
+        </div>
+      </header>
 
       <section className="si-stage">
-        <motion.div
-          className="si-story"
-          {...staggerParent(0.09)}
-        >
-          <motion.div {...staggerChild} className="si-eyebrow">
-            <Sparkles aria-hidden="true" />
-            <span>{theme.eyebrow}</span>
-          </motion.div>
-
-          <motion.h1 {...staggerChild}>
+        <div className="si-story">
+          <h1>
             <span className="si-title-line">See the risk.</span>
             <span className="si-title-line">Keep moving.</span>
-          </motion.h1>
-          <motion.p {...staggerChild} className="si-description">{theme.description}</motion.p>
+          </h1>
+          <p className="si-description">{theme.description}</p>
+          <ul className="si-benefits">
+            {SECURITY_BENEFITS.map((benefit) => (
+              <li key={benefit}>
+                <Check aria-hidden="true" />
+                <span>{benefit}</span>
+              </li>
+            ))}
+          </ul>
 
-        </motion.div>
+        </div>
 
         <motion.section
           className="si-panel"
-          initial={{ opacity: 0, x: 24, scale: 0.985 }}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          transition={{ ...springSoft, delay: 0.18 }}
+          initial={false}
           aria-labelledby="auth-title"
         >
-          <div className="si-panel-glow" aria-hidden="true" />
-
           <div className="si-mode-tabs" role="tablist" aria-label="Authentication mode">
             <button
               type="button"
@@ -231,14 +220,9 @@ export function LoginPage() {
             >
               Create account
             </button>
-            <motion.span
-              className="si-mode-indicator"
-              animate={{ x: isRegistering ? '100%' : '0%', y: '0%' }}
-              transition={springSnappy}
-            />
           </div>
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={isRegistering ? 'register-copy' : 'login-copy'}
               className="si-panel-copy"
@@ -396,16 +380,11 @@ export function LoginPage() {
         </motion.section>
       </section>
 
-      <motion.footer
-        className="si-footer"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.75, duration: 0.5 }}
-      >
+      <footer className="si-footer">
         <span>© {new Date().getFullYear()} SecureInbox</span>
         <span className="si-footer-line" />
         <span>Designed for clarity under pressure</span>
-      </motion.footer>
+      </footer>
     </main>
   );
 }

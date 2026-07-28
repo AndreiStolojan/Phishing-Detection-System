@@ -3,6 +3,7 @@ import {
     GOOGLE_CLIENT_SECRET,
     GOOGLE_REDIRECT_URI,
 } from './env.js';
+import createError from '../common/errors/create-error.js';
 
 export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 export const GOOGLE_OAUTH_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -28,8 +29,11 @@ export const assertGoogleOAuthConfig = () => {
         .map(([name]) => name);
 
     if (missingGoogleEnvVars.length > 0) {
-        throw new Error(
-            `Missing Google OAuth env vars: ${missingGoogleEnvVars.join(', ')}`
+        throw createError(
+            'Gmail integration is not configured for this local installation.',
+            503,
+            [`Set ${missingGoogleEnvVars.join(', ')} in .env and run ./provision again.`],
+            'INTEGRATION_NOT_CONFIGURED'
         );
     }
 };

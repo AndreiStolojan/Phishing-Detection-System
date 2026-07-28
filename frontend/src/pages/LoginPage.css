@@ -25,7 +25,6 @@ body:has(.si-auth),
   background: var(--si-bg);
   font-family: 'InterVariable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-feature-settings: 'cv11', 'ss01';
-  transition: background-color 400ms var(--ease-out);
 }
 
 .si-noise {
@@ -72,14 +71,12 @@ body:has(.si-auth),
     calc(var(--parallax-y) * -0.12),
     0
   );
-  transition: transform 180ms ease-out;
 }
 
 .si-orb {
   position: absolute;
   border-radius: 50%;
   border: 1px solid rgb(var(--si-accent-rgb) / 0.13);
-  transition: translate 220ms ease-out;
 }
 
 .si-orb-one {
@@ -116,7 +113,7 @@ body:has(.si-auth),
   z-index: 3;
   display: flex;
   align-items: center;
-  width: min(100% - 48px, 1360px);
+  width: min(100% - 48px, 1180px);
   margin: 0 auto;
   padding-top: 28px;
 }
@@ -168,27 +165,6 @@ body:has(.si-auth),
   margin-top: clamp(46px, 6vh, 62px);
 }
 
-.si-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 26px;
-  color: var(--si-accent);
-  font-size: 0.69rem;
-  font-weight: 650;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.si-eyebrow::before {
-  width: 28px;
-  height: 1px;
-  content: '';
-  background: currentColor;
-}
-
-.si-eyebrow svg { width: 14px; }
-
 .si-story h1 {
   min-height: 1.84em;
   max-width: 690px;
@@ -219,6 +195,32 @@ body:has(.si-auth),
   line-height: 1.65;
 }
 
+.si-benefits {
+  display: grid;
+  gap: 14px;
+  margin: 30px 0 0;
+  padding: 0;
+  color: rgb(250 250 250 / 0.7);
+  font-size: 0.88rem;
+  font-weight: 460;
+  line-height: 1.45;
+  list-style: none;
+}
+
+.si-benefits li {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.si-benefits svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: #56d98a;
+  stroke-width: 2;
+}
+
 .si-panel {
   position: relative;
   display: flex;
@@ -226,47 +228,14 @@ body:has(.si-auth),
   margin-top: clamp(46px, 6vh, 62px);
   padding: 26px 34px 24px;
   flex-direction: column;
-  border: 1px solid var(--si-panel-border);
-  border-radius: 30px;
-  background:
-    linear-gradient(145deg, rgb(255 255 255 / 0.075), transparent 24%),
-    linear-gradient(330deg, rgb(var(--si-accent-rgb) / 0.055), transparent 38%),
-    var(--si-panel);
-  backdrop-filter: blur(34px) saturate(135%);
-  -webkit-backdrop-filter: blur(34px) saturate(135%);
-  box-shadow:
-    0 38px 100px rgb(0 0 0 / 0.42),
-    inset 0 1px rgb(255 255 255 / 0.08);
+  border: 1px solid #303236;
+  border-radius: 18px;
+  background: #1a1b1d;
+  box-shadow: 0 20px 48px rgb(0 0 0 / 0.22);
 }
 
-.si-panel::before {
-  position: absolute;
-  z-index: 0;
-  inset: 1px;
-  border-radius: 29px;
-  content: '';
-  pointer-events: none;
-  box-shadow:
-    inset 1px 1px rgb(255 255 255 / 0.055),
-    inset -1px -1px rgb(var(--si-accent-rgb) / 0.025);
-}
-
-.si-panel > * {
-  position: relative;
-  z-index: 1;
-}
-
-.si-panel-glow {
-  position: absolute;
-  z-index: 0;
-  top: -100px;
-  right: -90px;
-  width: 230px;
-  height: 190px;
-  border-radius: 50%;
-  background: rgb(var(--si-accent-rgb) / 0.09);
-  filter: blur(68px);
-  pointer-events: none;
+.si-auth.is-registering .si-panel {
+  margin-top: calc(clamp(46px, 6vh, 62px) - 78px);
 }
 
 .si-panel-copy { order: 1; }
@@ -277,23 +246,6 @@ body:has(.si-auth),
   transition:
     margin-bottom 280ms var(--ease-out),
     transform 280ms var(--ease-out);
-}
-
-.si-auth.is-registering .si-panel-copy {
-  margin-bottom: -67px;
-}
-
-.si-auth.is-registering .si-panel-kicker {
-  opacity: 0;
-}
-
-.si-auth.is-registering .si-panel h2 {
-  font-size: 1.3rem;
-  transform: translateY(-24px);
-}
-
-.si-auth.is-registering .si-panel-intro {
-  visibility: hidden;
 }
 
 .si-mode-tabs {
@@ -676,16 +628,19 @@ body:has(.si-auth),
     text-align: center;
   }
 
-  .si-eyebrow {
-    margin-bottom: 19px;
-  }
-
   .si-story h1 {
     font-size: clamp(2.65rem, 11.5vw, 4rem);
   }
 
   .si-description {
     margin-inline: auto;
+  }
+
+  .si-benefits {
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    text-align: left;
   }
 
   .si-panel {

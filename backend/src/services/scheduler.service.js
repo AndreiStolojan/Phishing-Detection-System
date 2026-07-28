@@ -21,6 +21,7 @@ import cron from 'node-cron';
 import mongoose from 'mongoose';
 import { SYNC_INTERVAL_MINUTES } from '../config/env.js';
 import { runAutoSyncForAllUsers } from './auto-sync.service.js';
+import { recordOperation } from '../monitoring/metrics.js';
 import { getDailySummaryForUser } from './report.service.js';
 import { sendDailyDigestEmail } from '../../extras/notifications/send-email.js';
 import User from '../models/user.model.js';
@@ -170,10 +171,13 @@ export const startSchedulers = () => {
     // toate conturile Gmail active și scanează emailurile noi.
     cron.schedule(syncCron, async () => {
         console.log(`[auto-sync] Cron triggered (every ${syncIntervalMinutes} min)`);
+        const startedAt = new Date();
 
         try {
             await runAutoSyncForAllUsers();
+            recordOperation({ operation: 'scheduler_auto_sync', result: 'success', startedAt });
         } catch (error) {
+            recordOperation({ operation: 'scheduler_auto_sync', result: 'failure', startedAt });
             console.error('[auto-sync] Unhandled error in cron job', error.message);
         }
     });
@@ -184,10 +188,13 @@ export const startSchedulers = () => {
     cron.schedule('0 * * * *', async () => {
         const currentHour = new Date().getUTCHours();
         console.log(`[daily-digest] Cron triggered (hour ${currentHour} UTC)`);
+        const startedAt = new Date();
 
         try {
             await runDailyDigestForHour(currentHour);
+            recordOperation({ operation: 'scheduler_daily_digest', result: 'success', startedAt });
         } catch (error) {
+            recordOperation({ operation: 'scheduler_daily_digest', result: 'failure', startedAt });
             console.error('[daily-digest] Unhandled error in cron job', error.message);
         }
     });

@@ -5,7 +5,9 @@ const upperCasePattern = /[A-Z]/;
 const numberPattern = /\d/;
 const specialCharacterPattern = /[^A-Za-z\d]/;
 
-const emailField = Joi.string().trim().lowercase().email().required().messages({
+// Local development uses the reserved `.test` domain for the demo account.
+// Syntax validation is still enforced, without requiring a public DNS TLD.
+const emailField = Joi.string().trim().lowercase().email({ tlds: { allow: false } }).required().messages({
   "string.empty": "Email is required",
   "string.email": "Please provide a valid email address",
   "any.required": "Email is required",

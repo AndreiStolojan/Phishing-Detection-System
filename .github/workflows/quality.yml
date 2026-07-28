@@ -28,9 +28,24 @@ jobs:
       - run: npm ci --prefix frontend
       - run: npm test --prefix frontend
       - run: npm run build --prefix frontend
+      - name: Validate local scripts
+        run: bash -n provision scripts/backup scripts/restore
+      - name: Validate Grafana dashboard
+        run: node -e "JSON.parse(require('fs').readFileSync('monitoring/grafana/dashboards/secureinbox-local.json'))"
       - name: Validate Docker Compose
         env:
-          TUNNEL_TOKEN: ci-placeholder
+          MONGO_ROOT_PASSWORD: ci-mongo-password
+          JWT_SECRET: ci-jwt-secret
+          MAIL_TOKEN_ENCRYPTION_KEY: ci-encryption-key
+          DEMO_USER_PASSWORD: ci-demo-password
+          GRAFANA_ADMIN_PASSWORD: ci-grafana-password
         run: |
-          cp backend/.env.production.local.example backend/.env.production.local
           docker compose config
+      - name: Validate Prometheus configuration
+        run: |
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.12.0 \
+            check config /etc/prometheus/prometheus.yml
+      - name: Build application containers
+        run: docker compose --env-file .env.example build backend frontend

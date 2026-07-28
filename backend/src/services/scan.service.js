@@ -576,7 +576,7 @@ const upsertCurrentScanForEmail = async ({
         },
     };
     const options = {
-        new: true,
+        returnDocument: 'after',
         upsert: true,
         runValidators: true,
         setDefaultsOnInsert: true,
@@ -596,7 +596,7 @@ const upsertCurrentScanForEmail = async ({
         }
 
         currentScan = await Scan.findOneAndUpdate(filter, { $set: update.$set }, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
             sort: {
                 scannedAt: -1,

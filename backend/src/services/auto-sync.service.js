@@ -18,6 +18,7 @@ import User from '../models/user.model.js';
 import Scan from '../models/scan.model.js';
 import Email from '../models/email.model.js';
 import { syncGmailEmailsForUser } from './mail-account.service.js';
+import { recordOperation } from '../monitoring/metrics.js';
 import { sendPhishingAlertEmail } from '../../extras/notifications/send-email.js';
 
 // Pentru o listă de id-uri de emailuri (de obicei emailuri NOU inserate la
@@ -88,6 +89,7 @@ const sendAlertIfEnabled = async ({ user, phishingEmails }) => {
 // Erorile per-cont sunt prinse și numărate — un cont stricat nu blochează
 // sincronizarea pentru restul userilor.
 export const runAutoSyncForAllUsers = async () => {
+    const startedAt = new Date();
     // Toate conturile Gmail conectate și active (userul nu le-a deconectat).
     const activeMailAccounts = await MailAccount.find({
         provider: 'gmail',
@@ -96,6 +98,7 @@ export const runAutoSyncForAllUsers = async () => {
 
     if (activeMailAccounts.length === 0) {
         console.log('[auto-sync] No active Gmail accounts found, skipping run');
+        recordOperation({ operation: 'gmail_sync', result: 'success', startedAt });
         return;
     }
 
@@ -160,6 +163,11 @@ export const runAutoSyncForAllUsers = async () => {
         newEmails: totalNewEmails,
         phishingAlerts: totalPhishingAlerts,
         errors: totalErrors,
+    });
+    recordOperation({
+        operation: 'gmail_sync',
+        result: totalErrors > 0 ? 'failure' : 'success',
+        startedAt,
     });
 };
 

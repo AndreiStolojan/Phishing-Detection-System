@@ -1,0 +1,65 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Backend",
+      "type": "stat",
+      "targets": [{"expr": "up{job=\"secureinbox-backend\"}", "refId": "A"}]
+    },
+    {
+      "id": 2,
+      "title": "API request rate",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(rate(secureinbox_http_requests_total[5m]))", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "title": "HTTP errors",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (status_code) (rate(secureinbox_http_requests_total{status_code=~\"4..|5..\"}[5m]))", "refId": "A"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "API latency p50 / p95 / p99",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(secureinbox_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum(rate(secureinbox_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B"},
+        {"expr": "histogram_quantile(0.99, sum(rate(secureinbox_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C"}
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Backend resident memory",
+      "type": "timeseries",
+      "targets": [{"expr": "secureinbox_process_resident_memory_bytes", "refId": "A"}]
+    },
+    {
+      "id": 6,
+      "title": "Application operations",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (operation, result) (rate(secureinbox_application_operations_total[5m]))", "refId": "A"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Last successful scheduler run",
+      "type": "stat",
+      "targets": [
+        {"expr": "secureinbox_scheduler_last_success_timestamp_seconds", "refId": "A"}
+      ]
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["secureinbox", "local"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "SecureInbox Local",
+  "uid": "secureinbox-local",
+  "version": 1
+}
