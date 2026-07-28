@@ -28,44 +28,30 @@ export const httpRequestDurationSeconds = new Histogram({
   registers: [metricsRegistry],
 });
 
-export const httpRequestsInFlight = new Gauge({
-  name: 'secureinbox_http_requests_in_flight',
-  help: 'HTTP requests currently being processed.',
+export const scheduledTasksTotal = new Counter({
+  name: 'secureinbox_scheduled_tasks_total',
+  help: 'Completed scheduled tasks grouped by task and result.',
+  labelNames: ['task', 'result'],
   registers: [metricsRegistry],
 });
 
-export const applicationOperationsTotal = new Counter({
-  name: 'secureinbox_application_operations_total',
-  help: 'Completed application operations grouped by safe, bounded labels.',
-  labelNames: ['operation', 'result'],
+export const scheduledTaskLastSuccessTimestampSeconds = new Gauge({
+  name: 'secureinbox_scheduled_task_last_success_timestamp_seconds',
+  help: 'Unix timestamp of the last successful scheduled task.',
+  labelNames: ['task'],
   registers: [metricsRegistry],
 });
 
-export const applicationOperationDurationSeconds = new Histogram({
-  name: 'secureinbox_application_operation_duration_seconds',
-  help: 'Application operation duration in seconds.',
-  labelNames: ['operation', 'result'],
-  buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 15, 30, 60, 120],
-  registers: [metricsRegistry],
-});
-
-export const schedulerLastSuccessTimestampSeconds = new Gauge({
-  name: 'secureinbox_scheduler_last_success_timestamp_seconds',
-  help: 'Unix timestamp of the last successful scheduled operation.',
-  labelNames: ['operation'],
-  registers: [metricsRegistry],
-});
-
-export const recordOperation = ({ operation, result, startedAt }) => {
-  applicationOperationsTotal.inc({ operation, result });
-  if (startedAt instanceof Date) {
-    applicationOperationDurationSeconds.observe(
-      { operation, result },
-      Math.max(0, (Date.now() - startedAt.getTime()) / 1000)
-    );
+export const recordScheduledTask = ({ task, result }) => {
+  if (!['auto_sync', 'daily_digest'].includes(task)) {
+    throw new Error(`Unknown scheduled task metric label: ${task}`);
   }
-  if (result === 'success' && operation.startsWith('scheduler_')) {
-    schedulerLastSuccessTimestampSeconds.set({ operation }, Date.now() / 1000);
+  if (!['success', 'failure'].includes(result)) {
+    throw new Error(`Unknown scheduled task result metric label: ${result}`);
+  }
+  scheduledTasksTotal.inc({ task, result });
+  if (result === 'success') {
+    scheduledTaskLastSuccessTimestampSeconds.set({ task }, Date.now() / 1000);
   }
 };
 

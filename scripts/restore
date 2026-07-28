@@ -18,8 +18,9 @@ checksum() {
 
 [[ "$#" -eq 2 && "$2" == "--confirm-replace" ]] || { usage >&2; exit 2; }
 [[ -f .env ]] || fail "Run ./provision first."
-docker_command info >/dev/null 2>&1 || fail "Docker is not running."
-docker_command compose ps --status running --services | grep -qx mongodb ||
+docker info >/dev/null 2>&1 || fail "Docker is not running or this user cannot access it."
+docker compose version >/dev/null 2>&1 || fail "Docker Compose plugin is required."
+docker compose ps --status running --services | grep -qx mongodb ||
   fail "The mongodb service is not running."
 
 MONGO_DATABASE="$(dotenv_get MONGO_DATABASE .env)"
@@ -45,7 +46,7 @@ expected_scans="$(sed -nE 's/.*"scans":[[:space:]]*([0-9]+).*/\1/p' "${manifest}
 [[ "$(checksum "${archive}")" == "${expected_sha}" ]] || fail "Archive checksum mismatch."
 
 restore_archive() {
-  docker_command compose exec -T mongodb mongorestore --quiet "$@" \
+  docker compose exec -T mongodb mongorestore --quiet "$@" \
     --username "${MONGO_ROOT_USERNAME}" \
     --password "${MONGO_ROOT_PASSWORD}" \
     --authenticationDatabase admin \
@@ -60,19 +61,19 @@ restore_completed=false
 cleanup() {
   [[ "${backend_was_running}" == true ]] || return 0
   if [[ "${database_dropped}" == false || "${restore_completed}" == true ]]; then
-    docker_command compose start backend >/dev/null || true
+    docker compose start backend >/dev/null || true
   else
     echo "Restore failed after the database was dropped; backend remains stopped." >&2
   fi
 }
 trap cleanup EXIT
 
-if docker_command compose ps --status running --services | grep -qx backend; then
+if docker compose ps --status running --services | grep -qx backend; then
   backend_was_running=true
-  docker_command compose stop backend >/dev/null
+  docker compose stop backend >/dev/null
 fi
 
-docker_command compose exec -T mongodb mongosh --quiet \
+docker compose exec -T mongodb mongosh --quiet \
   --username "${MONGO_ROOT_USERNAME}" \
   --password "${MONGO_ROOT_PASSWORD}" \
   --authenticationDatabase admin \
@@ -82,7 +83,7 @@ database_dropped=true
 restore_archive < "${archive}"
 
 actual_counts="$(
-  docker_command compose exec -T mongodb mongosh --quiet \
+  docker compose exec -T mongodb mongosh --quiet \
     --username "${MONGO_ROOT_USERNAME}" \
     --password "${MONGO_ROOT_PASSWORD}" \
     --authenticationDatabase admin \
@@ -93,7 +94,7 @@ expected_counts="{\"users\":${expected_users},\"emails\":${expected_emails},\"sc
 
 restore_completed=true
 if [[ "${backend_was_running}" == true ]]; then
-  docker_command compose start backend >/dev/null
+  docker compose start backend >/dev/null
   backend_was_running=false
   for _ in {1..30}; do
     if curl --fail --silent "http://127.0.0.1:${APP_PORT}/api/v1/ready" >/dev/null 2>&1; then

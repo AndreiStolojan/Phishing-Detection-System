@@ -1,6 +1,5 @@
 import {
   httpRequestDurationSeconds,
-  httpRequestsInFlight,
   httpRequestsTotal,
 } from './metrics.js';
 
@@ -16,20 +15,23 @@ const normalizeRoute = (req) => {
     .replace(/\b\d+\b/g, ':id');
 };
 
+const normalizeMethod = (method) =>
+  ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'].includes(method)
+    ? method
+    : 'OTHER';
+
 export const observeHttpRequests = (req, res, next) => {
   if (req.path === '/metrics') return next();
 
   const startedAt = process.hrtime.bigint();
   let complete = false;
-  httpRequestsInFlight.inc();
 
   const finish = () => {
     if (complete) return;
     complete = true;
-    httpRequestsInFlight.dec();
 
     const labels = {
-      method: req.method,
+      method: normalizeMethod(req.method),
       route: normalizeRoute(req),
       status_code: String(res.statusCode),
     };

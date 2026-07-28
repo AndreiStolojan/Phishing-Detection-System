@@ -40,8 +40,8 @@ The frontend talks to it through the nginx reverse proxy. See
 
 Requirements:
 
-- macOS with Docker Desktop; or
-- Ubuntu, where the provisioning script can install Docker Engine.
+- Docker Engine or Docker Desktop with the Docker Compose plugin, running and
+  accessible without `sudo`.
 
 ```bash
 git clone https://github.com/AndreiStolojan/SecureInbox.git

@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
-import { metricsHandler, metricsRegistry } from '../../src/monitoring/metrics.js';
+import { readFile } from 'node:fs/promises';
+import {
+  metricsHandler,
+  metricsRegistry,
+  recordScheduledTask,
+} from '../../src/monitoring/metrics.js';
 import { observeHttpRequests } from '../../src/monitoring/metrics.middleware.js';
 
 test('HTTP metrics use normalized routes and never retain object ids', async () => {
@@ -39,6 +44,18 @@ test('unmatched paths share one bounded route label', async () => {
   assert.ok((output.match(/route="unmatched"/g) || []).length < 40);
 });
 
+test('unrecognized HTTP methods share the OTHER label', async () => {
+  const req = { method: 'METHOD_WITH_UNBOUNDED_INPUT', path: '/api/v1/anything' };
+  const res = new EventEmitter();
+  res.statusCode = 404;
+  observeHttpRequests(req, res, () => {});
+  res.emit('finish');
+
+  const output = await metricsRegistry.metrics();
+  assert.match(output, /method="OTHER",route="unmatched",status_code="404"/);
+  assert.doesNotMatch(output, /METHOD_WITH_UNBOUNDED_INPUT/);
+});
+
 test('metrics endpoint returns Prometheus text without application data', async () => {
   const response = {
     headers: {},
@@ -51,4 +68,30 @@ test('metrics endpoint returns Prometheus text without application data', async 
   assert.match(response.headers['Content-Type'], /text\/plain/);
   assert.match(response.body, /secureinbox_http_requests_total/);
   assert.doesNotMatch(response.body, /@|gmail|token/i);
+});
+
+test('scheduled task metrics use bounded task and result labels', async () => {
+  recordScheduledTask({ task: 'auto_sync', result: 'success' });
+  recordScheduledTask({ task: 'daily_digest', result: 'failure' });
+
+  const output = await metricsRegistry.metrics();
+  assert.match(output, /secureinbox_scheduled_tasks_total\{task="auto_sync",result="success"\} 1/);
+  assert.match(output, /secureinbox_scheduled_tasks_total\{task="daily_digest",result="failure"\} 1/);
+  assert.match(output, /secureinbox_scheduled_task_last_success_timestamp_seconds\{task="auto_sync"\}/);
+  assert.doesNotMatch(output, /application_operations|http_requests_in_flight/);
+  assert.throws(() => recordScheduledTask({ task: 'anything_else', result: 'success' }));
+  assert.throws(() => recordScheduledTask({ task: 'auto_sync', result: 'maybe' }));
+});
+
+test('every custom metric is shown in the operational dashboard', async () => {
+  const dashboard = await readFile(new URL('../../../monitoring/grafana/dashboards/secureinbox-local.json', import.meta.url), 'utf8');
+  for (const metric of [
+    'secureinbox_http_requests_total',
+    'secureinbox_http_request_duration_seconds',
+    'secureinbox_scheduled_tasks_total',
+    'secureinbox_scheduled_task_last_success_timestamp_seconds',
+  ]) {
+    assert.match(dashboard, new RegExp(metric));
+  }
+  assert.doesNotMatch(dashboard, /application_operations|scheduler_last_success/);
 });

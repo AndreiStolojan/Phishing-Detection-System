@@ -4,7 +4,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Backend",
+      "title": "Backend availability",
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
       "type": "stat",
       "targets": [{"expr": "up{job=\"secureinbox-backend\"}", "refId": "A"}]
@@ -14,26 +14,27 @@
       "title": "API request rate",
       "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
       "type": "timeseries",
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
       "targets": [{"expr": "sum(rate(secureinbox_http_requests_total[5m]))", "refId": "A"}]
     },
     {
       "id": 3,
-      "title": "HTTP errors",
+      "title": "API 5xx ratio",
       "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
       "type": "timeseries",
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
       "targets": [
-        {"expr": "sum by (status_code) (rate(secureinbox_http_requests_total{status_code=~\"4..|5..\"}[5m]))", "refId": "A"}
+        {"expr": "sum(rate(secureinbox_http_requests_total{status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(secureinbox_http_requests_total[5m])), 0.001)", "refId": "A"}
       ]
     },
     {
       "id": 4,
-      "title": "API latency p50 / p95 / p99",
+      "title": "API latency p95",
       "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
       "type": "timeseries",
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
       "targets": [
-        {"expr": "histogram_quantile(0.50, sum(rate(secureinbox_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A"},
-        {"expr": "histogram_quantile(0.95, sum(rate(secureinbox_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B"},
-        {"expr": "histogram_quantile(0.99, sum(rate(secureinbox_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C"}
+        {"expr": "histogram_quantile(0.95, sum(rate(secureinbox_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "A"}
       ]
     },
     {
@@ -41,24 +42,26 @@
       "title": "Backend resident memory",
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
       "type": "timeseries",
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
       "targets": [{"expr": "secureinbox_process_resident_memory_bytes", "refId": "A"}]
     },
     {
       "id": 6,
-      "title": "Application operations",
+      "title": "Scheduled task outcomes (1h)",
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
       "type": "timeseries",
       "targets": [
-        {"expr": "sum by (operation, result) (rate(secureinbox_application_operations_total[5m]))", "refId": "A"}
+        {"expr": "sum by (task, result) (increase(secureinbox_scheduled_tasks_total[1h]))", "refId": "A"}
       ]
     },
     {
       "id": 7,
-      "title": "Last successful scheduler run",
+      "title": "Last successful scheduled task",
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "type": "stat",
+      "fieldConfig": {"defaults": {"unit": "dateTimeAsLocal"}, "overrides": []},
       "targets": [
-        {"expr": "secureinbox_scheduler_last_success_timestamp_seconds", "refId": "A"}
+        {"expr": "max by (task) (secureinbox_scheduled_task_last_success_timestamp_seconds) * 1000", "refId": "A"}
       ]
     }
   ],

@@ -90,9 +90,10 @@ curl -i https://YOUR_HOSTNAME/api/v1/ready
 
 ## Promote and update safely
 
-Test changes on a branch and merge them to `main`. After CI and a production
-Compose validation pass, open a separate PR from the selected `main` revision
-into `prod`; review and merge that PR. Then update the Pi only from `prod`:
+Test changes on a branch and merge them to `main`. After the CI production
+Compose validation gate passes, open a separate PR from the selected `main` revision
+into `prod`; require the Quality check and human review before merging that PR.
+Then update the Pi only from `prod`:
 
 ```bash
 cd /opt/secureinbox
@@ -106,6 +107,9 @@ docker compose -f docker-compose.prod.yml ps
 
 Record `git rev-parse HEAD` after each deployment. Stop if the working tree is
 not clean; do not resolve local changes by pulling `main`.
+
+CI verifies the promotion inputs only. Rollout remains a manual Pi operation
+until dedicated deployment infrastructure is introduced.
 
 ## Backups and maintenance
 

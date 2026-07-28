@@ -201,11 +201,10 @@ export function LoginPage() {
           initial={false}
           aria-labelledby="auth-title"
         >
-          <div className="si-mode-tabs" role="tablist" aria-label="Authentication mode">
+          <div className="si-mode-tabs" role="group" aria-label="Authentication mode">
             <button
               type="button"
-              role="tab"
-              aria-selected={!isRegistering}
+              aria-pressed={!isRegistering}
               className={!isRegistering ? 'is-active' : ''}
               onClick={() => isRegistering && toggleMode()}
             >
@@ -213,8 +212,7 @@ export function LoginPage() {
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={isRegistering}
+              aria-pressed={isRegistering}
               className={isRegistering ? 'is-active' : ''}
               onClick={() => !isRegistering && toggleMode()}
             >
@@ -338,7 +336,9 @@ export function LoginPage() {
                     <ul>
                       {passwordChecks.map((rule) => (
                         <li key={rule.label} className={rule.ok ? 'is-complete' : ''}>
-                          <span>{rule.ok ? <Check /> : <X />}</span>
+                          <span aria-hidden="true">
+                            {rule.ok ? <Check aria-hidden="true" /> : <X aria-hidden="true" />}
+                          </span>
                           {rule.label}
                         </li>
                       ))}

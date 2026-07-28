@@ -10,10 +10,8 @@ ENV_FILE="${PROVISION_ENV_FILE:-${ROOT}/.env}"
 log() { printf '\n==> %s\n' "$1"; }
 fail() { printf 'Provisioning error: %s\n' "$1" >&2; exit 1; }
 
-DOCKER=(docker)
-
 compose() {
-  "${DOCKER[@]}" compose --env-file "${ENV_FILE}" "$@"
+  docker compose --env-file "${ENV_FILE}" "$@"
 }
 
 load_required_env_value() {
@@ -36,74 +34,10 @@ load_runtime_values() {
   done
 }
 
-wait_for_docker() {
-  for _ in {1..60}; do
-    if docker info >/dev/null 2>&1; then
-      return
-    fi
-    sleep 2
-  done
-  if pgrep -f com.docker.backend >/dev/null 2>&1; then
-    fail "Docker Desktop is still starting or waiting for an administrator prompt. Complete its setup, then run ./provision again."
-  fi
-  fail "Docker did not become available. Start Docker Desktop and try again."
-}
-
-prepare_docker() {
-  case "$(uname -s)" in
-    Darwin)
-      if ! command -v docker >/dev/null 2>&1; then
-        fail "Docker Desktop is required: https://docs.docker.com/desktop/setup/install/mac-install/"
-      fi
-      if ! docker info >/dev/null 2>&1; then
-        [[ -d /Applications/Docker.app ]] || fail "Docker Desktop is installed but could not be found in /Applications."
-        log "Starting Docker Desktop"
-        open -a Docker
-        wait_for_docker
-      fi
-      ;;
-    Linux)
-      if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
-        [[ -r /etc/os-release ]] || fail "Cannot identify this Linux distribution."
-        # shellcheck disable=SC1091
-        source /etc/os-release
-        [[ "${ID:-}" == "ubuntu" ]] || fail "Automatic Docker installation is supported on Ubuntu only."
-        command -v sudo >/dev/null 2>&1 || fail "sudo is required to install Docker."
-
-        log "Installing Docker Engine and Docker Compose"
-        sudo apt-get update
-        sudo apt-get install -y ca-certificates curl openssl
-        sudo install -m 0755 -d /etc/apt/keyrings
-        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        sudo chmod a+r /etc/apt/keyrings/docker.asc
-        . /etc/os-release
-        printf '%s\n' \
-          'Types: deb' \
-          'URIs: https://download.docker.com/linux/ubuntu' \
-          "Suites: ${UBUNTU_CODENAME:-${VERSION_CODENAME}}" \
-          'Components: stable' \
-          "Architectures: $(dpkg --print-architecture)" \
-          'Signed-By: /etc/apt/keyrings/docker.asc' |
-          sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null
-        sudo apt-get update
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-        sudo systemctl enable --now docker
-        sudo usermod -aG docker "${SUDO_USER:-${USER}}"
-      fi
-
-      if ! docker info >/dev/null 2>&1; then
-        command -v sudo >/dev/null 2>&1 || fail "Current user cannot access Docker."
-        sudo docker info >/dev/null 2>&1 || fail "Docker daemon is not available."
-        DOCKER=(sudo docker)
-      fi
-      ;;
-    *)
-      fail "Supported platforms are macOS and Ubuntu."
-      ;;
-  esac
-
-  "${DOCKER[@]}" compose version >/dev/null 2>&1 ||
-    fail "Docker Compose plugin is required."
+require_docker() {
+  command -v docker >/dev/null 2>&1 || fail "Docker Engine and Docker Compose are required."
+  docker info >/dev/null 2>&1 || fail "Docker is not running or this user cannot access it."
+  docker compose version >/dev/null 2>&1 || fail "Docker Compose plugin is required."
 }
 
 create_env() {
@@ -117,25 +51,11 @@ create_env() {
     log "Keeping existing .env and filling missing local values"
   fi
 
-  dotenv_set_if_missing APP_PORT 8080 "${ENV_FILE}"
-  dotenv_set_if_missing MONGO_DATABASE secureinbox "${ENV_FILE}"
-  dotenv_set_if_missing MONGO_ROOT_USERNAME secureinbox_root "${ENV_FILE}"
   dotenv_set_if_missing MONGO_ROOT_PASSWORD "$(openssl rand -hex 32)" "${ENV_FILE}"
   dotenv_set_if_missing JWT_SECRET "$(openssl rand -hex 32)" "${ENV_FILE}"
-  dotenv_set_if_missing JWT_EXPIRES_IN 8h "${ENV_FILE}"
   dotenv_set_if_missing MAIL_TOKEN_ENCRYPTION_KEY "$(openssl rand -hex 32)" "${ENV_FILE}"
-  dotenv_set_if_missing DEMO_USER_NAME '"Demo User"' "${ENV_FILE}"
-  dotenv_set_if_missing DEMO_USER_EMAIL demo@secureinbox.test "${ENV_FILE}"
   dotenv_set_if_missing DEMO_USER_PASSWORD "$(openssl rand -hex 12)" "${ENV_FILE}"
-  dotenv_set_if_missing GRAFANA_ADMIN_USER admin "${ENV_FILE}"
   dotenv_set_if_missing GRAFANA_ADMIN_PASSWORD "$(openssl rand -hex 16)" "${ENV_FILE}"
-  dotenv_set_if_missing AI_SEMANTIC_ENABLED true "${ENV_FILE}"
-  dotenv_set_if_missing OLLAMA_MODEL qwen2.5:1.5b-instruct-q4_K_M "${ENV_FILE}"
-  dotenv_set_if_missing OLLAMA_TIMEOUT_MS 90000 "${ENV_FILE}"
-  dotenv_set_if_missing OLLAMA_PROMPT_VERSION semantic-v3 "${ENV_FILE}"
-  dotenv_set_if_missing SCAN_CONCURRENCY 1 "${ENV_FILE}"
-  dotenv_set_if_missing SYNC_INTERVAL_MINUTES 15 "${ENV_FILE}"
-  dotenv_set_if_missing ARCJET_ENV development "${ENV_FILE}"
 
   local app_port redirect_uri default_redirect_uri
   app_port="$(dotenv_get APP_PORT "${ENV_FILE}")"
@@ -150,52 +70,15 @@ create_env() {
   chmod 0600 "${ENV_FILE}"
 }
 
-wait_for_url() {
-  local name="$1" url="$2"
-  for _ in {1..60}; do
-    if curl --fail --silent "${url}" >/dev/null 2>&1; then
-      printf '%-12s OK\n' "${name}:"
-      return
-    fi
-    sleep 2
-  done
-  compose ps
-  compose logs --no-color --tail=80
-  fail "${name} did not become available at ${url}"
-}
-
-wait_for_service_health() {
-  local service="$1" container_id status
-  for _ in {1..60}; do
-    container_id="$(compose ps -q "${service}")"
-    if [[ -n "${container_id}" ]]; then
-      status="$("${DOCKER[@]}" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}")"
-      [[ "${status}" == "healthy" ]] && return
-      if [[ "${status}" == "unhealthy" || "${status}" == "exited" || "${status}" == "dead" ]]; then
-        compose logs --no-color --tail=80 "${service}"
-        fail "${service} entered state: ${status}"
-      fi
-    fi
-    sleep 2
-  done
-  compose logs --no-color --tail=80 "${service}"
-  fail "${service} did not become healthy."
-}
-
 main() {
-  prepare_docker
-  command -v curl >/dev/null 2>&1 || fail "curl is required."
+  require_docker
   create_env
 
   load_runtime_values
 
   log "Validating and building the local stack"
   compose config --quiet
-  compose build --pull
-  compose up -d
-
-  log "Waiting for SecureInbox"
-  wait_for_url "Application" "http://127.0.0.1:${APP_PORT}/api/v1/ready"
+  compose up -d --build --wait --wait-timeout 180
 
   log "Preparing the local Ollama model"
   if ! compose exec -T ollama ollama list |
@@ -207,12 +90,6 @@ main() {
   log "Creating the local demo account and inbox"
   compose exec -T backend npm run seed:local
 
-  log "Checking monitoring"
-  wait_for_url "Prometheus" "http://127.0.0.1:9090/-/ready"
-  wait_for_url "Grafana" "http://127.0.0.1:3000/api/health"
-  for service in mongodb ollama backend frontend prometheus grafana; do
-    wait_for_service_health "${service}"
-  done
   compose ps
 
   cat <<EOF

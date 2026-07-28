@@ -21,9 +21,9 @@ import { observeHttpRequests } from './monitoring/metrics.middleware.js';
 
 const app = express();
 
-// Express is reached through the single nginx container in every Compose mode.
-// Trust exactly that first proxy so rate limiting uses the original client IP.
-app.set('trust proxy', 1);
+// Compose reaches Express through nginx on a private network. Public peers are
+// not trusted if the backend is ever exposed directly.
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
 app.use(helmet());
 app.use(cors({ origin: FRONTEND_APP_URL, credentials: true }));
