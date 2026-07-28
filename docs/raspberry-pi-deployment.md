@@ -1,250 +1,124 @@
-# Raspberry Pi deployment
+# Raspberry Pi production deployment
 
-This guide deploys SecureInbox on a 64-bit Raspberry Pi through a remotely
-managed Cloudflare Tunnel. The public hostname points to the internal
-`frontend` container, nginx serves the React application and proxies `/api/`
-to the Express container. MongoDB remains on Atlas. Ollama runs CPU-only in the
-same private Docker network and stores its model in a persistent Docker volume.
+Production is a separate Compose path and branch. The default
+`docker-compose.yml` is for local development only; it starts local MongoDB,
+Prometheus, and Grafana and must not be used on the Pi.
 
 ```text
 Browser -> Cloudflare -> cloudflared -> nginx -> Express -> MongoDB Atlas
                                                 |
-                                                +-> Ollama / Qwen2.5 1.5B
+                                                +-> Ollama
 ```
 
-The Compose file publishes no host ports. Do not configure router port
-forwarding for ports 80, 443, 5500, or 11434.
+The production Compose file publishes no host ports. Cloudflare Tunnel is the
+only ingress; do not configure router port forwarding.
 
-## 1. Prerequisites
+## Prerequisites
 
-- Raspberry Pi 5 running Raspberry Pi OS Lite 64-bit (`arm64`)
-- SSD or NVMe storage, Ethernet, active cooling, and a stable power supply
-- Docker Engine and the Docker Compose plugin
-- a domain whose DNS is managed by Cloudflare
-- a MongoDB Atlas database and application database user
-- a Google Cloud OAuth web client with the Gmail API enabled
-- at least 5 GB of free Docker storage for the Ollama image, model, and runtime data
+- Raspberry Pi OS Lite 64-bit on a cooled Pi with reliable storage and power
+- Docker Engine plus the Compose plugin (`docker compose version`)
+- MongoDB Atlas database, least-privileged database user, and a `/32` Atlas IP allow-list entry for the Pi
+- Cloudflare-managed domain and a remotely managed tunnel
+- Google OAuth web client with Gmail API enabled, if Gmail is used
 
-Verify the host before continuing:
+Verify `dpkg --print-architecture` prints `arm64` and `docker run --rm hello-world`
+works without `sudo`.
 
-```bash
-dpkg --print-architecture
-docker run --rm hello-world
-docker compose version
-```
-
-The architecture must be `arm64` and the Docker test must work without
-`sudo`. If it only works with `sudo`, log out and reconnect after adding the
-user to the `docker` group.
-
-## 2. Clone the public repository
+## Install the reviewed production revision
 
 ```bash
 sudo mkdir -p /opt/secureinbox
 sudo chown "$USER":"$USER" /opt/secureinbox
-git clone https://github.com/AndreiStolojan/SecureInbox.git /opt/secureinbox
+git clone --branch prod https://github.com/AndreiStolojan/SecureInbox.git /opt/secureinbox
 cd /opt/secureinbox
-```
-
-Deploy only a reviewed commit from `main`. Record the deployed revision:
-
-```bash
 git status --short --branch
-git rev-parse --short HEAD
+git rev-parse HEAD
 ```
 
-## 3. Create the production configuration
+`prod` is the deployment branch. It must point to a reviewed, tested revision;
+the Pi must never pull `main` as part of a routine update.
+
+## Configure secrets
+
+Create the tunnel-token file and backend environment file:
 
 ```bash
-cp .env.example .env
+printf 'TUNNEL_TOKEN=replace-with-your-token\n' > .env
 cp backend/.env.production.local.example backend/.env.production.local
 chmod 600 .env backend/.env.production.local
 ```
 
-Generate two different secrets:
-
-```bash
-openssl rand -hex 32
-openssl rand -hex 32
-```
-
-Use one output for `JWT_SECRET` and the other for
-`MAIL_TOKEN_ENCRYPTION_KEY`. Never commit either real environment file.
-
-Set these values in `backend/.env.production.local`:
-
-```dotenv
-PORT=5500
-NODE_ENV=production
-DB_URI=mongodb+srv://...
-JWT_SECRET=...
-JWT_EXPIRES_IN=7d
-MAIL_TOKEN_ENCRYPTION_KEY=...
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=https://YOUR_HOSTNAME/api/v1/mail-accounts/google/callback
-FRONTEND_APP_URL=https://YOUR_HOSTNAME
-EMAIL_FROM=...
-EMAIL_PASSWORD=...
-SUPPORT_EMAIL=...
-AI_SEMANTIC_ENABLED=true
-OLLAMA_BASE_URL=http://ollama:11434
-OLLAMA_MODEL=qwen2.5:1.5b-instruct-q4_K_M
-OLLAMA_TIMEOUT_MS=90000
-OLLAMA_PROMPT_VERSION=semantic-v3
-SCAN_CONCURRENCY=1
-SYNC_INTERVAL_MINUTES=15
-```
-
-Keep a separate encrypted backup of `MAIL_TOKEN_ENCRYPTION_KEY`. A database
-backup cannot restore encrypted Gmail tokens without this key.
-
-## 4. Configure MongoDB Atlas
-
-Create a database user dedicated to SecureInbox and grant access only to the
-SecureInbox database. Add the Pi's current public IP address as a `/32` entry
-in the Atlas IP Access List. Do not use `0.0.0.0/0` for the final setup.
-
-Cloudflare Tunnel handles incoming traffic but does not give outgoing Atlas
-connections a static address. If the ISP changes the public IP, update the
-Atlas IP Access List.
-
-## 5. Configure Google OAuth
-
-In the Google Cloud OAuth web client add this exact authorized redirect URI:
+Generate unique `JWT_SECRET` and `MAIL_TOKEN_ENCRYPTION_KEY` values with
+`openssl rand -hex 32`. Fill every required value in
+`backend/.env.production.local`, including the Atlas URI and public HTTPS URL.
+`GOOGLE_REDIRECT_URI` must exactly match the URI registered with Google:
 
 ```text
 https://YOUR_HOSTNAME/api/v1/mail-accounts/google/callback
 ```
 
-It must match `GOOGLE_REDIRECT_URI` exactly. Add the domain and policy links to
-the OAuth consent screen and add the Gmail accounts used for the demonstration
-as test users.
+In Cloudflare Zero Trust, create a remotely managed tunnel and public hostname
+whose service is `http://frontend:80`; put its token only in `.env`.
 
-An external OAuth application in `Testing` can be used for a portfolio demo,
-but Gmail refresh tokens normally expire after seven days in this state. A
-public application using `gmail.modify` requires Google's restricted-scope
-verification process and may require a security assessment.
+## Proxy and rate-limit identity
 
-## 6. Create the Cloudflare Tunnel
+Production mounts `frontend/nginx.prod.conf`. The production-only `edge`
+network has cloudflared as nginx's only peer; nginx resolves and trusts that
+service name for `CF-Connecting-IP`, then replaces rather than appends the
+forwarded client-IP chain. It forwards that client IP and `https` to the
+backend, so Express's single trusted nginx hop keeps distinct public visitors
+in distinct rate-limit buckets. No service publishes a host port, so the
+backend and nginx are reachable only through the private Compose network and
+cloudflared.
 
-In Cloudflare Zero Trust:
-
-1. Open **Networks -> Tunnels**.
-2. Create a remotely managed tunnel named `secureinbox-production`.
-3. Choose the Docker connector and copy its tunnel token.
-4. Create a public hostname such as `secureinbox.example.com`.
-5. Set the service type to `HTTP` and the service URL to
-   `http://frontend:80`.
-
-Put only the token in the root `.env` file:
-
-```dotenv
-TUNNEL_TOKEN=...
-```
-
-The token is a secret. Rotate it in Cloudflare if it is ever exposed.
-
-## 7. Validate and start the stack
+## Validate and start
 
 ```bash
-cd /opt/secureinbox
-docker compose config
-docker compose build --pull
-docker compose up -d
-docker compose ps
+docker compose -f docker-compose.prod.yml config --quiet
+docker compose -f docker-compose.prod.yml build --pull
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:1.5b-instruct-q4_K_M
 ```
 
-All four services should become healthy/running: `backend`, `frontend`,
-`ollama`, and `cloudflared`.
-
-Pull the pinned model into the persistent Ollama volume:
+Check private health endpoints and then the public hostname:
 
 ```bash
-docker compose exec ollama ollama pull qwen2.5:1.5b-instruct-q4_K_M
-docker compose exec ollama ollama list
-```
-
-The model is approximately 986 MB. The named `ollama-data` volume keeps it
-across container replacement and reboots. Ollama is reachable only as
-`http://ollama:11434` inside the Compose network; do not publish port `11434`.
-
-Inspect bounded logs when troubleshooting:
-
-```bash
-docker compose logs --tail=100 backend
-docker compose logs --tail=100 frontend
-docker compose logs --tail=100 ollama
-docker compose logs --tail=100 cloudflared
-```
-
-The Compose stack rotates JSON logs at 10 MB and retains three files per
-service.
-
-## 8. Verify the deployment
-
-Test the containers from inside the Compose network:
-
-```bash
-docker compose exec frontend wget -qO- http://backend:5500/api/v1/health
-docker compose exec frontend wget -qO- http://backend:5500/api/v1/ready
-```
-
-Then test through Cloudflare:
-
-```bash
-curl -i https://YOUR_HOSTNAME/api/v1/health
+docker compose -f docker-compose.prod.yml exec frontend wget -qO- http://backend:5500/api/v1/ready
 curl -i https://YOUR_HOSTNAME/api/v1/ready
 ```
 
-Complete these browser checks:
+## Promote and update safely
 
-1. register and log in;
-2. connect a Google test account;
-3. enable local AI in Settings and set the sync batch to 1 or 2 messages;
-4. synchronize the small batch and verify AI signals and an AI explanation;
-5. use **Scan again** on one message and note the AI latency;
-6. mark a message safe or phishing;
-7. restart the Pi and verify that all containers return automatically.
-
-The current manual synchronization request is synchronous. Keep the batch at
-1 or 2 messages while AI is enabled on the Pi. `SCAN_CONCURRENCY=1` prevents
-several CPU-heavy model calls from running at once, but a large sequential batch
-can still exceed Cloudflare's request timeout. Before increasing the batch,
-move synchronization to a background job with status polling.
-
-## 9. Update safely
+Test changes on a branch and merge them to `main`. After the CI production
+Compose validation gate passes, open a separate PR from the selected `main` revision
+into `prod`; require the Quality check and human review before merging that PR.
+Then update the Pi only from `prod`:
 
 ```bash
 cd /opt/secureinbox
 git fetch origin
-git status --short --branch
-git pull --ff-only
-docker compose build --pull
-docker compose up -d
-docker compose ps
+git switch prod
+git pull --ff-only origin prod
+docker compose -f docker-compose.prod.yml build --pull
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml ps
 ```
 
-Do not deploy with local code changes on the Pi. Build and test changes on a
-branch, merge them to `main`, and then pull the reviewed commit.
+Record `git rev-parse HEAD` after each deployment. Stop if the working tree is
+not clean; do not resolve local changes by pulling `main`.
 
-## 10. Backup and maintenance
+CI verifies the promotion inputs only. Rollout remains a manual Pi operation
+until dedicated deployment infrastructure is introduced.
 
-- back up MongoDB on a schedule and test restoration;
-- keep encrypted copies of both environment files outside the Pi;
-- keep the Gmail token encryption key in a separate protected backup;
-- install OS and Docker security updates regularly;
-- monitor disk space, temperature, container restarts, tunnel status, and
-  expired Gmail credentials;
-- use a small UPS if the database is ever moved from Atlas onto the Pi.
+## Backups and maintenance
 
-Useful checks:
+Atlas backups protect the database, but Gmail OAuth tokens stored there cannot
+be recovered without the matching `MAIL_TOKEN_ENCRYPTION_KEY`. Keep encrypted,
+access-controlled backups of both `.env` and
+`backend/.env.production.local` separately from the database backup. Test a
+restore before relying on it.
 
-```bash
-docker compose ps
-docker stats
-docker compose exec ollama ollama ps
-df -h
-free -h
-vcgencmd measure_temp
-```
+Regularly check `docker compose -f docker-compose.prod.yml ps`, disk space,
+Pi temperature, tunnel status, Atlas access rules, and container logs. Keep
+the OS and Docker patched.
