@@ -6,17 +6,24 @@ const resolvedEnvFilePath = `.env.${nodeEnv}.local`;
 config({ path: resolvedEnvFilePath });
 
 const requiredEnvVars = ['PORT', 'DB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'MAIL_TOKEN_ENCRYPTION_KEY'];
-const requiredInProduction = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'EMAIL_FROM', 'EMAIL_PASSWORD'];
-
-if (nodeEnv === 'production') {
-    const missingProd = requiredInProduction.filter((v) => !process.env[v]);
-    if (missingProd.length > 0) {
-        throw new Error(
-            `Missing required production env vars: ${missingProd.join(', ')}`
-        );
-    }
-}
+const requiredInProduction = [
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'GOOGLE_REDIRECT_URI',
+    'FRONTEND_APP_URL',
+    'EMAIL_FROM',
+    'EMAIL_PASSWORD',
+];
+const missingProductionEnvVars = nodeEnv === 'production'
+    ? requiredInProduction.filter((envName) => !process.env[envName])
+    : [];
 const missingEnvVars = requiredEnvVars.filter((envName) => !process.env[envName]);
+
+if (missingProductionEnvVars.length > 0) {
+    throw new Error(
+        `Missing required production env vars: ${missingProductionEnvVars.join(', ')}`
+    );
+}
 
 if (missingEnvVars.length > 0) {
     throw new Error(
@@ -46,8 +53,16 @@ export const {
     OLLAMA_MODEL,
     OLLAMA_TIMEOUT_MS,
     OLLAMA_PROMPT_VERSION,
+    SCAN_CONCURRENCY,
     SYNC_INTERVAL_MINUTES,
 } = process.env;
 
 export const FRONTEND_APP_URL = process.env.FRONTEND_APP_URL || 'http://localhost:5173';
 export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || EMAIL_FROM || '';
+
+export const isTruthyEnvValue = (value) =>
+    typeof value === 'string' &&
+    ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+
+export const isAiSemanticGloballyEnabled = () =>
+    isTruthyEnvValue(AI_SEMANTIC_ENABLED);

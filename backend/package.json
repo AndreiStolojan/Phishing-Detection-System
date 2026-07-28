@@ -7,10 +7,10 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
+    "seed:local": "node scripts/seed-local.js",
     "benchmark:ollama": "node scripts/benchmark-ollama.js",
-    "cleanup:duplicate-scans": "node scripts/cleanup-duplicate-scans.js",
     "lint": "eslint .",
-    "test": "NODE_ENV=test PORT=5500 DB_URI=mongodb://127.0.0.1:27017/secureinbox-test JWT_SECRET=test-secret JWT_EXPIRES_IN=1h MAIL_TOKEN_ENCRYPTION_KEY=test-mail-token-key FRONTEND_APP_URL=http://localhost:5173 node --test tests/unit/*.test.js"
+    "test": "NODE_ENV=test PORT=5500 DB_URI=mongodb://127.0.0.1:27017/secureinbox-test JWT_SECRET=test-secret JWT_EXPIRES_IN=1h MAIL_TOKEN_ENCRYPTION_KEY=test-mail-token-key FRONTEND_APP_URL=http://localhost:5173 ARCJET_KEY= GOOGLE_CLIENT_ID= GOOGLE_CLIENT_SECRET= GOOGLE_REDIRECT_URI= EMAIL_FROM= EMAIL_PASSWORD= SUPPORT_EMAIL= node --test tests/unit/*.test.js"
   },
   "dependencies": {
     "@arcjet/node": "^1.3.1",
@@ -19,17 +19,19 @@
     "bcryptjs": "^3.0.3",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
-    "debug": "~2.6.9",
+    "debug": "~4.4.3",
     "dotenv": "^17.4.0",
-    "express": "~4.22.2",
+    "express": "~5.2.1",
+    "express-rate-limit": "^8.6.0",
     "helmet": "^8.2.0",
     "joi": "^18.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.1.1",
     "mongoose": "^9.3.3",
-    "morgan": "~1.10.1",
+    "morgan": "^1.11.0",
     "node-cron": "^4.2.1",
-    "nodemailer": "^8.0.4"
+    "nodemailer": "^9.0.3",
+    "prom-client": "^15.1.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

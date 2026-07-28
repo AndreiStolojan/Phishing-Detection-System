@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT}"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/dotenv.sh"
+
+usage() { echo "Usage: ./scripts/restore <backup.archive.gz> --confirm-replace"; }
+fail() { printf 'Restore error: %s\n' "$1" >&2; exit 1; }
+checksum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+[[ "$#" -eq 2 && "$2" == "--confirm-replace" ]] || { usage >&2; exit 2; }
+[[ -f .env ]] || fail "Run ./provision first."
+docker info >/dev/null 2>&1 || fail "Docker is not running or this user cannot access it."
+docker compose version >/dev/null 2>&1 || fail "Docker Compose plugin is required."
+docker compose ps --status running --services | grep -qx mongodb ||
+  fail "The mongodb service is not running."
+
+MONGO_DATABASE="$(dotenv_get MONGO_DATABASE .env)"
+MONGO_ROOT_USERNAME="$(dotenv_get MONGO_ROOT_USERNAME .env)"
+MONGO_ROOT_PASSWORD="$(dotenv_get MONGO_ROOT_PASSWORD .env)"
+APP_PORT="$(dotenv_get APP_PORT .env)"
+
+if [[ "$1" = /* ]]; then archive="$1"; else archive="${ROOT}/$1"; fi
+manifest="${archive}.manifest.json"
+[[ -f "${archive}" ]] || fail "Archive not found: ${archive}"
+[[ -f "${manifest}" ]] || fail "Manifest not found: ${manifest}"
+
+manifest_database="$(sed -nE 's/^[[:space:]]*"database":[[:space:]]*"([^"]+)",?$/\1/p' "${manifest}")"
+expected_sha="$(sed -nE 's/^[[:space:]]*"sha256":[[:space:]]*"([0-9a-fA-F]+)",?$/\1/p' "${manifest}")"
+expected_users="$(sed -nE 's/.*"users":[[:space:]]*([0-9]+).*/\1/p' "${manifest}")"
+expected_emails="$(sed -nE 's/.*"emails":[[:space:]]*([0-9]+).*/\1/p' "${manifest}")"
+expected_scans="$(sed -nE 's/.*"scans":[[:space:]]*([0-9]+).*/\1/p' "${manifest}")"
+
+[[ "${manifest_database}" == "${MONGO_DATABASE}" ]] || fail "Backup belongs to a different database."
+[[ ! "${MONGO_DATABASE}" =~ ^(admin|config|local)$ ]] || fail "Internal MongoDB databases cannot be replaced."
+[[ -n "${expected_sha}" && -n "${expected_users}" && -n "${expected_emails}" && -n "${expected_scans}" ]] ||
+  fail "Manifest is incomplete."
+[[ "$(checksum "${archive}")" == "${expected_sha}" ]] || fail "Archive checksum mismatch."
+
+restore_archive() {
+  docker compose exec -T mongodb mongorestore --quiet "$@" \
+    --username "${MONGO_ROOT_USERNAME}" \
+    --password "${MONGO_ROOT_PASSWORD}" \
+    --authenticationDatabase admin \
+    --nsInclude "${MONGO_DATABASE}.*" --archive --gzip
+}
+
+restore_archive --dryRun < "${archive}"
+
+backend_was_running=false
+database_dropped=false
+restore_completed=false
+cleanup() {
+  [[ "${backend_was_running}" == true ]] || return 0
+  if [[ "${database_dropped}" == false || "${restore_completed}" == true ]]; then
+    docker compose start backend >/dev/null || true
+  else
+    echo "Restore failed after the database was dropped; backend remains stopped." >&2
+  fi
+}
+trap cleanup EXIT
+
+if docker compose ps --status running --services | grep -qx backend; then
+  backend_was_running=true
+  docker compose stop backend >/dev/null
+fi
+
+docker compose exec -T mongodb mongosh --quiet \
+  --username "${MONGO_ROOT_USERNAME}" \
+  --password "${MONGO_ROOT_PASSWORD}" \
+  --authenticationDatabase admin \
+  --eval "const r=db.getSiblingDB('${MONGO_DATABASE}').dropDatabase(); if(!r.ok) throw new Error('dropDatabase failed');"
+database_dropped=true
+
+restore_archive < "${archive}"
+
+actual_counts="$(
+  docker compose exec -T mongodb mongosh --quiet \
+    --username "${MONGO_ROOT_USERNAME}" \
+    --password "${MONGO_ROOT_PASSWORD}" \
+    --authenticationDatabase admin \
+    --eval "const d=db.getSiblingDB('${MONGO_DATABASE}'); print(JSON.stringify({users:d.users.countDocuments({}),emails:d.emails.countDocuments({}),scans:d.scans.countDocuments({})}));"
+)"
+expected_counts="{\"users\":${expected_users},\"emails\":${expected_emails},\"scans\":${expected_scans}}"
+[[ "${actual_counts}" == "${expected_counts}" ]] || fail "Restored document counts do not match the manifest."
+
+restore_completed=true
+if [[ "${backend_was_running}" == true ]]; then
+  docker compose start backend >/dev/null
+  backend_was_running=false
+  for _ in {1..30}; do
+    if curl --fail --silent "http://127.0.0.1:${APP_PORT}/api/v1/ready" >/dev/null 2>&1; then
+      echo "Restore completed: ${actual_counts}"
+      exit 0
+    fi
+    sleep 1
+  done
+  fail "Database restored, but backend did not become ready."
+fi
+
+echo "Restore completed: ${actual_counts}"

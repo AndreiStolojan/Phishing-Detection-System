@@ -24,7 +24,7 @@ const buildMissingEmailConfigResult = ({ recipient, period, generatedAt }) => {
         generatedAt,
         error: {
             code: 'EMAIL_CONFIG_MISSING',
-            message: `Email configuration is missing: ${missing.join(', ')}.`,
+            message: 'Email delivery is not configured for this local installation.',
             missing,
         },
     };
@@ -43,7 +43,7 @@ const buildMissingContactEmailConfigResult = ({ recipient, generatedAt }) => {
         generatedAt,
         error: {
             code: 'EMAIL_CONFIG_MISSING',
-            message: `Email configuration is missing: ${missing.join(', ')}.`,
+            message: 'Email delivery is not configured for this local installation.',
             missing,
         },
     };
@@ -259,7 +259,7 @@ export const sendPhishingAlertEmail = async ({ recipient, userName, emails }) =>
             recipient,
             error: {
                 code: 'EMAIL_CONFIG_MISSING',
-                message: `Email configuration is missing: ${missing.join(', ')}.`,
+                message: 'Email delivery is not configured for this local installation.',
                 missing,
             },
         };

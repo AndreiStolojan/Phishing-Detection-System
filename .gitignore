@@ -67,7 +67,7 @@ dist/
 **/.DS_Store
 manual-tests/*
 extras/*
-scripts/*
+backups/
 /.postman/
 /postman/
 .claude/*
@@ -76,3 +76,6 @@ scripts/*
 *.mp4
 *.mov
 .env
+
+# Private thesis material
+/materiale-licenta/

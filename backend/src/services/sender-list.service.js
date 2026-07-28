@@ -46,9 +46,14 @@ import Email from '../models/email.model.js';
 // "curate", indiferent cum apar ele în antetul From al emailului.
 export const normalizeSenderAddress = (value) => {
     const raw = String(value || '').trim();
-    const angleMatch = raw.match(/<([^>]+)>/);
+    const openingBracket = raw.indexOf('<');
+    const closingBracket = raw.indexOf('>', openingBracket + 1);
+    const address =
+        openingBracket >= 0 && closingBracket > openingBracket + 1
+            ? raw.slice(openingBracket + 1, closingBracket)
+            : raw;
 
-    return (angleMatch ? angleMatch[1] : raw).trim().toLowerCase();
+    return address.trim().toLowerCase();
 };
 
 // Normalizează un domeniu pentru listă: litere mici, fără spații, fără
