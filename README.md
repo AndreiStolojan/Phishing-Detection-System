@@ -3,151 +3,184 @@
 [![Quality](https://github.com/AndreiStolojan/SecureInbox/actions/workflows/quality.yml/badge.svg)](https://github.com/AndreiStolojan/SecureInbox/actions/workflows/quality.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Explainable phishing triage for Gmail.** SecureInbox is a security-focused
-inbox that synchronizes Gmail messages, scores suspicious signals, and shows
-the evidence behind each verdict before a user takes action.
-
-Developed as a bachelor thesis project, it is deliberately not a Gmail
-replacement. The focus is a transparent detection workflow: deterministic
-rules first, optional local AI as a secondary source of semantic signals, and
-manual review actions for the final decision.
+SecureInbox is an explainable phishing triage application for Gmail. It combines
+deterministic security rules with optional local AI signals and shows the
+evidence behind each verdict.
 
 <p align="center">
-  <img src="assets/screenshots/dashboard.png" alt="SecureInbox dashboard with threat activity and risk distribution" width="900" />
+  <img src="assets/screenshots/dashboard.png" alt="SecureInbox dashboard" width="900" />
 </p>
 
-<p align="center">
-  <img src="assets/screenshots/scan-evidence.png" alt="Explainable phishing score split and triggered warning rules" width="430" />
-  <img src="assets/screenshots/manual-review.png" alt="Manual phishing review flow" width="720" />
-</p>
+## What it does
 
-## Why it is explainable
-
-- **Deterministic rules decide first.** The scanner records every triggered
-  rule, its points, and a controlled explanation.
-- **Scores are auditable.** The interface separates `ruleScore` from
-  `aiScore`, then presents the final 0-100 score and evidence.
-- **AI is optional and bounded.** Local Ollama signals are capped at 50 points;
-  the `likely_phishing` threshold is 60, so AI cannot produce that verdict on
-  its own.
-- **Context is controlled.** Verified-brand logic and user-managed trusted or
-  blocked sender lists reduce false positives without suppressing critical
-  payload signals.
-
-## Features
-
-- Gmail OAuth 2.0 connection, manual sync, and scheduled polling.
-- Parsing for sender, reply-to address, links, domains, attachments, and dates.
-- Rule-based phishing analysis for URL, attachment, and header signals.
-- Optional local semantic analysis through Ollama.
-- Sanitized email HTML with remote images blocked by default.
-- Inbox triage, score explanations, trusted/blocked sender lists, and manual
-  safe/phishing decisions.
-- Monthly security summary, email notifications, and account deletion.
+- Synchronizes Gmail messages when OAuth is configured.
+- Detects suspicious links, attachments, headers, and sender patterns.
+- Separates deterministic rule scores from bounded local AI signals.
+- Explains why a message was marked safe, suspicious, or likely phishing.
+- Supports trusted and blocked sender rules plus manual review decisions.
+- Runs locally with Docker, MongoDB, Ollama, Prometheus, and Grafana.
 
 ## Architecture
 
 ```text
-React + Vite -> Express API -> MongoDB
-                    |
-                    +-> Gmail API / OAuth 2.0
-                    +-> Optional local Ollama
+Browser -> nginx / React -> Express -> MongoDB
+                              |
+                              +-> optional Gmail OAuth
+                              +-> local Ollama
+
+Prometheus -> Express /metrics -> Grafana
 ```
 
-The application is a modular monolith. The React frontend renders server-side
-scan results; the Express backend owns authentication, Gmail integration,
-scoring, reporting, and persistence.
+The backend owns authentication, synchronization, scoring, reports, and data.
+The frontend talks to it through the nginx reverse proxy. See
+[architecture.md](docs/architecture.md) and
+[detection-engine.md](docs/detection-engine.md) for the deeper design.
 
-Read more about the [architecture](docs/architecture.md) and the
-[explainable detection engine](docs/detection-engine.md).
+## Quick start
 
-## Tech stack
+Requirements:
 
-| Area | Technologies |
-| --- | --- |
-| Frontend | React 19, Vite, Tailwind CSS, shadcn/ui, Radix, Recharts |
-| Backend | Node.js, Express, MongoDB, Mongoose |
-| Security | JWT, bcrypt, Joi, Helmet, CORS, Arcjet |
-| Integrations | Gmail API, OAuth 2.0, node-cron, Nodemailer, Ollama |
-| Testing | Node test runner, Vitest, Testing Library |
-
-## Run locally
-
-### Prerequisites
-
-- Node.js 24.5.0 or newer (LTS)
-- MongoDB instance
-- Google Cloud OAuth client with the Gmail API enabled
-- Ollama is optional; the application works with semantic analysis disabled
-
-### Configuration
+- Docker Engine or Docker Desktop with the Docker Compose plugin, running and
+  accessible without `sudo`.
+- OpenSSL, used to generate the local secrets.
 
 ```bash
-cp backend/.env.example backend/.env.development.local
-cp frontend/.env.example frontend/.env.local
+git clone https://github.com/AndreiStolojan/SecureInbox.git
+cd SecureInbox
+./provision
+```
+
+`./provision` creates `.env`, generates the local secrets, builds and starts all
+containers, downloads the Ollama model, and creates a demo account with six
+scanned emails. Leave the script running until it prints `SecureInbox is
+ready`.
+
+| Service | Address |
+| --- | --- |
+| SecureInbox | `http://localhost:8080` |
+| Prometheus | `http://localhost:9090` |
+| Grafana | `http://localhost:3000` |
+
+Demo email: `demo@secureinbox.test`
+
+The generated demo and Grafana passwords are printed at the end and stored in
+`.env`.
+
+Verify the installation:
+
+```bash
+docker compose ps
+curl --fail http://127.0.0.1:8080/api/v1/ready
+curl --fail http://127.0.0.1:9090/-/ready
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+All six services should be healthy. You can safely run `./provision` again:
+existing configuration, database contents, monitoring data, and the Ollama
+model are preserved.
+
+For the Raspberry Pi / public Cloudflare deployment, use the separate
+[`prod` branch and production Compose guide](docs/raspberry-pi-deployment.md).
+Never run the local Compose file or `./provision` on that deployment.
+
+## Optional Gmail connection
+
+The local application starts without Google, email, or Arcjet credentials.
+Features that need a missing integration return a clear message only when used.
+
+To connect Gmail, add these values to `.env`:
+
+```dotenv
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/mail-accounts/google/callback
+```
+
+Add the same redirect URI to the OAuth client in Google Cloud, then run
+`./provision` again:
+
+```bash
+nano .env
+./provision
+```
+
+SMTP and Arcjet variables are documented in `.env.example` and are optional.
+
+## Local operations
+
+Show status and logs:
+
+```bash
+docker compose ps
+docker compose logs --tail=100
+docker compose logs --follow backend
+```
+
+Restart the application:
+
+```bash
+docker compose restart
+```
+
+Update the local installation:
+
+```bash
+git pull --ff-only origin main
+./provision
+```
+
+Create a validated MongoDB backup:
+
+```bash
+./scripts/backup
+ls -lh backups
+```
+
+Restore the latest backup:
+
+```bash
+LATEST_BACKUP="$(find backups -name '*.archive.gz' -type f | sort | tail -1)"
+./scripts/restore "$LATEST_BACKUP" --confirm-replace
+```
+
+Keep an encrypted backup of `.env` with every MongoDB backup. In particular,
+`MAIL_TOKEN_ENCRYPTION_KEY` is required to decrypt restored Gmail tokens.
+
+Stop the application while preserving all data:
+
+```bash
+docker compose down
+```
+
+To erase MongoDB, Grafana, Prometheus, and the downloaded Ollama model:
+
+```bash
+docker compose down --volumes
+```
+
+That command is destructive and cannot be undone without a backup.
+
+## Development checks
+
+```bash
 npm --prefix backend install
 npm --prefix frontend install
-```
-
-Set the MongoDB, JWT, encryption-key, and Google OAuth values in
-`backend/.env.development.local`. For local Gmail OAuth, configure this exact
-redirect URI in Google Cloud:
-
-```text
-http://localhost:5500/api/v1/mail-accounts/google/callback
-```
-
-### Start the application
-
-```bash
-npm --prefix backend run dev
-npm --prefix frontend run dev
-```
-
-- Frontend: `http://localhost:5173`
-- API: `http://localhost:5500/api/v1`
-
-## Verify quality
-
-```bash
 npm --prefix backend run lint
 npm --prefix backend test
 npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-The same checks run through GitHub Actions for every pull request and push to
-`main`.
-
-## Deploy on Raspberry Pi
-
-The production Compose stack is designed for a 64-bit Raspberry Pi host:
-
-```text
-Cloudflare Tunnel -> nginx / React -> Express -> MongoDB Atlas
-                                      |
-                                      +-> local Ollama (Qwen2.5 1.5B)
-```
-
-No application or Ollama port is published on the host. The Pi deployment uses
-the CPU-only Qwen2.5 1.5B model with bounded scan concurrency. Follow the complete
-[Raspberry Pi deployment guide](docs/raspberry-pi-deployment.md) for hardware,
-Cloudflare, Google OAuth, secrets, startup, verification, updates, and backup.
-
 ## Limitations
 
-- SecureInbox is a portfolio/demo deployment without an availability SLA;
-  Google OAuth remains limited to configured test users until verification.
-- It does not train a machine-learning model and does not claim precision,
-  recall, or F1 metrics without a labeled dataset.
-- SPF, DKIM, and DMARC verification are future work.
-- Gmail synchronization uses polling rather than Gmail Push Notifications.
+- Gmail OAuth requires a Google Cloud client and configured test users.
+- Gmail synchronization uses polling rather than push notifications.
+- Local AI is a secondary signal and cannot declare phishing on its own.
+- SecureInbox does not claim precision or recall without a labeled evaluation dataset.
 
-## Author
+## Author and license
 
-Andrei Stolojan<br>
-[GitHub](https://github.com/AndreiStolojan) · [LinkedIn](https://www.linkedin.com/in/andrei-stolojan/)
-
-## License
+Andrei Stolojan — [GitHub](https://github.com/AndreiStolojan) ·
+[LinkedIn](https://www.linkedin.com/in/andrei-stolojan/)
 
 Released under the [MIT License](LICENSE).

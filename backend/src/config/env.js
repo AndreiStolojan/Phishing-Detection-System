@@ -14,16 +14,16 @@ const requiredInProduction = [
     'EMAIL_FROM',
     'EMAIL_PASSWORD',
 ];
-
-if (nodeEnv === 'production') {
-    const missingProd = requiredInProduction.filter((v) => !process.env[v]);
-    if (missingProd.length > 0) {
-        throw new Error(
-            `Missing required production env vars: ${missingProd.join(', ')}`
-        );
-    }
-}
+const missingProductionEnvVars = nodeEnv === 'production'
+    ? requiredInProduction.filter((envName) => !process.env[envName])
+    : [];
 const missingEnvVars = requiredEnvVars.filter((envName) => !process.env[envName]);
+
+if (missingProductionEnvVars.length > 0) {
+    throw new Error(
+        `Missing required production env vars: ${missingProductionEnvVars.join(', ')}`
+    );
+}
 
 if (missingEnvVars.length > 0) {
     throw new Error(

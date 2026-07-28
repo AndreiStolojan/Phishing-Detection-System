@@ -67,7 +67,7 @@ dist/
 **/.DS_Store
 manual-tests/*
 extras/*
-scripts/*
+backups/
 /.postman/
 /postman/
 .claude/*
