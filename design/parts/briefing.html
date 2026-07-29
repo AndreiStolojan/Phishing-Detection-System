@@ -1,0 +1,1760 @@
+<style>
+@font-face {
+  font-family: 'InterVariable';
+  src: url('../../frontend/public/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.dir-briefing {
+  --briefing-bg: #09090b;
+  --briefing-panel: #141416;
+  --briefing-foreground: #fafafa;
+  --briefing-bone: #c9c5bf;
+  --briefing-cta: #e9e8e6;
+  --briefing-sage: #7fb894;
+  --briefing-amber: #e0a15c;
+  --briefing-rose: #d97070;
+  min-height: 100vh;
+  color: var(--briefing-foreground);
+  background-color: var(--briefing-bg);
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.038) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.038) 1px, transparent 1px);
+  background-size: 48px 48px;
+  font-family: 'InterVariable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+.dir-briefing,
+.dir-briefing * {
+  box-sizing: border-box;
+}
+
+.dir-briefing button,
+.dir-briefing input,
+.dir-briefing summary {
+  font: inherit;
+}
+
+.dir-briefing button,
+.dir-briefing summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dir-briefing button {
+  cursor: pointer;
+}
+
+.dir-briefing [data-screen] {
+  min-height: 100vh;
+  padding: 74px 24px 104px;
+  background: rgb(9 9 11 / 0.91);
+}
+
+.dir-briefing [data-screen] + [data-screen] {
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.dir-briefing .screen-shell {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
+.dir-briefing .screen-label {
+  margin: 0 0 22px;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dir-briefing .page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  margin-bottom: 34px;
+}
+
+.dir-briefing .page-heading {
+  min-width: 0;
+}
+
+.dir-briefing .page-heading h1 {
+  margin: 0;
+  color: var(--briefing-foreground);
+  font-size: clamp(2.25rem, 4vw, 3.7rem);
+  font-weight: 620;
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.dir-briefing .page-heading p {
+  margin: 13px 0 0;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.9rem;
+  font-weight: 430;
+  line-height: 1.6;
+}
+
+.dir-briefing .header-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.dir-briefing .range-label {
+  margin-right: 8px;
+  color: rgb(250 250 250 / 0.61);
+  font-size: 0.78rem;
+  font-weight: 480;
+}
+
+.dir-briefing .quiet-button,
+.dir-briefing .secondary-button,
+.dir-briefing .primary-button {
+  min-height: 40px;
+  border-radius: 12px;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.dir-briefing .quiet-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: rgb(250 250 250 / 0.76);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.025);
+  font-size: 0.78rem;
+  font-weight: 480;
+}
+
+.dir-briefing .quiet-button:hover,
+.dir-briefing .secondary-button:hover {
+  color: var(--briefing-foreground);
+  border-color: rgb(255 255 255 / 0.17);
+  background: rgb(255 255 255 / 0.055);
+}
+
+.dir-briefing .quiet-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.dir-briefing .briefing-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.dir-briefing .briefing-block {
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 16px;
+  background: var(--briefing-panel);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.12),
+    0 20px 48px rgb(0 0 0 / 0.24);
+}
+
+.dir-briefing .posture-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
+  align-items: center;
+  gap: clamp(46px, 7vw, 92px);
+  padding: 38px 42px;
+}
+
+.dir-briefing .posture-copy h2 {
+  max-width: 560px;
+  margin: 0;
+  color: var(--briefing-foreground);
+  font-size: clamp(1.75rem, 3vw, 2.45rem);
+  font-weight: 620;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.dir-briefing .posture-copy > p {
+  max-width: 610px;
+  margin: 14px 0 0;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.9rem;
+  font-weight: 430;
+  line-height: 1.6;
+}
+
+.dir-briefing .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 24px;
+  padding: 0 19px;
+  color: #09090b;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  background: var(--briefing-cta);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.65),
+    0 8px 22px rgb(0 0 0 / 0.28);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.dir-briefing .primary-button:hover {
+  background: #fafafa;
+  transform: translateY(-1px);
+}
+
+.dir-briefing .primary-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dir-briefing .posture-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  margin: 0;
+}
+
+.dir-briefing .posture-stats > div {
+  min-width: 0;
+  padding: 3px 16px;
+  border-left: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.dir-briefing .posture-stats > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.dir-briefing .posture-stats dt {
+  color: var(--briefing-foreground);
+  font-size: 1.15rem;
+  font-weight: 590;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.dir-briefing .posture-stats dd {
+  margin: 7px 0 0;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.7rem;
+  font-weight: 430;
+  line-height: 1.45;
+}
+
+.dir-briefing .posture-note {
+  margin: 22px 0 0;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.68rem;
+  font-weight: 430;
+  line-height: 1.45;
+}
+
+.dir-briefing .queue-card {
+  overflow: hidden;
+}
+
+.dir-briefing .block-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 28px 18px;
+}
+
+.dir-briefing .block-heading h2,
+.dir-briefing .trend-heading h2,
+.dir-briefing .domains-heading h2 {
+  margin: 0;
+  color: var(--briefing-foreground);
+  font-size: 1.06rem;
+  font-weight: 590;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.dir-briefing .block-heading p,
+.dir-briefing .trend-heading p,
+.dir-briefing .domains-heading p {
+  margin: 4px 0 0;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.77rem;
+  font-weight: 430;
+  line-height: 1.5;
+}
+
+.dir-briefing .queue-count {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.72rem;
+  font-weight: 460;
+}
+
+.dir-briefing .queue-list {
+  margin: 0;
+  padding: 0 28px 8px;
+  list-style: none;
+}
+
+.dir-briefing .queue-row {
+  display: grid;
+  min-height: 74px;
+  grid-template-columns: 40px minmax(170px, 0.52fr) minmax(250px, 1fr) 58px;
+  align-items: center;
+  gap: 18px;
+  border-top: 1px solid rgb(255 255 255 / 0.065);
+}
+
+.dir-briefing .monogram {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 50%;
+  color: rgb(250 250 250 / 0.76);
+  background: rgb(255 255 255 / 0.045);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.08);
+  font-size: 0.7rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.dir-briefing .sender-stack,
+.dir-briefing .subject-stack {
+  min-width: 0;
+}
+
+.dir-briefing .sender-stack strong,
+.dir-briefing .subject-stack strong {
+  display: block;
+  overflow: hidden;
+  color: rgb(250 250 250 / 0.88);
+  font-size: 0.8rem;
+  font-weight: 590;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-briefing .sender-stack span,
+.dir-briefing .queue-time {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.67rem;
+  font-weight: 430;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-briefing .signal-list {
+  display: flex;
+  overflow: hidden;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.dir-briefing .signal-pill {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgb(217 112 112 / 0.13);
+  border-radius: 999px;
+  color: rgb(244 180 180 / 0.78);
+  background: rgb(217 112 112 / 0.09);
+  font-size: 0.62rem;
+  font-weight: 480;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.dir-briefing .risk-score {
+  justify-self: end;
+  text-align: right;
+}
+
+.dir-briefing .risk-score strong {
+  display: block;
+  color: rgb(250 250 250 / 0.76);
+  font-size: 1rem;
+  font-weight: 590;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+.dir-briefing .risk-score span {
+  display: block;
+  margin-top: 4px;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.61rem;
+  font-weight: 430;
+}
+
+.dir-briefing .disclosure {
+  border: 1px solid rgb(255 255 255 / 0.065);
+  border-radius: 16px;
+  background: rgb(20 20 22 / 0.62);
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.18);
+}
+
+.dir-briefing .disclosure summary {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 24px;
+  color: rgb(250 250 250 / 0.76);
+  list-style: none;
+  font-size: 0.84rem;
+  font-weight: 590;
+  letter-spacing: -0.015em;
+  cursor: pointer;
+}
+
+.dir-briefing .disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.dir-briefing .disclosure summary svg {
+  width: 17px;
+  height: 17px;
+  color: rgb(250 250 250 / 0.38);
+  transform: rotate(180deg);
+  transition: transform 180ms ease;
+}
+
+.dir-briefing .disclosure:not([open]) summary svg {
+  transform: rotate(0);
+}
+
+.dir-briefing .expanded-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(330px, 0.82fr);
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.dir-briefing .trend-card,
+.dir-briefing .domains-card {
+  padding: 24px 24px 22px;
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.12),
+    0 14px 34px rgb(0 0 0 / 0.2);
+}
+
+.dir-briefing .trend-heading,
+.dir-briefing .domains-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.dir-briefing .trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 11px;
+}
+
+.dir-briefing .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.64rem;
+  font-weight: 430;
+  white-space: nowrap;
+}
+
+.dir-briefing .legend-dot,
+.dir-briefing .risk-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.dir-briefing .legend-dot.suspicious,
+.dir-briefing .risk-dot.suspicious {
+  background: var(--briefing-amber);
+}
+
+.dir-briefing .legend-dot.likely,
+.dir-briefing .risk-dot.likely {
+  background: var(--briefing-rose);
+}
+
+.dir-briefing .legend-dot.confirmed,
+.dir-briefing .risk-dot.confirmed {
+  border: 1px solid var(--briefing-rose);
+  background: transparent;
+}
+
+.dir-briefing .risk-dot.safe,
+.dir-briefing .risk-dot.reviewed {
+  background: var(--briefing-sage);
+}
+
+.dir-briefing .risk-dot.reviewed {
+  border: 1px solid var(--briefing-sage);
+  background: transparent;
+}
+
+.dir-briefing .trend-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 22px;
+  overflow: visible;
+}
+
+.dir-briefing .trend-chart .guide {
+  stroke: rgb(255 255 255 / 0.075);
+  stroke-dasharray: 2 7;
+}
+
+.dir-briefing .trend-chart .series {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dir-briefing .trend-chart .series-suspicious {
+  stroke: var(--briefing-amber);
+  stroke-width: 1.5;
+}
+
+.dir-briefing .trend-chart .series-likely {
+  stroke: var(--briefing-rose);
+  stroke-width: 1.5;
+}
+
+.dir-briefing .trend-chart .series-confirmed {
+  stroke: rgb(217 112 112 / 0.58);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 5;
+}
+
+.dir-briefing .trend-chart text {
+  fill: rgb(250 250 250 / 0.34);
+  font-family: 'InterVariable', ui-sans-serif, sans-serif;
+  font-size: 10px;
+  font-weight: 430;
+}
+
+.dir-briefing .domain-list {
+  display: grid;
+  gap: 18px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dir-briefing .domain-topline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.dir-briefing .domain-topline strong {
+  overflow: hidden;
+  color: rgb(250 250 250 / 0.76);
+  font-size: 0.7rem;
+  font-weight: 480;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-briefing .domain-topline span {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.65rem;
+  font-weight: 460;
+}
+
+.dir-briefing .domain-bar {
+  height: 5px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.055);
+}
+
+.dir-briefing .domain-bar-fill {
+  display: flex;
+  width: var(--total);
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.dir-briefing .domain-segment-suspicious {
+  background: rgb(224 161 92 / 0.72);
+}
+
+.dir-briefing .domain-segment-likely {
+  background: rgb(217 112 112 / 0.68);
+}
+
+.dir-briefing .domain-segment-confirmed {
+  border: 1px solid rgb(217 112 112 / 0.72);
+  background: transparent;
+}
+
+.dir-briefing .inbox-header {
+  margin-bottom: 28px;
+}
+
+.dir-briefing .inbox-workspace {
+  display: grid;
+  min-height: 760px;
+  grid-template-columns: minmax(390px, 38%) minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 16px;
+  background: var(--briefing-panel);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.12),
+    0 20px 48px rgb(0 0 0 / 0.24);
+}
+
+.dir-briefing .mail-list-pane {
+  min-width: 0;
+  border-right: 1px solid rgb(255 255 255 / 0.07);
+  background: #111113;
+}
+
+.dir-briefing .list-tools {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.065);
+}
+
+.dir-briefing .search-wrap {
+  position: relative;
+}
+
+.dir-briefing .search-wrap svg {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  width: 16px;
+  height: 16px;
+  color: rgb(250 250 250 / 0.38);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.dir-briefing .search-wrap input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px 0 39px;
+  color: rgb(250 250 250 / 0.88);
+  outline: 0;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.035);
+  font-size: 0.78rem;
+  font-weight: 430;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.dir-briefing .search-wrap input::placeholder {
+  color: rgb(250 250 250 / 0.38);
+}
+
+.dir-briefing .search-wrap input:focus {
+  border-color: rgb(201 197 191 / 0.35);
+  background: rgb(255 255 255 / 0.05);
+}
+
+.dir-briefing .filter-scroller {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dir-briefing .filter-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.dir-briefing .filter-control {
+  display: inline-flex;
+  gap: 3px;
+  min-width: max-content;
+  padding: 3px;
+  border: 1px solid rgb(255 255 255 / 0.065);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.025);
+}
+
+.dir-briefing .filter-chip {
+  min-height: 30px;
+  padding: 0 10px;
+  color: rgb(250 250 250 / 0.46);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.66rem;
+  font-weight: 480;
+  white-space: nowrap;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.dir-briefing .filter-chip:hover {
+  color: rgb(250 250 250 / 0.76);
+}
+
+.dir-briefing .filter-chip.active {
+  color: rgb(250 250 250 / 0.88);
+  background: rgb(217 112 112 / 0.1);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.08);
+}
+
+.dir-briefing .mail-groups {
+  padding: 8px 10px 18px;
+}
+
+.dir-briefing .mail-group h2 {
+  margin: 18px 10px 8px;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.65rem;
+  font-weight: 590;
+  line-height: 1.2;
+}
+
+.dir-briefing .mail-group:first-child h2 {
+  margin-top: 8px;
+}
+
+.dir-briefing .mail-group ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dir-briefing .mail-row {
+  position: relative;
+  display: grid;
+  min-height: 76px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.dir-briefing .mail-row:hover {
+  background: rgb(255 255 255 / 0.025);
+}
+
+.dir-briefing .mail-row.selected {
+  border-color: rgb(255 255 255 / 0.09);
+  background: #1b1b1e;
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.11),
+    0 10px 24px rgb(0 0 0 / 0.18);
+}
+
+.dir-briefing .mail-row.selected::before {
+  position: absolute;
+  top: 15px;
+  bottom: 15px;
+  left: -1px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--briefing-rose);
+  content: '';
+}
+
+.dir-briefing .mail-row .monogram {
+  width: 34px;
+  height: 34px;
+  font-size: 0.66rem;
+}
+
+.dir-briefing .mail-copy {
+  min-width: 0;
+}
+
+.dir-briefing .mail-sender-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.dir-briefing .mail-sender-line strong {
+  overflow: hidden;
+  color: rgb(250 250 250 / 0.84);
+  font-size: 0.75rem;
+  font-weight: 590;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-briefing .mail-subject,
+.dir-briefing .mail-snippet {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-briefing .mail-subject {
+  margin-top: 4px;
+  color: rgb(250 250 250 / 0.61);
+  font-size: 0.69rem;
+  font-weight: 460;
+  line-height: 1.3;
+}
+
+.dir-briefing .mail-snippet {
+  margin-top: 3px;
+  color: rgb(250 250 250 / 0.34);
+  font-size: 0.62rem;
+  font-weight: 430;
+  line-height: 1.25;
+}
+
+.dir-briefing .mail-meta {
+  align-self: start;
+  padding-top: 3px;
+  text-align: right;
+}
+
+.dir-briefing .mail-meta time {
+  display: block;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.61rem;
+  font-weight: 430;
+}
+
+.dir-briefing .mail-meta span {
+  display: block;
+  margin-top: 16px;
+  color: rgb(250 250 250 / 0.46);
+  font-size: 0.64rem;
+  font-weight: 590;
+}
+
+.dir-briefing .pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 10px 0;
+  padding-top: 16px;
+  border-top: 1px solid rgb(255 255 255 / 0.065);
+}
+
+.dir-briefing .pagination > span {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.65rem;
+  font-weight: 430;
+}
+
+.dir-briefing .pager-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.dir-briefing .pager-buttons button {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  color: rgb(250 250 250 / 0.54);
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 9px;
+  background: rgb(255 255 255 / 0.025);
+}
+
+.dir-briefing .pager-buttons button:disabled {
+  color: rgb(250 250 250 / 0.2);
+  cursor: default;
+}
+
+.dir-briefing .pager-buttons svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dir-briefing .preview-pane {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--briefing-panel);
+}
+
+.dir-briefing .preview-topbar {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 28px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.065);
+}
+
+.dir-briefing .preview-topbar span {
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.73rem;
+  font-weight: 480;
+}
+
+.dir-briefing .preview-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.dir-briefing .preview-nav button {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  color: rgb(250 250 250 / 0.46);
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 9px;
+  background: transparent;
+}
+
+.dir-briefing .preview-nav svg {
+  width: 15px;
+  height: 15px;
+}
+
+.dir-briefing .preview-content {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: clamp(38px, 5vw, 68px) clamp(28px, 5vw, 64px) 46px;
+}
+
+.dir-briefing .verdict-header {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.dir-briefing .score-ring {
+  display: grid;
+  width: 82px;
+  height: 82px;
+  place-items: center;
+  border: 1px solid rgb(217 112 112 / 0.34);
+  border-radius: 50%;
+  background: rgb(217 112 112 / 0.08);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.08);
+}
+
+.dir-briefing .score-ring span {
+  color: #efb0b0;
+  font-size: 1.75rem;
+  font-weight: 620;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.dir-briefing .verdict-copy h2 {
+  margin: 0;
+  color: var(--briefing-foreground);
+  font-size: clamp(1.65rem, 3vw, 2.15rem);
+  font-weight: 620;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+.dir-briefing .verdict-copy p {
+  max-width: 510px;
+  margin: 10px 0 0;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.9rem;
+  font-weight: 430;
+  line-height: 1.6;
+}
+
+.dir-briefing .preview-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dir-briefing .preview-signals li {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid rgb(217 112 112 / 0.13);
+  border-radius: 999px;
+  color: rgb(244 180 180 / 0.76);
+  background: rgb(217 112 112 / 0.09);
+  font-size: 0.68rem;
+  font-weight: 480;
+}
+
+.dir-briefing .preview-signals b {
+  color: rgb(244 180 180 / 0.48);
+  font-size: 0.61rem;
+  font-weight: 590;
+}
+
+.dir-briefing .message-card {
+  margin-top: 34px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.022);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.07);
+}
+
+.dir-briefing .message-header {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 20px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.065);
+}
+
+.dir-briefing .message-sender {
+  min-width: 0;
+}
+
+.dir-briefing .message-sender strong,
+.dir-briefing .message-sender span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-briefing .message-sender strong {
+  color: rgb(250 250 250 / 0.88);
+  font-size: 0.8rem;
+  font-weight: 590;
+}
+
+.dir-briefing .message-sender span,
+.dir-briefing .message-header time {
+  margin-top: 4px;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.65rem;
+  font-weight: 430;
+}
+
+.dir-briefing .message-body {
+  padding: 24px 20px 30px;
+}
+
+.dir-briefing .message-body h3 {
+  margin: 0;
+  color: rgb(250 250 250 / 0.88);
+  font-size: 1rem;
+  font-weight: 590;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.dir-briefing .message-body p {
+  max-width: 540px;
+  margin: 16px 0 0;
+  color: rgb(250 250 250 / 0.54);
+  font-size: 0.86rem;
+  font-weight: 430;
+  line-height: 1.65;
+}
+
+.dir-briefing .preview-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.dir-briefing .secondary-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  color: rgb(250 250 250 / 0.76);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.025);
+  font-size: 0.78rem;
+  font-weight: 590;
+}
+
+.dir-briefing .secondary-button.phishing-action {
+  color: #efb0b0;
+  border-color: rgb(217 112 112 / 0.22);
+  background: rgb(217 112 112 / 0.07);
+}
+
+@media (max-width: 780px) {
+  .dir-briefing [data-screen] {
+    padding: 56px 18px 76px;
+  }
+
+  .dir-briefing .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dir-briefing .header-side {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .dir-briefing .range-label {
+    margin-right: auto;
+  }
+
+  .dir-briefing .posture-card {
+    grid-template-columns: 1fr;
+    gap: 34px;
+    padding: 30px;
+  }
+
+  .dir-briefing .queue-row {
+    grid-template-columns: 38px minmax(130px, 0.48fr) minmax(200px, 1fr) 48px;
+    gap: 12px;
+  }
+
+  .dir-briefing .expanded-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dir-briefing .inbox-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dir-briefing .mail-list-pane {
+    border-right: 0;
+  }
+
+  .dir-briefing .preview-pane {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .dir-briefing [data-screen] {
+    padding: 42px 12px 62px;
+  }
+
+  .dir-briefing .screen-label {
+    margin-bottom: 18px;
+  }
+
+  .dir-briefing .page-heading h1 {
+    font-size: 2.1rem;
+  }
+
+  .dir-briefing .header-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dir-briefing .range-label {
+    grid-column: 1 / -1;
+  }
+
+  .dir-briefing .quiet-button {
+    padding: 0 10px;
+  }
+
+  .dir-briefing .posture-card {
+    padding: 24px 20px;
+  }
+
+  .dir-briefing .posture-stats {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .dir-briefing .posture-stats > div,
+  .dir-briefing .posture-stats > div:first-child {
+    padding: 0 0 14px;
+    border-bottom: 1px solid rgb(255 255 255 / 0.07);
+    border-left: 0;
+  }
+
+  .dir-briefing .posture-stats > div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .dir-briefing .block-heading {
+    padding: 22px 18px 14px;
+  }
+
+  .dir-briefing .queue-list {
+    padding: 0 18px 8px;
+  }
+
+  .dir-briefing .queue-row {
+    min-height: 92px;
+    grid-template-columns: 36px minmax(0, 1fr) 42px;
+    gap: 10px;
+    padding: 10px 0;
+  }
+
+  .dir-briefing .subject-stack {
+    grid-column: 2 / 4;
+    padding-bottom: 4px;
+  }
+
+  .dir-briefing .queue-row .risk-score {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .dir-briefing .disclosure summary {
+    min-height: 58px;
+    padding: 0 18px;
+  }
+
+  .dir-briefing .expanded-grid {
+    padding: 0 8px 8px;
+  }
+
+  .dir-briefing .trend-card,
+  .dir-briefing .domains-card {
+    padding: 20px 16px;
+  }
+
+  .dir-briefing .trend-heading {
+    flex-direction: column;
+  }
+
+  .dir-briefing .trend-legend {
+    justify-content: flex-start;
+  }
+
+  .dir-briefing .inbox-workspace {
+    min-height: 720px;
+    border-radius: 14px;
+  }
+
+  .dir-briefing .list-tools {
+    padding: 14px;
+  }
+
+  .dir-briefing .mail-groups {
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  .dir-briefing .mail-row {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .dir-briefing .mail-snippet {
+    max-width: 220px;
+  }
+}
+</style>
+
+<div class="dir-briefing">
+  <section data-screen="dashboard">
+    <div class="screen-shell">
+      <p class="screen-label">Dashboard</p>
+
+      <header class="page-header">
+        <div class="page-heading">
+          <h1>Your security briefing</h1>
+          <p>A calm view of what deserves your attention today.</p>
+        </div>
+        <div class="header-side">
+          <span class="range-label">Last 30 days</span>
+          <button class="quiet-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5">
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 18v2h14v-2"/>
+            </svg>
+            Send report
+          </button>
+          <button class="quiet-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5">
+              <path d="M19 8a7.5 7.5 0 1 0 .3 7M19 4v4h-4"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <main class="briefing-stack">
+        <article class="briefing-block posture-card">
+          <div class="posture-copy">
+            <h2>11 messages need your review.</h2>
+            <p>These look like phishing attempts. Review them before opening.</p>
+            <button class="primary-button" type="button">
+              Review 11 messages
+              <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5">
+                <path d="m9 6 6 6-6 6"/>
+              </svg>
+            </button>
+          </div>
+          <div>
+            <dl class="posture-stats">
+              <div>
+                <dt>342</dt>
+                <dd>Total messages<br>338 scanned</dd>
+              </div>
+              <div>
+                <dt>88%</dt>
+                <dd>Safe<br>289 messages</dd>
+              </div>
+              <div>
+                <dt>14:02</dt>
+                <dd>Last synced<br>Today</dd>
+              </div>
+            </dl>
+            <p class="posture-note">9 reviewed safe · 4 unscanned</p>
+          </div>
+        </article>
+
+        <article class="briefing-block queue-card">
+          <header class="block-heading">
+            <div>
+              <h2>Review queue</h2>
+              <p>Start with the messages carrying the clearest warning signs.</p>
+            </div>
+            <span class="queue-count">5 shown</span>
+          </header>
+          <ol class="queue-list">
+            <li class="queue-row">
+              <span class="monogram">PS</span>
+              <div class="sender-stack">
+                <strong>PayPal Service</strong>
+                <span>security@paypa1-alerts.com · 2h ago</span>
+              </div>
+              <div class="subject-stack">
+                <strong>Your account access has been limited</strong>
+                <div class="signal-list">
+                  <span class="signal-pill">Lookalike domain</span>
+                  <span class="signal-pill">Asks for personal info</span>
+                </div>
+              </div>
+              <div class="risk-score"><strong>87</strong><span>risk</span></div>
+            </li>
+            <li class="queue-row">
+              <span class="monogram">MA</span>
+              <div class="sender-stack">
+                <strong>Microsoft Account</strong>
+                <span>no-reply@microsoft-verify.net · 5h ago</span>
+              </div>
+              <div class="subject-stack">
+                <strong>Unusual sign-in attempt blocked</strong>
+                <div class="signal-list">
+                  <span class="signal-pill">Brand impersonation</span>
+                  <span class="signal-pill">Pressures to act</span>
+                </div>
+              </div>
+              <div class="risk-score"><strong>78</strong><span>risk</span></div>
+            </li>
+            <li class="queue-row">
+              <span class="monogram">DB</span>
+              <div class="sender-stack">
+                <strong>DHL Billing</strong>
+                <span>billing@dhl-express-tracking.com · Yesterday</span>
+              </div>
+              <div class="subject-stack">
+                <strong>Invoice INV-88213 is overdue — action required</strong>
+                <div class="signal-list">
+                  <span class="signal-pill">Dangerous attachment</span>
+                  <span class="signal-pill">Reply address differs</span>
+                </div>
+              </div>
+              <div class="risk-score"><strong>72</strong><span>risk</span></div>
+            </li>
+            <li class="queue-row">
+              <span class="monogram">DE</span>
+              <div class="sender-stack">
+                <strong>DHL Express</strong>
+                <span>support@dhl-express-tracking.com · Yesterday</span>
+              </div>
+              <div class="subject-stack">
+                <strong>Your package could not be delivered</strong>
+                <div class="signal-list">
+                  <span class="signal-pill">Shortened link</span>
+                  <span class="signal-pill">Urgency language</span>
+                </div>
+              </div>
+              <div class="risk-score"><strong>69</strong><span>risk</span></div>
+            </li>
+            <li class="queue-row">
+              <span class="monogram">HR</span>
+              <div class="sender-stack">
+                <strong>HR Benefits</strong>
+                <span>hr@corp-benefits-portal.com · 2 days ago</span>
+              </div>
+              <div class="subject-stack">
+                <strong>Updated payroll details required</strong>
+                <div class="signal-list">
+                  <span class="signal-pill">Asks for personal info</span>
+                  <span class="signal-pill">Reply address differs</span>
+                </div>
+              </div>
+              <div class="risk-score"><strong>64</strong><span>risk</span></div>
+            </li>
+          </ol>
+        </article>
+
+        <details class="disclosure" open>
+          <summary>
+            <span>Threat activity and top senders</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5">
+              <path d="m7 9 5 5 5-5"/>
+            </svg>
+          </summary>
+          <div class="expanded-grid">
+            <article class="briefing-block trend-card">
+              <header class="trend-heading">
+                <div>
+                  <h2>Threat activity</h2>
+                  <p>Signals detected across the last 30 days.</p>
+                </div>
+                <div class="trend-legend" aria-label="Chart legend">
+                  <span class="legend-item"><i class="legend-dot suspicious"></i>Suspicious 24</span>
+                  <span class="legend-item"><i class="legend-dot likely"></i>Likely phishing 11</span>
+                  <span class="legend-item"><i class="legend-dot confirmed"></i>Confirmed phishing 5</span>
+                </div>
+              </header>
+              <svg class="trend-chart" viewBox="0 0 640 220" role="img" aria-label="Thirty day trend chart showing suspicious, likely phishing, and confirmed phishing messages">
+                <line class="guide" x1="34" y1="20" x2="620" y2="20"/>
+                <line class="guide" x1="34" y1="84" x2="620" y2="84"/>
+                <line class="guide" x1="34" y1="148" x2="620" y2="148"/>
+                <line class="guide" x1="34" y1="180" x2="620" y2="180"/>
+                <polyline class="series series-suspicious" points="34.0,180 54.2,148 74.4,180 94.6,116 114.8,148 135.0,148 155.2,84 175.4,116 195.7,180 215.9,148 236.1,116 256.3,52 276.5,84 296.7,148 316.9,116 337.1,180 357.3,148 377.5,84 397.7,116 417.9,20 438.1,52 458.3,116 478.6,148 498.8,84 519.0,116 539.2,52 559.4,84 579.6,148 599.8,116 620.0,148"/>
+                <polyline class="series series-likely" points="34.0,180 54.2,180 74.4,148 94.6,180 114.8,148 135.0,180 155.2,148 175.4,116 195.7,148 215.9,180 236.1,180 256.3,148 276.5,116 296.7,148 316.9,180 337.1,148 357.3,180 377.5,116 397.7,84 417.9,116 438.1,148 458.3,180 478.6,148 498.8,116 519.0,148 539.2,84 559.4,116 579.6,148 599.8,148 620.0,116"/>
+                <polyline class="series series-confirmed" points="34.0,180 54.2,180 74.4,180 94.6,180 114.8,180 135.0,148 155.2,180 175.4,180 195.7,180 215.9,180 236.1,148 256.3,180 276.5,180 296.7,180 316.9,180 337.1,180 357.3,148 377.5,180 397.7,180 417.9,148 438.1,180 458.3,180 478.6,180 498.8,180 519.0,148 539.2,180 559.4,180 579.6,180 599.8,180 620.0,148"/>
+                <text x="34" y="207">Jun 30</text>
+                <text x="135" y="207" text-anchor="middle">Jul 5</text>
+                <text x="236" y="207" text-anchor="middle">Jul 10</text>
+                <text x="337" y="207" text-anchor="middle">Jul 15</text>
+                <text x="438" y="207" text-anchor="middle">Jul 20</text>
+                <text x="539" y="207" text-anchor="middle">Jul 25</text>
+                <text x="620" y="207" text-anchor="end">Today</text>
+              </svg>
+            </article>
+
+            <article class="briefing-block domains-card">
+              <header class="domains-heading">
+                <div>
+                  <h2>Attacking domains</h2>
+                  <p>Volume scaled to the busiest sender.</p>
+                </div>
+              </header>
+              <ol class="domain-list">
+                <li>
+                  <div class="domain-topline"><strong>dhl-express-tracking.com</strong><span>12</span></div>
+                  <div class="domain-bar" title="6 suspicious, 4 likely phishing, 2 confirmed phishing">
+                    <div class="domain-bar-fill" style="--total: 100%">
+                      <span class="domain-segment-suspicious" style="flex: 6"></span>
+                      <span class="domain-segment-likely" style="flex: 4"></span>
+                      <span class="domain-segment-confirmed" style="flex: 2"></span>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="domain-topline"><strong>paypa1-alerts.com</strong><span>7</span></div>
+                  <div class="domain-bar" title="3 suspicious, 3 likely phishing, 1 confirmed phishing">
+                    <div class="domain-bar-fill" style="--total: 58.33%">
+                      <span class="domain-segment-suspicious" style="flex: 3"></span>
+                      <span class="domain-segment-likely" style="flex: 3"></span>
+                      <span class="domain-segment-confirmed" style="flex: 1"></span>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="domain-topline"><strong>microsoft-verify.net</strong><span>7</span></div>
+                  <div class="domain-bar" title="4 suspicious, 2 likely phishing, 1 confirmed phishing">
+                    <div class="domain-bar-fill" style="--total: 58.33%">
+                      <span class="domain-segment-suspicious" style="flex: 4"></span>
+                      <span class="domain-segment-likely" style="flex: 2"></span>
+                      <span class="domain-segment-confirmed" style="flex: 1"></span>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="domain-topline"><strong>corp-benefits-portal.com</strong><span>5</span></div>
+                  <div class="domain-bar" title="4 suspicious, 1 likely phishing, 0 confirmed phishing">
+                    <div class="domain-bar-fill" style="--total: 41.67%">
+                      <span class="domain-segment-suspicious" style="flex: 4"></span>
+                      <span class="domain-segment-likely" style="flex: 1"></span>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="domain-topline"><strong>secure-docs-share.io</strong><span>5</span></div>
+                  <div class="domain-bar" title="3 suspicious, 1 likely phishing, 1 confirmed phishing">
+                    <div class="domain-bar-fill" style="--total: 41.67%">
+                      <span class="domain-segment-suspicious" style="flex: 3"></span>
+                      <span class="domain-segment-likely" style="flex: 1"></span>
+                      <span class="domain-segment-confirmed" style="flex: 1"></span>
+                    </div>
+                  </div>
+                </li>
+              </ol>
+            </article>
+          </div>
+        </details>
+      </main>
+    </div>
+  </section>
+
+  <section data-screen="inbox">
+    <div class="screen-shell">
+      <p class="screen-label">Inbox</p>
+
+      <header class="page-header inbox-header">
+        <div class="page-heading">
+          <h1>Review your inbox</h1>
+          <p>Read the evidence, make a decision, and move on.</p>
+        </div>
+      </header>
+
+      <main class="inbox-workspace">
+        <div class="mail-list-pane">
+          <div class="list-tools">
+            <label class="search-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5">
+                <circle cx="11" cy="11" r="6.5"/>
+                <path d="m16 16 4 4"/>
+              </svg>
+              <input type="search" placeholder="Search sender, subject…" aria-label="Search sender or subject">
+            </label>
+            <div class="filter-scroller">
+              <div class="filter-control" role="group" aria-label="Inbox filters">
+                <button class="filter-chip" type="button">All 342</button>
+                <button class="filter-chip active" type="button" aria-pressed="true">Likely phishing 11</button>
+                <button class="filter-chip" type="button">Suspicious 24</button>
+                <button class="filter-chip" type="button">Confirmed phishing 5</button>
+                <button class="filter-chip" type="button">Safe 289</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mail-groups">
+            <section class="mail-group" aria-labelledby="today-label">
+              <h2 id="today-label">Today</h2>
+              <ul>
+                <li class="mail-row selected" aria-label="PayPal Service, Likely phishing, risk 87">
+                  <span class="monogram">PS</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot likely"></i><strong>PayPal Service</strong></span>
+                    <span class="mail-subject">Your account access has been limited</span>
+                    <span class="mail-snippet">security@paypa1-alerts.com</span>
+                  </div>
+                  <div class="mail-meta"><time>14:02</time><span>87</span></div>
+                </li>
+                <li class="mail-row" aria-label="Microsoft Account, Likely phishing, risk 78">
+                  <span class="monogram">MA</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot likely"></i><strong>Microsoft Account</strong></span>
+                    <span class="mail-subject">Unusual sign-in attempt blocked</span>
+                    <span class="mail-snippet">no-reply@microsoft-verify.net</span>
+                  </div>
+                  <div class="mail-meta"><time>11:31</time><span>78</span></div>
+                </li>
+                <li class="mail-row" aria-label="Notion, Safe, risk 4">
+                  <span class="monogram">N</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot safe"></i><strong>Notion</strong></span>
+                    <span class="mail-subject">Your weekly digest is ready</span>
+                    <span class="mail-snippet">team@notion.so</span>
+                  </div>
+                  <div class="mail-meta"><time>09:15</time><span>4</span></div>
+                </li>
+              </ul>
+            </section>
+
+            <section class="mail-group" aria-labelledby="yesterday-label">
+              <h2 id="yesterday-label">Yesterday</h2>
+              <ul>
+                <li class="mail-row" aria-label="DHL Billing, Likely phishing, risk 72">
+                  <span class="monogram">DB</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot likely"></i><strong>DHL Billing</strong></span>
+                    <span class="mail-subject">Invoice INV-88213 is overdue — action required</span>
+                    <span class="mail-snippet">billing@dhl-express-tracking.com</span>
+                  </div>
+                  <div class="mail-meta"><time>18:44</time><span>72</span></div>
+                </li>
+                <li class="mail-row" aria-label="LinkedIn, Safe, risk 7">
+                  <span class="monogram">LI</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot safe"></i><strong>LinkedIn</strong></span>
+                    <span class="mail-subject">You appeared in 9 searches this week</span>
+                    <span class="mail-snippet">messages@linkedin.com</span>
+                  </div>
+                  <div class="mail-meta"><time>12:08</time><span>7</span></div>
+                </li>
+                <li class="mail-row" aria-label="Dropbox Share, Suspicious, risk 41">
+                  <span class="monogram">DS</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot suspicious"></i><strong>Dropbox Share</strong></span>
+                    <span class="mail-subject">A document was shared with you</span>
+                    <span class="mail-snippet">no-reply@secure-docs-share.io</span>
+                  </div>
+                  <div class="mail-meta"><time>08:52</time><span>41</span></div>
+                </li>
+              </ul>
+            </section>
+
+            <section class="mail-group" aria-labelledby="week-label">
+              <h2 id="week-label">This week</h2>
+              <ul>
+                <li class="mail-row" aria-label="HR Benefits, Confirmed phishing, risk 64">
+                  <span class="monogram">HR</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot confirmed"></i><strong>HR Benefits</strong></span>
+                    <span class="mail-subject">Updated payroll details required</span>
+                    <span class="mail-snippet">hr@corp-benefits-portal.com</span>
+                  </div>
+                  <div class="mail-meta"><time>Jul 26</time><span>64</span></div>
+                </li>
+                <li class="mail-row" aria-label="GitHub, Safe, risk 2">
+                  <span class="monogram">GH</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot safe"></i><strong>GitHub</strong></span>
+                    <span class="mail-subject">Security alert on repository secure-inbox</span>
+                    <span class="mail-snippet">noreply@github.com</span>
+                  </div>
+                  <div class="mail-meta"><time>Jul 25</time><span>2</span></div>
+                </li>
+                <li class="mail-row" aria-label="Amazon Orders, Suspicious, risk 38">
+                  <span class="monogram">AO</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot suspicious"></i><strong>Amazon Orders</strong></span>
+                    <span class="mail-subject">Confirm your recent order</span>
+                    <span class="mail-snippet">auto-confirm@amazon-billing-check.com</span>
+                  </div>
+                  <div class="mail-meta"><time>Jul 24</time><span>38</span></div>
+                </li>
+              </ul>
+            </section>
+
+            <section class="mail-group" aria-labelledby="older-label">
+              <h2 id="older-label">Older</h2>
+              <ul>
+                <li class="mail-row" aria-label="Google, Reviewed safe, risk 11">
+                  <span class="monogram">G</span>
+                  <div class="mail-copy">
+                    <span class="mail-sender-line"><i class="risk-dot reviewed"></i><strong>Google</strong></span>
+                    <span class="mail-subject">Security review completed</span>
+                    <span class="mail-snippet">no-reply@accounts.google.com</span>
+                  </div>
+                  <div class="mail-meta"><time>Jul 21</time><span>11</span></div>
+                </li>
+              </ul>
+            </section>
+
+            <nav class="pagination" aria-label="Inbox pages">
+              <span>Page 1 of 35</span>
+              <div class="pager-buttons">
+                <button type="button" disabled aria-label="Previous page">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5"><path d="m15 6-6 6 6 6"/></svg>
+                </button>
+                <button type="button" aria-label="Next page">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5"><path d="m9 6 6 6-6 6"/></svg>
+                </button>
+              </div>
+            </nav>
+          </div>
+        </div>
+
+        <aside class="preview-pane" aria-label="Selected message preview">
+          <div class="preview-topbar">
+            <span>Message details</span>
+            <div class="preview-nav">
+              <button type="button" aria-label="Previous message">
+                <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5"><path d="m15 6-6 6 6 6"/></svg>
+              </button>
+              <button type="button" aria-label="Next message">
+                <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5"><path d="m9 6 6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="preview-content">
+            <header class="verdict-header">
+              <div class="score-ring"><span>87</span></div>
+              <div class="verdict-copy">
+                <h2>Likely phishing</h2>
+                <p>This message asks for personal information and comes from a lookalike domain.</p>
+              </div>
+            </header>
+
+            <ul class="preview-signals" aria-label="Detected signals">
+              <li>Lookalike domain <b>+32</b></li>
+              <li>Asks for personal info <b>+29</b></li>
+              <li>Urgency language <b>+18</b></li>
+            </ul>
+
+            <article class="message-card">
+              <header class="message-header">
+                <span class="monogram">PS</span>
+                <div class="message-sender">
+                  <strong>PayPal Service</strong>
+                  <span>security@paypa1-alerts.com</span>
+                </div>
+                <time>Today at 14:02</time>
+              </header>
+              <div class="message-body">
+                <h3>Your account access has been limited</h3>
+                <p>We noticed unusual activity on your account. To restore access, confirm your personal information using the secure link in this message.</p>
+              </div>
+            </article>
+
+            <div class="preview-actions">
+              <button class="secondary-button" type="button">Mark as safe</button>
+              <button class="secondary-button phishing-action" type="button">Mark as phishing</button>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </section>
+</div>

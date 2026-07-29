@@ -1,0 +1,1505 @@
+<style>
+.dir-slate {
+  --slate-canvas: #0c0e13;
+  --slate-depth: #07090d;
+  --slate-light: #171b24;
+  --slate-steel: #ced3da;
+  --slate-alert: #e2685f;
+  --slate-rule: #1e2229;
+  --slate-rule-strong: #2a3039;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--slate-steel);
+  background-color: var(--slate-canvas);
+  font-family: -apple-system, 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dir-slate,
+.dir-slate button,
+.dir-slate input,
+.dir-slate text {
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-slate section[data-screen] {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 78px max(28px, calc((100% - 1280px) / 2)) 132px;
+  background-image:
+    repeating-linear-gradient(45deg, rgb(206 211 218 / 0.012) 0, rgb(206 211 218 / 0.012) 1px, transparent 1px, transparent 3px),
+    linear-gradient(135deg, var(--slate-light) 0%, var(--slate-canvas) 48%, var(--slate-depth) 100%);
+}
+
+.dir-slate section[data-screen] + section[data-screen] {
+  border-top: 1px solid var(--slate-rule-strong);
+}
+
+.dir-slate .screen-label,
+.dir-slate .micro-label,
+.dir-slate .block-index,
+.dir-slate .column-label,
+.dir-slate .date-label,
+.dir-slate .bucket {
+  margin: 0;
+  font-size: 0.6rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dir-slate .screen-label,
+.dir-slate .micro-label,
+.dir-slate .column-label,
+.dir-slate .date-label {
+  color: rgb(206 211 218 / 0.54);
+}
+
+.dir-slate .screen-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: fit-content;
+  margin-bottom: 38px;
+}
+
+.dir-slate .screen-label::before {
+  width: 34px;
+  height: 1px;
+  content: '';
+  background: var(--slate-steel);
+  opacity: 0.38;
+}
+
+.dir-slate .page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 36px;
+  padding-bottom: 34px;
+  border-bottom: 1px solid var(--slate-rule-strong);
+}
+
+.dir-slate .page-title {
+  max-width: 840px;
+  margin: 0;
+  font-size: clamp(3.6rem, 7vw, 6.4rem);
+  font-weight: 650;
+  line-height: 0.84;
+  letter-spacing: -0.05em;
+}
+
+.dir-slate .header-readout {
+  display: flex;
+  align-items: flex-end;
+  gap: 30px;
+}
+
+.dir-slate .range-readout {
+  display: grid;
+  gap: 7px;
+  min-width: 118px;
+}
+
+.dir-slate .range-readout strong {
+  color: rgb(206 211 218 / 0.78);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.dir-slate .control-pair {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--slate-rule-strong);
+  border-radius: 12px;
+}
+
+.dir-slate .control-pair button,
+.dir-slate .pagination button {
+  min-height: 40px;
+  padding: 0 15px;
+  border: 0;
+  color: rgb(206 211 218 / 0.61);
+  background: rgb(7 9 13 / 0.12);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.035em;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.dir-slate .control-pair button + button {
+  border-left: 1px solid var(--slate-rule-strong);
+}
+
+.dir-slate .control-pair button:hover,
+.dir-slate .pagination button:hover {
+  color: var(--slate-steel);
+  background: rgb(206 211 218 / 0.045);
+}
+
+.dir-slate .slate-block {
+  position: relative;
+  padding: 64px 0 70px;
+}
+
+.dir-slate .slate-block + .slate-block {
+  border-top: 1px solid var(--slate-rule);
+}
+
+.dir-slate .block-heading {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 42px;
+}
+
+.dir-slate .block-heading h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+}
+
+.dir-slate .block-index {
+  color: var(--slate-steel);
+  opacity: 0.34;
+}
+
+.dir-slate .heading-note {
+  color: rgb(206 211 218 / 0.38);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.035em;
+}
+
+.dir-slate .posture-stage {
+  display: grid;
+  grid-template-columns: minmax(270px, 0.85fr) minmax(330px, 410px) minmax(270px, 0.85fr);
+  align-items: center;
+  gap: 42px;
+  min-height: 430px;
+}
+
+.dir-slate .posture-copy {
+  align-self: center;
+  max-width: 310px;
+}
+
+.dir-slate .posture-copy strong {
+  display: block;
+  margin-bottom: 16px;
+  color: var(--slate-steel);
+  font-size: clamp(2.45rem, 4.4vw, 4.65rem);
+  font-weight: 650;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+}
+
+.dir-slate .posture-copy strong span {
+  color: var(--slate-alert);
+}
+
+.dir-slate .posture-copy > span {
+  display: block;
+  max-width: 280px;
+  color: rgb(206 211 218 / 0.76);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.dir-slate .gauge-shell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 410px;
+}
+
+.dir-slate .gauge-shell::before,
+.dir-slate .gauge-shell::after {
+  position: absolute;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border: 1px solid rgb(206 211 218 / 0.35);
+  border-radius: 50%;
+  content: '';
+  transform: translateX(-50%);
+}
+
+.dir-slate .gauge-shell::before {
+  top: 7px;
+}
+
+.dir-slate .gauge-shell::after {
+  bottom: 7px;
+}
+
+.dir-slate .gauge {
+  display: block;
+  width: min(100%, 410px);
+  overflow: visible;
+}
+
+.dir-slate .gauge .gauge-arc-base {
+  fill: none;
+  stroke: var(--slate-rule-strong);
+  stroke-width: 1;
+  stroke-dasharray: 75 25;
+}
+
+.dir-slate .gauge .gauge-arc-value {
+  fill: none;
+  stroke: var(--slate-steel);
+  stroke-width: 2;
+  stroke-dasharray: 66 34;
+  opacity: 0.9;
+}
+
+.dir-slate .gauge .gauge-tick {
+  stroke: var(--slate-steel);
+  stroke-width: 1;
+  opacity: 0.28;
+}
+
+.dir-slate .gauge .gauge-tick-major {
+  stroke-width: 2;
+  opacity: 0.72;
+}
+
+.dir-slate .gauge .gauge-crosshair {
+  stroke: var(--slate-rule-strong);
+  stroke-width: 1;
+  stroke-dasharray: 1 5;
+}
+
+.dir-slate .gauge .gauge-number {
+  fill: var(--slate-steel);
+  font-family: -apple-system, 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  font-size: 90px;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+.dir-slate .gauge .gauge-percent {
+  fill: rgb(206 211 218 / 0.61);
+  font-family: -apple-system, 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.dir-slate .gauge .gauge-label {
+  fill: rgb(206 211 218 / 0.45);
+  font-family: -apple-system, 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 1.8px;
+}
+
+.dir-slate .sync-readout {
+  display: grid;
+  align-self: center;
+  justify-self: end;
+  gap: 9px;
+  max-width: 210px;
+  text-align: right;
+}
+
+.dir-slate .sync-readout strong {
+  font-size: clamp(2.4rem, 4vw, 4rem);
+  font-weight: 650;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+}
+
+.dir-slate .sync-readout span:last-child {
+  color: rgb(206 211 218 / 0.72);
+  font-size: 0.72rem;
+  line-height: 1.65;
+}
+
+.dir-slate .count-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: end;
+  gap: 40px;
+  margin-top: 18px;
+  padding-top: 30px;
+  border-top: 1px solid var(--slate-rule-strong);
+}
+
+.dir-slate .count {
+  display: grid;
+  gap: 12px;
+}
+
+.dir-slate .count strong {
+  font-size: clamp(2.55rem, 4.2vw, 4.8rem);
+  font-weight: 650;
+  line-height: 0.82;
+  letter-spacing: -0.05em;
+}
+
+.dir-slate .count.is-alert strong,
+.dir-slate .count.is-alert .micro-label {
+  color: var(--slate-alert);
+}
+
+.dir-slate .count.is-muted {
+  opacity: 0.72;
+}
+
+.dir-slate .calibration-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 30px;
+  margin-top: 30px;
+  color: rgb(206 211 218 / 0.45);
+  font-size: 0.64rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.035em;
+}
+
+.dir-slate .calibration-line strong {
+  color: rgb(206 211 218 / 0.76);
+  font-weight: 500;
+}
+
+.dir-slate .queue-head,
+.dir-slate .queue-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.82fr) minmax(280px, 1.45fr) minmax(200px, 0.95fr) 170px 64px;
+  align-items: center;
+  column-gap: 28px;
+}
+
+.dir-slate .queue-head {
+  min-height: 32px;
+  border-bottom: 1px solid var(--slate-rule-strong);
+}
+
+.dir-slate .queue-row {
+  min-height: 86px;
+  border-bottom: 1px solid var(--slate-rule);
+  transition: background 180ms ease;
+}
+
+.dir-slate .queue-row.is-likely {
+  box-shadow: inset 2px 0 rgb(226 104 95 / 0.72);
+}
+
+.dir-slate .queue-row:hover,
+.dir-slate .mail-row:hover {
+  background: rgb(206 211 218 / 0.024);
+}
+
+.dir-slate .queue-head > span,
+.dir-slate .queue-row > div,
+.dir-slate .mail-head > span,
+.dir-slate .mail-row > div {
+  min-width: 0;
+}
+
+.dir-slate .sender-cell,
+.dir-slate .subject-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.dir-slate .sender-cell strong,
+.dir-slate .subject-cell strong {
+  overflow: hidden;
+  color: rgb(206 211 218 / 0.88);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.38;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-slate .sender-cell span,
+.dir-slate .subject-cell span {
+  overflow: hidden;
+  color: rgb(206 211 218 / 0.45);
+  font-size: 0.64rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-slate .score-cell,
+.dir-slate .mail-score {
+  display: grid;
+  grid-template-columns: minmax(68px, 1fr) 28px;
+  align-items: center;
+  gap: 12px;
+}
+
+.dir-slate .score-track {
+  position: relative;
+  display: block;
+  height: 10px;
+}
+
+.dir-slate .score-track::before {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  content: '';
+  background: var(--slate-rule-strong);
+}
+
+.dir-slate .score-track::after {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: var(--score);
+  height: 1px;
+  content: '';
+  background: currentColor;
+  transform: translateY(-50%);
+}
+
+.dir-slate .score-track.is-safe {
+  color: rgb(206 211 218 / 0.38);
+}
+
+.dir-slate .score-track.is-suspicious {
+  color: rgb(226 104 95 / 0.5);
+}
+
+.dir-slate .score-track.is-suspicious::after {
+  height: 1.5px;
+}
+
+.dir-slate .score-track.is-likely {
+  color: rgb(226 104 95 / 0.82);
+}
+
+.dir-slate .score-track.is-likely::after {
+  height: 2px;
+}
+
+.dir-slate .score-track.is-confirmed {
+  color: var(--slate-alert);
+}
+
+.dir-slate .score-track.is-confirmed::after {
+  height: 4px;
+}
+
+.dir-slate .score-number {
+  color: rgb(226 104 95 / 0.86);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: right;
+  letter-spacing: -0.02em;
+}
+
+.dir-slate .score-number.is-safe {
+  color: rgb(206 211 218 / 0.45);
+}
+
+.dir-slate .score-number.is-suspicious {
+  color: rgb(226 104 95 / 0.58);
+}
+
+.dir-slate .score-number.is-confirmed {
+  color: var(--slate-alert);
+  font-weight: 700;
+}
+
+.dir-slate .when-cell,
+.dir-slate .mail-time {
+  color: rgb(206 211 218 / 0.45);
+  font-size: 0.64rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.dir-slate .chart-shell {
+  position: relative;
+  padding-top: 4px;
+}
+
+.dir-slate .chart-legend {
+  display: flex;
+  justify-content: flex-end;
+  gap: 26px;
+  margin-bottom: 24px;
+}
+
+.dir-slate .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: rgb(206 211 218 / 0.54);
+  font-size: 0.63rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.dir-slate .legend-line {
+  width: 24px;
+  color: var(--slate-alert);
+  border-top-style: solid;
+}
+
+.dir-slate .legend-line.is-suspicious {
+  border-top-width: 1px;
+  opacity: 0.42;
+}
+
+.dir-slate .legend-line.is-likely {
+  border-top-width: 1.5px;
+  opacity: 0.76;
+}
+
+.dir-slate .legend-line.is-confirmed {
+  border-top-width: 2.5px;
+}
+
+.dir-slate .trend-chart {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.dir-slate .trend-chart .chart-grid {
+  stroke: var(--slate-rule-strong);
+  stroke-width: 1;
+}
+
+.dir-slate .trend-chart .chart-grid-minor {
+  stroke: var(--slate-rule);
+  stroke-width: 1;
+  stroke-dasharray: 1 6;
+}
+
+.dir-slate .trend-chart .series {
+  fill: none;
+  stroke: var(--slate-alert);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+}
+
+.dir-slate .trend-chart .series-suspicious {
+  stroke-width: 1;
+  opacity: 0.42;
+}
+
+.dir-slate .trend-chart .series-likely {
+  stroke-width: 1.5;
+  opacity: 0.76;
+}
+
+.dir-slate .trend-chart .series-confirmed {
+  stroke-width: 2.5;
+}
+
+.dir-slate .trend-chart .confirmed-marker {
+  fill: var(--slate-alert);
+  stroke: var(--slate-alert);
+  stroke-width: 2;
+}
+
+.dir-slate .trend-chart .chart-text {
+  fill: rgb(206 211 218 / 0.45);
+  font-family: -apple-system, 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.dir-slate .domain-head,
+.dir-slate .domain-row {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.82fr) minmax(330px, 1.6fr) 64px;
+  align-items: center;
+  column-gap: 34px;
+}
+
+.dir-slate .domain-head {
+  min-height: 32px;
+  border-bottom: 1px solid var(--slate-rule-strong);
+}
+
+.dir-slate .domain-row {
+  min-height: 68px;
+  border-bottom: 1px solid var(--slate-rule);
+}
+
+.dir-slate .domain-name {
+  overflow: hidden;
+  color: rgb(206 211 218 / 0.84);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-slate .domain-breakdown {
+  margin-top: 6px;
+  color: rgb(206 211 218 / 0.38);
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.dir-slate .rank-track {
+  position: relative;
+  height: 10px;
+}
+
+.dir-slate .rank-track::before {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  content: '';
+  background: var(--slate-rule-strong);
+}
+
+.dir-slate .rank-fill {
+  position: relative;
+  display: flex;
+  width: var(--total);
+  height: 100%;
+  align-items: center;
+}
+
+.dir-slate .rank-fill span {
+  display: block;
+  width: var(--part);
+  color: var(--slate-alert);
+  border-top-style: solid;
+}
+
+.dir-slate .rank-fill .rank-suspicious {
+  border-top-width: 1px;
+  opacity: 0.42;
+}
+
+.dir-slate .rank-fill .rank-likely {
+  border-top-width: 2px;
+  opacity: 0.76;
+}
+
+.dir-slate .rank-fill .rank-confirmed {
+  height: 4px;
+  border: 0;
+  background: var(--slate-alert);
+}
+
+.dir-slate .domain-total {
+  color: var(--slate-steel);
+  font-size: 1.8rem;
+  font-weight: 650;
+  line-height: 1;
+  text-align: right;
+  letter-spacing: -0.045em;
+}
+
+.dir-slate .inbox-tools {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.5fr);
+  align-items: start;
+  gap: 30px;
+  padding: 38px 0 58px;
+}
+
+.dir-slate .search-wrap {
+  position: relative;
+  display: block;
+  max-width: 430px;
+}
+
+.dir-slate .search-wrap svg {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  width: 15px;
+  height: 15px;
+  color: rgb(206 211 218 / 0.38);
+  transform: translateY(-50%);
+}
+
+.dir-slate .search-wrap input {
+  width: 100%;
+  height: 42px;
+  box-sizing: border-box;
+  padding: 0 14px 0 42px;
+  border: 1px solid var(--slate-rule-strong);
+  border-radius: 12px;
+  outline: none;
+  color: var(--slate-steel);
+  background: rgb(7 9 13 / 0.16);
+  font: inherit;
+  font-size: 0.73rem;
+  font-weight: 400;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.dir-slate .search-wrap input::placeholder {
+  color: rgb(206 211 218 / 0.38);
+}
+
+.dir-slate .search-wrap input:focus {
+  border-color: rgb(206 211 218 / 0.64);
+  background: rgb(7 9 13 / 0.26);
+}
+
+.dir-slate .filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dir-slate .filter-chip {
+  height: 42px;
+  padding: 0 13px;
+  border: 1px solid var(--slate-rule-strong);
+  border-radius: 12px;
+  color: rgb(206 211 218 / 0.61);
+  background: rgb(7 9 13 / 0.12);
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 500;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.dir-slate .filter-chip:hover {
+  color: var(--slate-steel);
+  border-color: rgb(206 211 218 / 0.4);
+}
+
+.dir-slate .filter-chip.is-active {
+  color: var(--slate-depth);
+  border-color: var(--slate-steel);
+  background: var(--slate-steel);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.25);
+}
+
+.dir-slate .mail-head,
+.dir-slate .mail-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.76fr) minmax(300px, 1.65fr) 140px 170px 58px;
+  align-items: center;
+  column-gap: 28px;
+}
+
+.dir-slate .mail-head {
+  min-height: 32px;
+  border-bottom: 1px solid var(--slate-rule-strong);
+}
+
+.dir-slate .mail-row {
+  min-height: 80px;
+  border-bottom: 1px solid var(--slate-rule);
+  transition: background 180ms ease;
+}
+
+.dir-slate .mail-row.is-suspicious {
+  box-shadow: inset 1px 0 rgb(226 104 95 / 0.42);
+}
+
+.dir-slate .mail-row.is-likely {
+  box-shadow: inset 2px 0 rgb(226 104 95 / 0.76);
+}
+
+.dir-slate .mail-row.is-confirmed {
+  box-shadow: inset 4px 0 var(--slate-alert);
+}
+
+.dir-slate .date-group {
+  margin-bottom: 38px;
+}
+
+.dir-slate .date-rule {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 44px;
+}
+
+.dir-slate .date-rule::after {
+  height: 1px;
+  flex: 1;
+  content: '';
+  background: var(--slate-rule);
+}
+
+.dir-slate .bucket {
+  font-size: 0.56rem;
+  line-height: 1.5;
+}
+
+.dir-slate .bucket.is-safe {
+  color: rgb(206 211 218 / 0.45);
+}
+
+.dir-slate .bucket.is-suspicious {
+  color: rgb(226 104 95 / 0.55);
+}
+
+.dir-slate .bucket.is-likely {
+  color: rgb(226 104 95 / 0.82);
+}
+
+.dir-slate .bucket.is-confirmed {
+  color: var(--slate-alert);
+  font-weight: 700;
+}
+
+.dir-slate .pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 58px;
+}
+
+.dir-slate .pagination span {
+  margin: 0 14px;
+  color: rgb(206 211 218 / 0.45);
+  font-size: 0.63rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.dir-slate .pagination button {
+  border: 1px solid var(--slate-rule-strong);
+  border-radius: 12px;
+}
+
+@media (max-width: 780px) {
+  .dir-slate section[data-screen] {
+    padding: 52px 24px 96px;
+  }
+
+  .dir-slate .page-header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .dir-slate .page-title {
+    font-size: clamp(3.5rem, 11vw, 5.5rem);
+  }
+
+  .dir-slate .header-readout {
+    justify-content: space-between;
+  }
+
+  .dir-slate .posture-stage {
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+  }
+
+  .dir-slate .gauge-shell {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .dir-slate .posture-copy {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .dir-slate .sync-readout {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .dir-slate .count-strip {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 34px;
+  }
+
+  .dir-slate .queue-head,
+  .dir-slate .mail-head {
+    display: none;
+  }
+
+  .dir-slate .queue-row {
+    grid-template-columns: minmax(150px, 0.78fr) minmax(230px, 1.4fr) 148px 58px;
+  }
+
+  .dir-slate .queue-row .subject-cell + .subject-cell {
+    display: none;
+  }
+
+  .dir-slate .domain-head,
+  .dir-slate .domain-row {
+    grid-template-columns: minmax(190px, 0.8fr) minmax(250px, 1.4fr) 52px;
+  }
+
+  .dir-slate .inbox-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .dir-slate .search-wrap {
+    max-width: none;
+  }
+
+  .dir-slate .filter-chips {
+    justify-content: flex-start;
+  }
+
+  .dir-slate .mail-row {
+    grid-template-columns: minmax(160px, 0.8fr) minmax(230px, 1.4fr) 132px 54px;
+  }
+
+  .dir-slate .mail-row .mail-score {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .dir-slate section[data-screen] {
+    padding: 38px 16px 78px;
+  }
+
+  .dir-slate .screen-label {
+    margin-bottom: 28px;
+  }
+
+  .dir-slate .page-title {
+    font-size: 3.35rem;
+  }
+
+  .dir-slate .header-readout {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dir-slate .control-pair {
+    align-self: flex-start;
+  }
+
+  .dir-slate .slate-block {
+    padding: 48px 0 54px;
+  }
+
+  .dir-slate .block-heading {
+    grid-template-columns: 30px minmax(0, 1fr);
+    margin-bottom: 30px;
+  }
+
+  .dir-slate .heading-note {
+    display: none;
+  }
+
+  .dir-slate .posture-stage {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .dir-slate .gauge-shell {
+    min-height: 330px;
+  }
+
+  .dir-slate .posture-copy,
+  .dir-slate .sync-readout {
+    grid-column: 1;
+    justify-self: start;
+    text-align: left;
+  }
+
+  .dir-slate .posture-copy {
+    grid-row: 2;
+  }
+
+  .dir-slate .sync-readout {
+    grid-row: 3;
+    margin-top: 14px;
+  }
+
+  .dir-slate .count-strip {
+    gap: 28px 18px;
+  }
+
+  .dir-slate .count strong {
+    font-size: 2.7rem;
+  }
+
+  .dir-slate .queue-row {
+    grid-template-columns: minmax(0, 1fr) 100px 46px;
+    min-height: 88px;
+    column-gap: 12px;
+  }
+
+  .dir-slate .queue-row .subject-cell {
+    display: none;
+  }
+
+  .dir-slate .chart-legend {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .dir-slate .legend-item {
+    font-size: 0.55rem;
+  }
+
+  .dir-slate .domain-head {
+    display: none;
+  }
+
+  .dir-slate .domain-row {
+    grid-template-columns: minmax(0, 1fr) 40px;
+    min-height: 82px;
+    column-gap: 14px;
+  }
+
+  .dir-slate .domain-row > div:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .dir-slate .domain-row > div:last-child {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .dir-slate .domain-name {
+    align-self: end;
+    padding-bottom: 9px;
+  }
+
+  .dir-slate .filter-chip {
+    height: 36px;
+    padding: 0 10px;
+    font-size: 0.6rem;
+  }
+
+  .dir-slate .mail-row {
+    grid-template-columns: minmax(0, 1fr) 116px 48px;
+    min-height: 84px;
+    column-gap: 12px;
+  }
+
+  .dir-slate .mail-row .subject-cell {
+    display: none;
+  }
+
+  .dir-slate .bucket {
+    letter-spacing: 0.12em;
+  }
+}
+</style>
+
+<div class="dir-slate">
+  <section data-screen="dashboard">
+    <p class="screen-label">Dashboard</p>
+    <header class="page-header">
+      <h1 class="page-title">Security posture</h1>
+      <div class="header-readout">
+        <div class="range-readout">
+          <span class="micro-label">Range</span>
+          <strong>Last 30 days</strong>
+        </div>
+        <div class="control-pair" aria-label="Dashboard controls">
+          <button type="button">Send report</button>
+          <button type="button">Refresh</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="slate-block">
+      <div class="block-heading">
+        <span class="block-index">01</span>
+        <h2>Posture</h2>
+        <span class="heading-note">Last synced Today at 14:02</span>
+      </div>
+
+      <div class="posture-stage">
+        <div class="posture-copy">
+          <strong aria-label="11 messages need your review."><span>11</span> messages need your review.</strong>
+          <span>These look like phishing attempts. Review them before opening.</span>
+        </div>
+
+        <div class="gauge-shell" aria-label="Safe rate 88%">
+          <svg class="gauge" viewBox="0 0 300 300" role="img" aria-label="Safe rate gauge, 88 percent">
+            <line class="gauge-crosshair" x1="150" y1="48" x2="150" y2="252"></line>
+            <line class="gauge-crosshair" x1="48" y1="150" x2="252" y2="150"></line>
+            <circle class="gauge-arc-base" cx="150" cy="150" r="112" pathLength="100" transform="rotate(135 150 150)"></circle>
+            <circle class="gauge-arc-value" cx="150" cy="150" r="112" pathLength="100" transform="rotate(135 150 150)"></circle>
+            <line class="gauge-tick gauge-tick-major" x1="150" y1="20" x2="150" y2="36" transform="rotate(135 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(148.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(162 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(175.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(189 150 150)"></line>
+            <line class="gauge-tick gauge-tick-major" x1="150" y1="20" x2="150" y2="36" transform="rotate(202.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(216 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(229.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(243 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(256.5 150 150)"></line>
+            <line class="gauge-tick gauge-tick-major" x1="150" y1="20" x2="150" y2="36" transform="rotate(270 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(283.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(297 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(310.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(324 150 150)"></line>
+            <line class="gauge-tick gauge-tick-major" x1="150" y1="20" x2="150" y2="36" transform="rotate(337.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(351 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(364.5 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(378 150 150)"></line>
+            <line class="gauge-tick" x1="150" y1="25" x2="150" y2="36" transform="rotate(391.5 150 150)"></line>
+            <line class="gauge-tick gauge-tick-major" x1="150" y1="20" x2="150" y2="36" transform="rotate(405 150 150)"></line>
+            <text class="gauge-number" x="140" y="168" text-anchor="middle">88</text>
+            <text class="gauge-percent" x="214" y="165">%</text>
+            <text class="gauge-label" x="150" y="200" text-anchor="middle">SAFE RATE</text>
+          </svg>
+        </div>
+
+        <div class="sync-readout">
+          <span class="micro-label">Scanned</span>
+          <strong>338</strong>
+          <span>of 342 total messages<br>4 unscanned</span>
+        </div>
+      </div>
+
+      <div class="count-strip" aria-label="Headline message counts">
+        <div class="count">
+          <span class="micro-label">Total messages</span>
+          <strong>342</strong>
+        </div>
+        <div class="count is-muted">
+          <span class="micro-label">Safe</span>
+          <strong>289</strong>
+        </div>
+        <div class="count is-alert">
+          <span class="micro-label">Suspicious</span>
+          <strong>24</strong>
+        </div>
+        <div class="count is-alert">
+          <span class="micro-label">Likely phishing</span>
+          <strong>11</strong>
+        </div>
+      </div>
+
+      <div class="calibration-line" aria-label="Posture calibration data">
+        <span>Reviewed safe <strong>9</strong></span>
+        <span>Confirmed phishing <strong>5</strong></span>
+        <span>Unscanned <strong>4</strong></span>
+        <span>Scanned <strong>338</strong></span>
+        <span>Needs your review <strong>11</strong></span>
+        <span>Last synced <strong>Today at 14:02</strong></span>
+      </div>
+    </div>
+
+    <div class="slate-block">
+      <div class="block-heading">
+        <span class="block-index">02</span>
+        <h2>Review queue</h2>
+        <span class="heading-note">5 of 11 likely phishing</span>
+      </div>
+
+      <div class="queue-head">
+        <span class="column-label">Sender</span>
+        <span class="column-label">Subject</span>
+        <span class="column-label">Top signals</span>
+        <span class="column-label">Score / 100</span>
+        <span class="column-label">When</span>
+      </div>
+
+      <div class="queue-row is-likely">
+        <div class="sender-cell"><strong>PayPal Service</strong><span>security@paypa1-alerts.com</span></div>
+        <div class="subject-cell"><strong>Your account access has been limited</strong><span>Likely phishing</span></div>
+        <div class="subject-cell"><strong>Lookalike domain</strong><span>Asks for personal info · Urgency language</span></div>
+        <div class="score-cell"><span class="score-track is-likely" style="--score: 87%"></span><span class="score-number">87</span></div>
+        <div class="when-cell">2h ago</div>
+      </div>
+
+      <div class="queue-row is-likely">
+        <div class="sender-cell"><strong>Microsoft Account</strong><span>no-reply@microsoft-verify.net</span></div>
+        <div class="subject-cell"><strong>Unusual sign-in attempt blocked</strong><span>Likely phishing</span></div>
+        <div class="subject-cell"><strong>Brand impersonation</strong><span>Pressures to act</span></div>
+        <div class="score-cell"><span class="score-track is-likely" style="--score: 78%"></span><span class="score-number">78</span></div>
+        <div class="when-cell">5h ago</div>
+      </div>
+
+      <div class="queue-row is-likely">
+        <div class="sender-cell"><strong>DHL Billing</strong><span>billing@dhl-express-tracking.com</span></div>
+        <div class="subject-cell"><strong>Invoice INV-88213 is overdue — action required</strong><span>Likely phishing</span></div>
+        <div class="subject-cell"><strong>Dangerous attachment</strong><span>Reply address differs</span></div>
+        <div class="score-cell"><span class="score-track is-likely" style="--score: 72%"></span><span class="score-number">72</span></div>
+        <div class="when-cell">Yesterday</div>
+      </div>
+
+      <div class="queue-row is-likely">
+        <div class="sender-cell"><strong>DHL Express</strong><span>support@dhl-express-tracking.com</span></div>
+        <div class="subject-cell"><strong>Your package could not be delivered</strong><span>Likely phishing</span></div>
+        <div class="subject-cell"><strong>Shortened link</strong><span>Urgency language</span></div>
+        <div class="score-cell"><span class="score-track is-likely" style="--score: 69%"></span><span class="score-number">69</span></div>
+        <div class="when-cell">Yesterday</div>
+      </div>
+
+      <div class="queue-row is-likely">
+        <div class="sender-cell"><strong>HR Benefits</strong><span>hr@corp-benefits-portal.com</span></div>
+        <div class="subject-cell"><strong>Updated payroll details required</strong><span>Likely phishing</span></div>
+        <div class="subject-cell"><strong>Asks for personal info</strong><span>Reply address differs</span></div>
+        <div class="score-cell"><span class="score-track is-likely" style="--score: 64%"></span><span class="score-number">64</span></div>
+        <div class="when-cell">2 days ago</div>
+      </div>
+    </div>
+
+    <div class="slate-block">
+      <div class="block-heading">
+        <span class="block-index">03</span>
+        <h2>Trend</h2>
+        <span class="heading-note">30 days · daily detections · Y max 5</span>
+      </div>
+
+      <div class="chart-shell">
+        <div class="chart-legend" aria-label="Trend legend">
+          <span class="legend-item"><i class="legend-line is-suspicious"></i>Suspicious</span>
+          <span class="legend-item"><i class="legend-line is-likely"></i>Likely phishing</span>
+          <span class="legend-item"><i class="legend-line is-confirmed"></i>Confirmed phishing</span>
+        </div>
+
+        <svg class="trend-chart" viewBox="0 0 960 268" role="img" aria-label="Thirty-day detections chart">
+          <line class="chart-grid" x1="56" y1="24" x2="56" y2="224"></line>
+          <line class="chart-grid" x1="56" y1="224" x2="940" y2="224"></line>
+          <line class="chart-grid-minor" x1="56" y1="184" x2="940" y2="184"></line>
+          <line class="chart-grid-minor" x1="56" y1="144" x2="940" y2="144"></line>
+          <line class="chart-grid-minor" x1="56" y1="104" x2="940" y2="104"></line>
+          <line class="chart-grid-minor" x1="56" y1="64" x2="940" y2="64"></line>
+          <line class="chart-grid-minor" x1="56" y1="24" x2="940" y2="24"></line>
+          <line class="chart-grid" x1="52" y1="224" x2="60" y2="224"></line>
+          <line class="chart-grid" x1="52" y1="184" x2="60" y2="184"></line>
+          <line class="chart-grid" x1="52" y1="144" x2="60" y2="144"></line>
+          <line class="chart-grid" x1="52" y1="104" x2="60" y2="104"></line>
+          <line class="chart-grid" x1="52" y1="64" x2="60" y2="64"></line>
+          <line class="chart-grid" x1="52" y1="24" x2="60" y2="24"></line>
+          <text class="chart-text" x="38" y="227">0</text>
+          <text class="chart-text" x="38" y="187">1</text>
+          <text class="chart-text" x="38" y="147">2</text>
+          <text class="chart-text" x="38" y="107">3</text>
+          <text class="chart-text" x="38" y="67">4</text>
+          <text class="chart-text" x="38" y="27">5</text>
+          <line class="chart-grid" x1="56" y1="220" x2="56" y2="229"></line>
+          <line class="chart-grid" x1="208.4" y1="220" x2="208.4" y2="229"></line>
+          <line class="chart-grid" x1="360.8" y1="220" x2="360.8" y2="229"></line>
+          <line class="chart-grid" x1="513.2" y1="220" x2="513.2" y2="229"></line>
+          <line class="chart-grid" x1="665.7" y1="220" x2="665.7" y2="229"></line>
+          <line class="chart-grid" x1="818.1" y1="220" x2="818.1" y2="229"></line>
+          <line class="chart-grid" x1="940" y1="220" x2="940" y2="229"></line>
+          <text class="chart-text" x="56" y="249" text-anchor="start">Jun 30</text>
+          <text class="chart-text" x="208.4" y="249" text-anchor="middle">Jul 5</text>
+          <text class="chart-text" x="360.8" y="249" text-anchor="middle">Jul 10</text>
+          <text class="chart-text" x="513.2" y="249" text-anchor="middle">Jul 15</text>
+          <text class="chart-text" x="665.7" y="249" text-anchor="middle">Jul 20</text>
+          <text class="chart-text" x="818.1" y="249" text-anchor="middle">Jul 25</text>
+          <text class="chart-text" x="940" y="249" text-anchor="end">Today</text>
+          <polyline class="series series-suspicious" data-values="[0,1,0,2,1,1,3,2,0,1,2,4,3,1,2,0,1,3,2,5,4,2,1,3,2,4,3,1,2,1]" points="56.0,224.0 86.5,184.0 117.0,224.0 147.4,144.0 177.9,184.0 208.4,184.0 238.9,104.0 269.4,144.0 299.9,224.0 330.3,184.0 360.8,144.0 391.3,64.0 421.8,104.0 452.3,184.0 482.8,144.0 513.2,224.0 543.7,184.0 574.2,104.0 604.7,144.0 635.2,24.0 665.7,64.0 696.1,144.0 726.6,184.0 757.1,104.0 787.6,144.0 818.1,64.0 848.6,104.0 879.0,184.0 909.5,144.0 940.0,184.0"></polyline>
+          <polyline class="series series-likely" data-values="[0,0,1,0,1,0,1,2,1,0,0,1,2,1,0,1,0,2,3,2,1,0,1,2,1,3,2,1,1,2]" points="56.0,224.0 86.5,224.0 117.0,184.0 147.4,224.0 177.9,184.0 208.4,224.0 238.9,184.0 269.4,144.0 299.9,184.0 330.3,224.0 360.8,224.0 391.3,184.0 421.8,144.0 452.3,184.0 482.8,224.0 513.2,184.0 543.7,224.0 574.2,144.0 604.7,104.0 635.2,144.0 665.7,184.0 696.1,224.0 726.6,184.0 757.1,144.0 787.6,184.0 818.1,104.0 848.6,144.0 879.0,184.0 909.5,184.0 940.0,144.0"></polyline>
+          <polyline class="series series-confirmed" data-values="[0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,0,0,1]" points="56.0,224.0 86.5,224.0 117.0,224.0 147.4,224.0 177.9,224.0 208.4,184.0 238.9,224.0 269.4,224.0 299.9,224.0 330.3,224.0 360.8,184.0 391.3,224.0 421.8,224.0 452.3,224.0 482.8,224.0 513.2,224.0 543.7,184.0 574.2,224.0 604.7,224.0 635.2,184.0 665.7,224.0 696.1,224.0 726.6,224.0 757.1,224.0 787.6,184.0 818.1,224.0 848.6,224.0 879.0,224.0 909.5,224.0 940.0,184.0"></polyline>
+          <circle class="confirmed-marker" cx="208.4" cy="184" r="2.5"></circle>
+          <circle class="confirmed-marker" cx="360.8" cy="184" r="2.5"></circle>
+          <circle class="confirmed-marker" cx="543.7" cy="184" r="2.5"></circle>
+          <circle class="confirmed-marker" cx="635.2" cy="184" r="2.5"></circle>
+          <circle class="confirmed-marker" cx="787.6" cy="184" r="2.5"></circle>
+          <circle class="confirmed-marker" cx="940" cy="184" r="2.5"></circle>
+        </svg>
+      </div>
+    </div>
+
+    <div class="slate-block">
+      <div class="block-heading">
+        <span class="block-index">04</span>
+        <h2>Attacking domains</h2>
+        <span class="heading-note">Ranked against busiest domain · 12</span>
+      </div>
+
+      <div class="domain-head">
+        <span class="column-label">Domain</span>
+        <span class="column-label">Suspicious / likely / confirmed</span>
+        <span class="column-label">Total</span>
+      </div>
+
+      <div class="domain-row">
+        <div><div class="domain-name">dhl-express-tracking.com</div><div class="domain-breakdown">6 / 4 / 2</div></div>
+        <div><div class="rank-track"><div class="rank-fill" style="--total: 100%"><span class="rank-suspicious" style="--part: 50%"></span><span class="rank-likely" style="--part: 33.333%"></span><span class="rank-confirmed" style="--part: 16.667%"></span></div></div></div>
+        <div class="domain-total">12</div>
+      </div>
+
+      <div class="domain-row">
+        <div><div class="domain-name">paypa1-alerts.com</div><div class="domain-breakdown">3 / 3 / 1</div></div>
+        <div><div class="rank-track"><div class="rank-fill" style="--total: 58.333%"><span class="rank-suspicious" style="--part: 42.857%"></span><span class="rank-likely" style="--part: 42.857%"></span><span class="rank-confirmed" style="--part: 14.286%"></span></div></div></div>
+        <div class="domain-total">7</div>
+      </div>
+
+      <div class="domain-row">
+        <div><div class="domain-name">microsoft-verify.net</div><div class="domain-breakdown">4 / 2 / 1</div></div>
+        <div><div class="rank-track"><div class="rank-fill" style="--total: 58.333%"><span class="rank-suspicious" style="--part: 57.143%"></span><span class="rank-likely" style="--part: 28.571%"></span><span class="rank-confirmed" style="--part: 14.286%"></span></div></div></div>
+        <div class="domain-total">7</div>
+      </div>
+
+      <div class="domain-row">
+        <div><div class="domain-name">corp-benefits-portal.com</div><div class="domain-breakdown">4 / 1 / 0</div></div>
+        <div><div class="rank-track"><div class="rank-fill" style="--total: 41.667%"><span class="rank-suspicious" style="--part: 80%"></span><span class="rank-likely" style="--part: 20%"></span></div></div></div>
+        <div class="domain-total">5</div>
+      </div>
+
+      <div class="domain-row">
+        <div><div class="domain-name">secure-docs-share.io</div><div class="domain-breakdown">3 / 1 / 1</div></div>
+        <div><div class="rank-track"><div class="rank-fill" style="--total: 41.667%"><span class="rank-suspicious" style="--part: 60%"></span><span class="rank-likely" style="--part: 20%"></span><span class="rank-confirmed" style="--part: 20%"></span></div></div></div>
+        <div class="domain-total">5</div>
+      </div>
+    </div>
+  </section>
+
+  <section data-screen="inbox">
+    <p class="screen-label">Inbox</p>
+    <header class="page-header">
+      <h1 class="page-title">Scanned messages</h1>
+      <div class="header-readout">
+        <div class="range-readout">
+          <span class="micro-label">Index</span>
+          <strong>342 messages</strong>
+        </div>
+      </div>
+    </header>
+
+    <div class="inbox-tools">
+      <label class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5"></circle>
+          <path d="m16 16 4 4"></path>
+        </svg>
+        <input type="search" placeholder="Search sender, subject…" aria-label="Search sender, subject">
+      </label>
+
+      <div class="filter-chips" aria-label="Inbox filters">
+        <button class="filter-chip" type="button">All 342</button>
+        <button class="filter-chip is-active" type="button">Likely phishing 11</button>
+        <button class="filter-chip" type="button">Suspicious 24</button>
+        <button class="filter-chip" type="button">Confirmed phishing 5</button>
+        <button class="filter-chip" type="button">Safe 289</button>
+      </div>
+    </div>
+
+    <div class="mail-head">
+      <span class="column-label">Sender</span>
+      <span class="column-label">Subject</span>
+      <span class="column-label">Bucket</span>
+      <span class="column-label">Score / 100</span>
+      <span class="column-label">Time</span>
+    </div>
+
+    <div class="date-group">
+      <div class="date-rule"><span class="date-label">Today</span></div>
+
+      <div class="mail-row is-likely">
+        <div class="sender-cell"><strong>PayPal Service</strong><span>security@paypa1-alerts.com</span></div>
+        <div class="subject-cell"><strong>Your account access has been limited</strong></div>
+        <div><span class="bucket is-likely">Likely phishing</span></div>
+        <div class="mail-score"><span class="score-track is-likely" style="--score: 87%"></span><span class="score-number">87</span></div>
+        <div class="mail-time">14:02</div>
+      </div>
+
+      <div class="mail-row is-likely">
+        <div class="sender-cell"><strong>Microsoft Account</strong><span>no-reply@microsoft-verify.net</span></div>
+        <div class="subject-cell"><strong>Unusual sign-in attempt blocked</strong></div>
+        <div><span class="bucket is-likely">Likely phishing</span></div>
+        <div class="mail-score"><span class="score-track is-likely" style="--score: 78%"></span><span class="score-number">78</span></div>
+        <div class="mail-time">11:31</div>
+      </div>
+
+      <div class="mail-row is-safe">
+        <div class="sender-cell"><strong>Notion</strong><span>team@notion.so</span></div>
+        <div class="subject-cell"><strong>Your weekly digest is ready</strong></div>
+        <div><span class="bucket is-safe">Safe</span></div>
+        <div class="mail-score"><span class="score-track is-safe" style="--score: 4%"></span><span class="score-number is-safe">4</span></div>
+        <div class="mail-time">09:15</div>
+      </div>
+    </div>
+
+    <div class="date-group">
+      <div class="date-rule"><span class="date-label">Yesterday</span></div>
+
+      <div class="mail-row is-likely">
+        <div class="sender-cell"><strong>DHL Billing</strong><span>billing@dhl-express-tracking.com</span></div>
+        <div class="subject-cell"><strong>Invoice INV-88213 is overdue — action required</strong></div>
+        <div><span class="bucket is-likely">Likely phishing</span></div>
+        <div class="mail-score"><span class="score-track is-likely" style="--score: 72%"></span><span class="score-number">72</span></div>
+        <div class="mail-time">18:44</div>
+      </div>
+
+      <div class="mail-row is-safe">
+        <div class="sender-cell"><strong>LinkedIn</strong><span>messages@linkedin.com</span></div>
+        <div class="subject-cell"><strong>You appeared in 9 searches this week</strong></div>
+        <div><span class="bucket is-safe">Safe</span></div>
+        <div class="mail-score"><span class="score-track is-safe" style="--score: 7%"></span><span class="score-number is-safe">7</span></div>
+        <div class="mail-time">12:08</div>
+      </div>
+
+      <div class="mail-row is-suspicious">
+        <div class="sender-cell"><strong>Dropbox Share</strong><span>no-reply@secure-docs-share.io</span></div>
+        <div class="subject-cell"><strong>A document was shared with you</strong></div>
+        <div><span class="bucket is-suspicious">Suspicious</span></div>
+        <div class="mail-score"><span class="score-track is-suspicious" style="--score: 41%"></span><span class="score-number is-suspicious">41</span></div>
+        <div class="mail-time">08:52</div>
+      </div>
+    </div>
+
+    <div class="date-group">
+      <div class="date-rule"><span class="date-label">This week</span></div>
+
+      <div class="mail-row is-confirmed">
+        <div class="sender-cell"><strong>HR Benefits</strong><span>hr@corp-benefits-portal.com</span></div>
+        <div class="subject-cell"><strong>Updated payroll details required</strong></div>
+        <div><span class="bucket is-confirmed">Confirmed phishing</span></div>
+        <div class="mail-score"><span class="score-track is-confirmed" style="--score: 64%"></span><span class="score-number is-confirmed">64</span></div>
+        <div class="mail-time">Jul 26</div>
+      </div>
+
+      <div class="mail-row is-safe">
+        <div class="sender-cell"><strong>GitHub</strong><span>noreply@github.com</span></div>
+        <div class="subject-cell"><strong>Security alert on repository secure-inbox</strong></div>
+        <div><span class="bucket is-safe">Safe</span></div>
+        <div class="mail-score"><span class="score-track is-safe" style="--score: 2%"></span><span class="score-number is-safe">2</span></div>
+        <div class="mail-time">Jul 25</div>
+      </div>
+
+      <div class="mail-row is-suspicious">
+        <div class="sender-cell"><strong>Amazon Orders</strong><span>auto-confirm@amazon-billing-check.com</span></div>
+        <div class="subject-cell"><strong>Confirm your recent order</strong></div>
+        <div><span class="bucket is-suspicious">Suspicious</span></div>
+        <div class="mail-score"><span class="score-track is-suspicious" style="--score: 38%"></span><span class="score-number is-suspicious">38</span></div>
+        <div class="mail-time">Jul 24</div>
+      </div>
+    </div>
+
+    <div class="date-group">
+      <div class="date-rule"><span class="date-label">Older</span></div>
+
+      <div class="mail-row is-safe">
+        <div class="sender-cell"><strong>Google</strong><span>no-reply@accounts.google.com</span></div>
+        <div class="subject-cell"><strong>Security review completed</strong></div>
+        <div><span class="bucket is-safe">Reviewed safe</span></div>
+        <div class="mail-score"><span class="score-track is-safe" style="--score: 11%"></span><span class="score-number is-safe">11</span></div>
+        <div class="mail-time">Jul 21</div>
+      </div>
+    </div>
+
+    <nav class="pagination" aria-label="Inbox pagination">
+      <button type="button" aria-label="Previous page">←</button>
+      <span>Page 1 of 35</span>
+      <button type="button" aria-label="Next page">→</button>
+    </nav>
+  </section>
+</div>
