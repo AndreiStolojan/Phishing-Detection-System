@@ -13,7 +13,12 @@ import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-const KEYS = ['dossier', 'briefing', 'instrument', 'vellum', 'console', 'slate', 'meridian', 'atrium'];
+const KEYS = [
+  'dossier', 'briefing', 'instrument',
+  'vellum', 'console', 'slate',
+  'meridian', 'atrium',
+  'aperture', 'ledger',
+];
 
 // Rounds 1-2 forced a single accent hue. Round 3 lifts that: professional tools
 // do colour-code severity, so safe/warn/alert/accent is four families and legal.

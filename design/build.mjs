@@ -23,10 +23,12 @@ const DIRECTIONS = [
   { key: 'slate', letter: 'F', round: 2, name: 'Slate', blurb: 'R2 · cool grain, no scaffolding · system grotesque, no Inter' },
   { key: 'meridian', letter: 'G', round: 3, name: 'Meridian', blurb: 'R3 · cool atmospheric blooms · Inter used with discipline · quiet semantic palette' },
   { key: 'atrium', letter: 'H', round: 3, name: 'Atrium', blurb: 'R3 · warm wash + huge concentric rings · serif display, Inter for figures' },
+  { key: 'aperture', letter: 'I', round: 4, name: 'Aperture', blurb: 'R4 · C’s centred gauge · neutral graphite, halo behind the instrument · Inter' },
+  { key: 'ledger', letter: 'J', round: 4, name: 'Ledger', blurb: 'R4 · C’s centred gauge · deep petrol, brushed bands · mono figures, Inter prose' },
 ];
 
-// Round 3 is the live comparison, so open on G.
-const DEFAULT_KEY = 'meridian';
+// Round 4 is the live comparison, so open on I.
+const DEFAULT_KEY = 'aperture';
 
 const problems = [];
 
@@ -209,10 +211,10 @@ ${fragments
 
   buttons.forEach((b) => b.addEventListener('click', () => show(b.dataset.target)));
 
-  // Keyboard: 1..8 switch directions.
+  // Keyboard: 1..9 then 0 for the tenth direction.
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, textarea')) return;
-    const idx = ['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(e.key);
+    const idx = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].indexOf(e.key);
     if (idx > -1 && buttons[idx]) show(buttons[idx].dataset.target);
   });
 
