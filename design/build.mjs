@@ -21,10 +21,12 @@ const DIRECTIONS = [
   { key: 'vellum', letter: 'D', round: 2, name: 'Vellum', blurb: 'R2 · warm lit canvas, rule rhythm · serif display + Inter chrome' },
   { key: 'console', letter: 'E', round: 2, name: 'Console', blurb: 'R2 · lit canvas, column rules · mono for data, Inter for prose' },
   { key: 'slate', letter: 'F', round: 2, name: 'Slate', blurb: 'R2 · cool grain, no scaffolding · system grotesque, no Inter' },
+  { key: 'meridian', letter: 'G', round: 3, name: 'Meridian', blurb: 'R3 · cool atmospheric blooms · Inter used with discipline · quiet semantic palette' },
+  { key: 'atrium', letter: 'H', round: 3, name: 'Atrium', blurb: 'R3 · warm wash + huge concentric rings · serif display, Inter for figures' },
 ];
 
-// Round 2 is the live comparison, so open on D rather than A.
-const DEFAULT_KEY = 'vellum';
+// Round 3 is the live comparison, so open on G.
+const DEFAULT_KEY = 'meridian';
 
 const problems = [];
 
@@ -207,10 +209,10 @@ ${fragments
 
   buttons.forEach((b) => b.addEventListener('click', () => show(b.dataset.target)));
 
-  // Keyboard: 1..6 switch directions.
+  // Keyboard: 1..8 switch directions.
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, textarea')) return;
-    const idx = ['1', '2', '3', '4', '5', '6'].indexOf(e.key);
+    const idx = ['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(e.key);
     if (idx > -1 && buttons[idx]) show(buttons[idx].dataset.target);
   });
 

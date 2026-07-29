@@ -13,7 +13,12 @@ import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-const KEYS = ['dossier', 'briefing', 'instrument', 'vellum', 'console', 'slate'];
+const KEYS = ['dossier', 'briefing', 'instrument', 'vellum', 'console', 'slate', 'meridian', 'atrium'];
+
+// Rounds 1-2 forced a single accent hue. Round 3 lifts that: professional tools
+// do colour-code severity, so safe/warn/alert/accent is four families and legal.
+// The warning still exists to catch a drift back to the original neon rainbow.
+const MAX_HUE_FAMILIES = 4;
 const targets = process.argv.slice(2).length ? process.argv.slice(2) : KEYS;
 
 // Values from SPEC.md §5 that must survive verbatim, or the six screens are no
@@ -195,7 +200,7 @@ for (const key of targets) {
   if (meters < 10) warns.push(`only ${meters} rows carry --score (expect >= 10 inbox rows)`);
 
   const fams = chromaticFamilies(css);
-  if (fams.length > 2) warns.push(`${fams.length} chromatic hue families (${fams.join(', ')}) — palette drift?`);
+  if (fams.length > MAX_HUE_FAMILIES) warns.push(`${fams.length} chromatic hue families (${fams.join(', ')}) — palette drift?`);
 
   if (Number(kb) < 35) warns.push(`${kb} KB — thin, likely skipped detail`);
 
