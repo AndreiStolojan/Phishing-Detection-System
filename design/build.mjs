@@ -15,22 +15,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 // and varies exactly those two axes, so D/E/F are comparable to each other in a
 // way A/B/C never were.
 const DIRECTIONS = [
+// D-J were cut on review. Letters of the survivors are deliberately left as
+// they were rather than re-lettered A-E: they are how the work has been
+// referred to in conversation, and renaming them mid-review is a good way to
+// end up discussing two different designs by the same name.
   { key: 'dossier', letter: 'A', round: 1, name: 'Dossier', blurb: 'Editorial · colour = attention · hairlines, no cards · mono metadata' },
   { key: 'briefing', letter: 'B', round: 1, name: 'Briefing', blurb: 'Task-first · muted warm triad · soft cards · two-pane inbox' },
   { key: 'instrument', letter: 'C', round: 1, name: 'Instrument', blurb: 'Technical · binary hue · visible grid · arc gauge & score meters' },
-  { key: 'vellum', letter: 'D', round: 2, name: 'Vellum', blurb: 'R2 · warm lit canvas, rule rhythm · serif display + Inter chrome' },
-  { key: 'console', letter: 'E', round: 2, name: 'Console', blurb: 'R2 · lit canvas, column rules · mono for data, Inter for prose' },
-  { key: 'slate', letter: 'F', round: 2, name: 'Slate', blurb: 'R2 · cool grain, no scaffolding · system grotesque, no Inter' },
-  { key: 'meridian', letter: 'G', round: 3, name: 'Meridian', blurb: 'R3 · cool atmospheric blooms · Inter used with discipline · quiet semantic palette' },
-  { key: 'atrium', letter: 'H', round: 3, name: 'Atrium', blurb: 'R3 · warm wash + huge concentric rings · serif display, Inter for figures' },
-  { key: 'aperture', letter: 'I', round: 4, name: 'Aperture', blurb: 'R4 · C’s centred gauge · neutral graphite, halo behind the instrument · Inter' },
-  { key: 'ledger', letter: 'J', round: 4, name: 'Ledger', blurb: 'R4 · C’s centred gauge · deep petrol, brushed bands · mono figures, Inter prose' },
-  { key: 'quartz', letter: 'K', round: 5, name: 'Quartz', blurb: 'R5 · Apple register · gauge left · two-pane inbox · monochrome, red only at the top' },
+  { key: 'quartz', letter: 'K', round: 5, name: 'Quartz', blurb: 'R5 · Apple register · gauge left · two-pane inbox · monochrome' },
   { key: 'harbor', letter: 'L', round: 5, name: 'Harbor', blurb: 'R5 · Apple register · gauge left · two-pane inbox · system blue / orange / red' },
+  { key: 'ember', letter: 'M', round: 6, name: 'Ember', blurb: 'R6 · full-bleed workspace · champagne accent, warm severity · verdict → message → analysis' },
+  { key: 'aurora', letter: 'N', round: 6, name: 'Aurora', blurb: 'R6 · full-bleed workspace · periwinkle accent, cool severity · analysis as a grid' },
 ];
 
-// Round 5 is the live comparison, so open on K.
-const DEFAULT_KEY = 'quartz';
+// Round 6 is the live comparison, so open on M.
+const DEFAULT_KEY = 'ember';
 
 const problems = [];
 

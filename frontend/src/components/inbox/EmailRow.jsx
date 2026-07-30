@@ -1,98 +1,128 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// EmailRow.jsx — un rând din lista de emailuri (pagina Inbox).
+// EmailRow.jsx — un rând din lista de emailuri (panoul stâng al Inbox-ului).
 //
-// Ce face, pe scurt: afișează o singură linie pentru un email: o iconiță sau o
-// "monogramă" (cerculeț cu litera expeditorului), numele expeditorului,
-// subiectul, opțional un mic fragment din conținut ("snippet"), data primirii
-// și — pentru emailurile riscante — un badge de risc. Tot rândul e un link
-// către pagina de detaliu a emailului (`/inbox/:id`).
+// Ce arată, în ordine (triaj de phishing: dovada înaintea decorului):
+//   1. numele expeditorului + ora primirii, pe același rând;
+//   2. adresa expeditorului (mai mică, estompată) — în triaj adresa E dovada;
+//   3. subiectul;
+//   4. o linie meta: mini-bară de scor + scorul întreg + verdictul cu un bulin
+//      colorat.
 //
-// Pentru verdictele "zgomotoase" (loud — needs_review, quarantine,
-// confirmed_phishing) rândul are o dungă colorată pe margine, iconița de risc
-// în loc de monogramă, și badge-ul de risc vizibil. Culorile/iconițele/etichetele
-// vin din `lib/risk.js` (single source of truth pentru afișarea riscului).
+// Rândul poate funcționa în două moduri:
+//   - implicit: e un <Link> către /inbox/:id (deep link / pagina de detaliu);
+//   - cu prop-ul `onSelect`: devine un <button> care selectează emailul în
+//     panoul din dreapta, fără navigare (workspace-ul cu două panouri).
 //
-// Folosit în: pagina Inbox, lista de emailuri (vezi docs/EXPLICATIE_FRONTEND.md §7).
+// Culorile/etichetele de risc vin din `lib/risk.js` (sursă unică de adevăr).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
 
-import { RiskBadge } from '@/components/security/RiskBadge';
-import { emailId, getSenderName, getSnippet, getSenderMonogram } from '@/lib/email';
+import { ScoreMeter } from '@/components/inbox/ScoreMeter';
+import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
 import { getRiskMeta } from '@/lib/risk';
 import { formatEmailDate } from '@/utils/formatDate';
 import { cn } from '@/lib/utils';
 
-// Componentă "Link" din react-router, dar care poate primi și props de animație
-// de la framer-motion (whileTap etc.) — practic un Link animabil.
+// Link din react-router care acceptă și props de animație framer-motion.
 const MotionLink = motion.create(Link);
+const MotionButton = motion.button;
 
-export function EmailRow({ email, active = false, linkState = null, compact = false }) {
-  const id = emailId(email); // id-ul emailului, folosit pentru link-ul către detaliu
-  const { tone } = getRiskMeta(email.riskBucket); // "tonul" vizual (culori, icon) pentru riscul acestui email
-  // "loud" = verdicte care merită atenție vizuală sporită (needs_review,
-  // quarantine, confirmed_phishing). Restul ("calm") au doar monogramă.
-  const loud = tone.emphasis === 'loud';
-  const Icon = tone.icon;
-  const { letter, hue } = getSenderMonogram(email); // litera + culoarea monogramei expeditorului
+export function EmailRow({
+  email,
+  active = false,
+  linkState = null,
+  compact = false,
+  onSelect = null,
+}) {
+  const id = emailId(email);
+  const { label, tone } = getRiskMeta(email.riskBucket);
+  const score = email.latestScan?.score ?? null;
 
+  const name = getSenderName(email);
+  const address = getSenderAddress(email);
+  // Nu repetăm adresa dacă e identică cu numele afișat (unele emailuri n-au nume).
+  const showAddress = Boolean(address) && address !== name;
+
+  const className = cn(
+    'group grid w-full grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-[3px]',
+    'border-l-2 px-[18px] text-left outline-none transition-colors',
+    compact ? 'py-2' : 'py-[11px]',
+    // Selecția e periwinkle (primary): "ăsta e cel la care lucrezi" e o stare a
+    // interfeței, nu un nivel de pericol. Hover-ul rămâne neutru.
+    active
+      ? 'border-l-primary bg-primary/[0.14]'
+      : 'border-l-transparent hover:bg-foreground/[0.045]',
+    'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50'
+  );
+
+  const content = (
+    <>
+      <span className="truncate text-[0.8125rem] font-semibold text-foreground">
+        {name}
+      </span>
+      <time className="shrink-0 text-xs tabular-nums text-muted-foreground">
+        {formatEmailDate(email.receivedAt)}
+      </time>
+
+      {showAddress && (
+        <span className="col-span-2 truncate text-xs text-muted-foreground">
+          {address}
+        </span>
+      )}
+
+      <span
+        className={cn(
+          'col-span-2 mt-0.5 truncate text-[0.8125rem]',
+          active ? 'text-foreground/90' : 'text-foreground/70'
+        )}
+      >
+        {email.subject || '(no subject)'}
+      </span>
+
+      <span className="col-span-2 mt-1 flex items-center gap-2.5">
+        <ScoreMeter score={score} hex={tone.hex} className="w-16" />
+        <span
+          className={cn(
+            'min-w-[1.5rem] text-right text-xs font-semibold tabular-nums',
+            score == null ? 'text-muted-foreground' : tone.text
+          )}
+        >
+          {score ?? '—'}
+        </span>
+        <span className={cn('flex min-w-0 items-center gap-1.5 text-xs', tone.text)}>
+          <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', tone.dot)} />
+          <span className="truncate">{label}</span>
+        </span>
+      </span>
+    </>
+  );
+
+  // Mod "workspace": selectează în panoul din dreapta, fără navigare.
+  if (onSelect) {
+    return (
+      <MotionButton
+        type="button"
+        onClick={() => onSelect(id)}
+        whileTap={{ scale: 0.995 }}
+        aria-current={active ? 'true' : undefined}
+        className={className}
+      >
+        {content}
+      </MotionButton>
+    );
+  }
+
+  // Mod implicit: link către pagina de detaliu (deep link, /inbox/:id).
   return (
     <MotionLink
       to={`/inbox/${id}`}
       state={linkState}
-      whileTap={{ scale: 0.995 }} // mic efect de "apăsare" la click/tap
-      style={{ borderLeftColor: loud ? tone.hex : 'transparent' }}
-      className={cn(
-        'group flex items-center gap-3 border-l-[3px] px-4 outline-none transition-colors',
-        compact ? 'py-2.5' : 'py-3',
-        'hover:bg-foreground/[0.03] focus-visible:bg-foreground/[0.04]',
-        'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40',
-        active && 'bg-accent'
-      )}
+      whileTap={{ scale: 0.995 }}
+      className={className}
     >
-      {/* Partea din stânga: iconiță de risc pentru verdictele "loud",
-          sau monograma expeditorului pentru cele "calme" */}
-      {loud ? (
-        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', tone.soft)}>
-          <Icon className="h-4 w-4" />
-        </span>
-      ) : (
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-          style={{ backgroundColor: `hsl(${hue} 36% 20%)`, color: `hsl(${hue} 72% 74%)` }}
-        >
-          {letter}
-        </span>
-      )}
-
-      {/* Coloana centrală: nume expeditor, subiect și (dacă nu e modul compact)
-          un mic fragment din conținut. "truncate" taie textul cu "..." dacă e
-          prea lung pentru a încăpea pe un rând. */}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold text-foreground">
-          {getSenderName(email)}
-        </p>
-        <p className={cn('truncate text-sm', loud ? 'text-foreground/90' : 'text-foreground/80')}>
-          {email.subject || '(no subject)'}
-        </p>
-        {!compact && (
-          <p className="truncate text-caption text-muted-foreground">{getSnippet(email)}</p>
-        )}
-      </div>
-
-      {/* Coloana din dreapta: data primirii și, doar pentru verdictele "loud",
-          badge-ul colorat cu riscul emailului */}
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <time className="text-xs tabular-nums text-muted-foreground">
-          {formatEmailDate(email.receivedAt)}
-        </time>
-        {loud && <RiskBadge riskBucket={email.riskBucket} size="sm" />}
-      </div>
-
-      {/* Săgeata ">" din extrema dreapta, care se mișcă puțin la hover (efect vizual) */}
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+      {content}
     </MotionLink>
   );
 }

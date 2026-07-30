@@ -1,37 +1,38 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// InboxPage.jsx — spațiul de lucru al inbox-ului: listă în stânga, mesajul în
+// dreapta, pe toată lățimea ecranului.
+//
+// Nu e o pagină cu un card înăuntru: AppShell marchează /inbox ca "full bleed"
+// (fără padding), aşa că bara de sus se întinde peste tot, iar dedesubt lista
+// şi mesajul umplu tot ce rămâne, despărţite de o singură linie verticală.
+//
+// Selecţia stă în URL (`?selected=<id>`), la fel ca filtrul, căutarea şi
+// pagina — aşa un link trimis unui coleg deschide exact acelaşi ecran. Ruta
+// veche /inbox/:emailId rămâne funcţională pentru linkuri mai vechi.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  Search,
-  Inbox as InboxIcon,
-  ShieldCheck,
-  ShieldX,
-  X,
-  Loader2,
-  CheckSquare,
-  RefreshCw,
-  Mail,
-} from 'lucide-react';
+import { Search, X, Loader2, CheckSquare, RefreshCw, ShieldCheck, ShieldX } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { InboxSkeleton, ErrorState, EmptyState } from '@/components/common/states';
-import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
-import { EmailRow } from '@/components/inbox/EmailRow';
+import { MessagePane, MessagePaneEmpty } from '@/components/inbox/MessagePane';
+import { ScoreMeter } from '@/components/inbox/ScoreMeter';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { useApi } from '@/hooks/useApi';
+import { useApi, bustCacheByPrefix } from '@/hooks/useApi';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { useTimeRange } from '@/context/TimeRangeContext';
 import { getEmails, getEmailStats } from '@/api/emailsApi';
 import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
-import { bustCacheByPrefix } from '@/hooks/useApi';
 import { normalizeEmailList } from '@/lib/email-list';
-import { emailId } from '@/lib/email';
+import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
 import { RISK_FILTERS, getRiskMeta } from '@/lib/risk';
-import { getDateGroupLabel } from '@/utils/formatDate';
+import { getDateGroupLabel, formatEmailDate } from '@/utils/formatDate';
 import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
@@ -46,9 +47,10 @@ function groupByDate(emails) {
     if (!groups[label]) groups[label] = [];
     groups[label].push(email);
   }
-  return DATE_GROUP_ORDER
-    .filter((g) => groups[g]?.length > 0)
-    .map((g) => ({ label: g, emails: groups[g] }));
+  return DATE_GROUP_ORDER.filter((g) => groups[g]?.length > 0).map((g) => ({
+    label: g,
+    emails: groups[g],
+  }));
 }
 
 const FILTER_COUNT_MAP = {
@@ -59,30 +61,102 @@ const FILTER_COUNT_MAP = {
   safe: 'safe',
 };
 
-// Tone used to colour an active filter chip; null filter ("All") uses the brand.
 const filterHex = (key) => (key ? getRiskMeta(key).tone.hex : 'var(--color-primary)');
-const filterTextClass = (key) => (key ? getRiskMeta(key).tone.text : 'text-foreground');
+
+// ── Un rând din listă ────────────────────────────────────────────────────────
+// Adresa expeditorului e pe rândul ei: într-o listă de triaj antiphishing
+// adresa E dovada (paypal-account-verify.com), nu decor — a o ascunde până
+// deschizi mesajul ar anula rostul parcurgerii listei.
+function ListRow({ email, selected, onSelect, checkable, checked, onCheck }) {
+  const id = emailId(email);
+  const meta = getRiskMeta(email.riskBucket);
+  const score = email.latestScan?.score ?? null;
+
+  return (
+    <div
+      className={cn(
+        'group relative flex items-start gap-3 border-l-2 px-4 py-3 transition-colors',
+        selected
+          ? 'border-l-primary bg-primary/12'
+          : 'border-l-transparent hover:bg-accent'
+      )}
+    >
+      {checkable && (
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={() => onCheck(id)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${email.subject || 'message'}`}
+          className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary"
+        />
+      )}
+
+      <button
+        type="button"
+        onClick={() => onSelect(id)}
+        aria-current={selected ? 'true' : undefined}
+        className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+      >
+        <span className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+            {getSenderName(email)}
+          </span>
+          <time className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+            {formatEmailDate(email.receivedAt)}
+          </time>
+        </span>
+
+        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+          {getSenderAddress(email)}
+        </span>
+
+        <span
+          className={cn(
+            'mt-1 block truncate text-[13px]',
+            selected ? 'text-foreground/90' : 'text-muted-foreground'
+          )}
+        >
+          {email.subject || '(no subject)'}
+        </span>
+
+        <span className="mt-2 flex items-center gap-2.5">
+          <ScoreMeter score={score} hex={meta.tone.hex} className="w-14" />
+          <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
+            {score ?? '—'}
+          </span>
+          <span className={cn('flex items-center gap-1.5 text-[11px] font-medium', meta.tone.text)}>
+            <span
+              aria-hidden="true"
+              className="h-[5px] w-[5px] rounded-full"
+              style={{ backgroundColor: meta.tone.hex }}
+            />
+            {meta.label}
+          </span>
+        </span>
+      </button>
+    </div>
+  );
+}
 
 export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { isConnected, syncVersion, sync, syncing } = useMailAccount();
-  // Global time-range filter — the picker lives on the dashboard; the inbox
-  // list and its chip counts are both scoped to the same window.
   const { from, to } = useTimeRange();
   const searchRef = useRef(null);
 
   const riskBucket = searchParams.get('riskBucket') || '';
   const rawSearch = searchParams.get('q') || '';
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const selectedParam = searchParams.get('selected') || '';
 
-  // Local input state — API fires only after debounce settles
   const [searchInput, setSearchInput] = useState(rawSearch);
   const debouncedSearch = useDebounce(searchInput, 300);
 
-  // Bulk select state
+  // Selecţia în masă (checkbox-uri). Numele e `checked*` ca să nu se confunde
+  // cu `selected`, care e mesajul deschis în panoul din dreapta.
   const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState(new Set());
+  const [checkedIds, setCheckedIds] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const cacheKey = `inbox-${from}-${to}-${syncVersion}-${riskBucket}-${debouncedSearch}-${page}`;
@@ -107,26 +181,23 @@ export function InboxPage() {
   );
   const counts = countsQuery.data?.counts || {};
   const totalCount = countsQuery.data?.total ?? 0;
-  // Counts are per current risk bucket (same source as the list). They can't
-  // reflect a free-text search, so only surface them when no search is active —
-  // and never before a Gmail account is connected (no data to reveal).
   const showCounts = isConnected && !debouncedSearch;
 
   const emails = normalizeEmailList(data);
   const totalPages = data?.pagination?.totalPages ?? (emails.length > 0 ? 1 : 0);
-
   const emailIds = emails.map(emailId);
   const groups = groupByDate(emails);
-
   const searching = loading || searchInput !== debouncedSearch;
 
-  // Exit select mode when list changes (page/filter change)
+  // Dacă id-ul din URL nu e pe pagina curentă (filtru schimbat, altă pagină),
+  // cădem pe primul mesaj — panoul din dreapta nu rămâne niciodată gol degeaba.
+  const selectedId = emailIds.includes(selectedParam) ? selectedParam : emailIds[0] || '';
+
   useEffect(() => {
     setSelectMode(false);
-    setSelected(new Set());
+    setCheckedIds(new Set());
   }, [riskBucket, debouncedSearch, page, syncVersion]);
 
-  // "/" focuses the search box (unless already typing in a field)
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== '/') return;
@@ -148,33 +219,23 @@ export function InboxPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const setFilter = (key) => setParam({ riskBucket: key, page: '' });
-  const setPage = (p) => setParam({ page: String(p) });
+  const setFilter = (key) => setParam({ riskBucket: key, page: '', selected: '' });
+  const setPage = (p) => setParam({ page: String(p), selected: '' });
+  const selectEmail = (id) => setParam({ selected: id });
 
-  const handleSearchChange = (e) => {
-    setSearchInput(e.target.value);
-    setParam({ q: e.target.value, page: '' });
+  const handleSearchChange = (value) => {
+    setSearchInput(value);
+    setParam({ q: value, page: '', selected: '' });
   };
 
-  const clearSearch = () => {
-    setSearchInput('');
-    setParam({ q: '', page: '' });
-    searchRef.current?.focus();
+  const afterReview = () => {
+    reload();
+    countsQuery.reload();
+    bustCacheByPrefix('inbox-', 'dash-', 'risky-');
   };
 
-  // Select mode helpers
-  const enterSelectMode = () => {
-    setSelectMode(true);
-    setSelected(new Set());
-  };
-
-  const exitSelectMode = () => {
-    setSelectMode(false);
-    setSelected(new Set());
-  };
-
-  const toggleSelect = (id) => {
-    setSelected((prev) => {
+  const toggleChecked = (id) => {
+    setCheckedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -182,292 +243,234 @@ export function InboxPage() {
     });
   };
 
-  const allSelected = emails.length > 0 && emails.every((e) => selected.has(emailId(e)));
-
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(emails.map(emailId)));
-    }
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setCheckedIds(new Set());
   };
 
-  const handleBulkSafe = async () => {
-    if (selected.size === 0) return;
+  const runBulk = async (fn, label) => {
+    if (checkedIds.size === 0) return;
     setBulkBusy(true);
     try {
-      await Promise.all([...selected].map((id) => markEmailSafe(id)));
-      toast.success(`${selected.size} email${selected.size > 1 ? 's' : ''} marked as safe`);
+      await Promise.all([...checkedIds].map((id) => fn(id)));
+      toast.success(`${checkedIds.size} ${checkedIds.size === 1 ? 'message' : 'messages'} ${label}`);
       exitSelectMode();
-      reload();
-      bustCacheByPrefix('inbox-', 'dash-', 'risky-');
+      afterReview();
     } catch (err) {
-      toast.error(err.message || 'Bulk action failed');
+      toast.error(err?.message || 'Something went wrong.');
     } finally {
       setBulkBusy(false);
     }
   };
 
-  const handleBulkPhishing = async () => {
-    if (selected.size === 0) return;
-    setBulkBusy(true);
-    try {
-      await Promise.all([...selected].map((id) => markEmailPhishing(id)));
-      toast.success(`${selected.size} email${selected.size > 1 ? 's' : ''} marked as phishing`);
-      exitSelectMode();
-      reload();
-      bustCacheByPrefix('inbox-', 'dash-', 'risky-');
-    } catch (err) {
-      toast.error(err.message || 'Bulk action failed');
-    } finally {
-      setBulkBusy(false);
-    }
+  const chipCount = (key) => {
+    const mapped = FILTER_COUNT_MAP[key];
+    if (mapped === '__total__') return totalCount;
+    return counts[mapped] ?? 0;
   };
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Scaned Emails"
-        className="mb-8"
-        titleClassName="text-[1.625rem] font-semibold tracking-tight"
-      />
-
-      {/* Search (left, above filters) + select/refresh actions (right) */}
-      <div className="sticky top-0 z-20 flex flex-col gap-6 bg-background py-2 md:top-0">
-        {/* Top row: search on the left, action buttons on the right */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {!selectMode ? (
-            <div className="relative w-full sm:w-96">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={searchRef}
-                value={searchInput}
-                onChange={handleSearchChange}
-                placeholder="Search sender or subject…  (press /)"
-                className="rounded-lg bg-card surface-raised pl-9 pr-9 focus-visible:!border-[#4485fd]"
-                style={{ borderColor: '#1e2a45' }}
-              />
-              {searchInput && (
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                  {searching ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : (
-                    <button
-                      onClick={clearSearch}
-                      aria-label="Clear search"
-                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={toggleSelectAll}
-                className="h-4 w-4 rounded border-border accent-primary"
-                aria-label="Select all"
-              />
-              <span className="text-xs text-muted-foreground">
-                {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
-              </span>
-            </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* ── Bara de sus, pe toată lăţimea ─────────────────────────────────── */}
+      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2.5">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-[15px] font-semibold tracking-tight">Inbox</h1>
+          {showCounts && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {totalCount} scanned
+            </span>
           )}
-
-          <div className="flex items-center gap-2 sm:ml-auto">
-            {!selectMode ? (
-              <>
-                <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={enterSelectMode} disabled={emails.length === 0 || syncing}>
-                  <CheckSquare className="h-4 w-4" />
-                  Select
-                </Button>
-                {isConnected && (
-                  <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={sync} disabled={syncing}>
-                    {syncing
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <RefreshCw className="h-4 w-4" />}
-                    {syncing ? 'Refreshing…' : 'Refresh'}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={exitSelectMode}>
-                <X className="h-4 w-4" />
-                Cancel
-              </Button>
-            )}
-          </div>
         </div>
 
-        {/* Bară de filtre: un track compact (fundal soft + linie fină) care
-            grupează chips-urile într-un singur element — aliniat la stânga,
-            mai mic decât search. Doar chip-ul activ se colorează (pilula
-            alunecă lin). */}
-        {!selectMode && (
-          <div
-            className="scrollbar-none flex w-fit max-w-full items-center gap-1 self-start overflow-x-auto rounded-md border bg-card/40 p-1"
-            style={{ borderColor: '#2d3a5e' }}
-          >
-            {RISK_FILTERS.map((filter) => {
-              const isActive = riskBucket === filter.key;
-              const countKey = FILTER_COUNT_MAP[filter.key];
-              const count = !showCounts
-                ? null
-                : countKey === '__total__'
-                  ? totalCount
-                  : (counts[countKey] ?? null);
-              const hex = filterHex(filter.key);
-              return (
-                <button
-                  key={filter.key || 'all'}
-                  onClick={() => setFilter(filter.key)}
-                  className={cn(
-                    'relative flex-none whitespace-nowrap rounded-sm px-3 py-1 text-sm font-medium transition-colors',
-                    isActive ? filterTextClass(filter.key) : 'text-muted-foreground hover:text-foreground'
+        <div className="relative w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground-subtle" />
+          <Input
+            ref={searchRef}
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search sender, subject…"
+            aria-label="Search messages"
+            className="h-8 rounded-lg pl-8 pr-8 text-[13px]"
+          />
+          {searching ? (
+            <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground-subtle" />
+          ) : (
+            searchInput && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground-subtle transition-colors hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )
+          )}
+        </div>
+
+        {/* Chips */}
+        <div className="scrollbar-none -mx-1 flex max-w-full items-center gap-0.5 overflow-x-auto px-1">
+          {RISK_FILTERS.map(({ key, label }) => {
+            const active = riskBucket === key;
+            const count = chipCount(key);
+            return (
+              <button
+                key={key || 'all'}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={cn(
+                  'relative shrink-0 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="filter-pill"
+                    transition={springSoft}
+                    className="absolute inset-0 rounded-md"
+                    style={{
+                      backgroundColor: `color-mix(in oklab, ${filterHex(key)} 16%, transparent)`,
+                      boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${filterHex(key)} 38%, transparent)`,
+                    }}
+                  />
+                )}
+                <span className="relative">
+                  {label}
+                  {showCounts && count > 0 && (
+                    <span className="ml-1.5 tabular-nums text-muted-foreground">{count}</span>
                   )}
-                >
-                  {isActive && (
-                    <motion.span
-                      layoutId="filter-pill"
-                      transition={springSoft}
-                      className="absolute inset-0 rounded-sm"
-                      style={{
-                        backgroundColor: `color-mix(in oklab, ${hex} 14%, transparent)`,
-                        boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${hex} 40%, transparent)`,
-                      }}
-                    />
-                  )}
-                  <span className="relative">
-                    {filter.label}
-                    {count != null && count > 0 && (
-                      <span className="ml-1.5 opacity-70">({count})</span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          {selectMode ? (
+            <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+              Cancel
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setSelectMode(true)}>
+              <CheckSquare className="h-3.5 w-3.5" />
+              Select
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
+            <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* List */}
-      {!isConnected ? (
-        <EmptyState
-          icon={InboxIcon}
-          title="Connect Gmail to see your inbox"
-          description="SecureInbox syncs and scans your messages once a Gmail account is connected. No counts are shown until then."
-          action={
-            <Button asChild>
-              <Link to="/settings">
-                <Mail className="h-4 w-4" />
-                Connect Gmail
-              </Link>
-            </Button>
-          }
-        />
-      ) : loading ? (
-        <InboxSkeleton />
-      ) : error ? (
-        <ErrorState message={error} onRetry={reload} />
-      ) : emails.length === 0 ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title={debouncedSearch ? 'No matching messages' : 'No messages here'}
-          description={
-            debouncedSearch
-              ? 'Try a different search term.'
-              : 'Nothing matches this filter yet. Try syncing your inbox.'
-          }
-        />
-      ) : (
-        <Card className="overflow-hidden">
-          {groups.map(({ label, emails: groupEmails }) => (
-            <div key={label}>
-              <div className="border-b border-border/60 bg-card/40 px-4 py-2">
-                <p className="label-overline">{label}</p>
-              </div>
-              <div className="divide-y divide-border/60">
-                {groupEmails.map((email) => {
-                  const id = emailId(email);
-                  if (selectMode) {
-                    return (
-                      <div
-                        key={id}
-                        className={cn(
-                          'flex cursor-pointer items-center transition-colors hover:bg-accent/50',
-                          selected.has(id) && 'bg-primary/5'
-                        )}
-                        onClick={() => toggleSelect(id)}
-                      >
-                        <div className="flex shrink-0 items-center justify-center px-3 py-3">
-                          <input
-                            type="checkbox"
-                            checked={selected.has(id)}
-                            onChange={() => toggleSelect(id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="h-4 w-4 rounded border-border accent-primary"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1 pointer-events-none">
-                          <EmailRow email={email} compact={false} />
-                        </div>
-                      </div>
-                    );
-                  }
-                  return (
-                    <EmailRow
-                      key={id}
-                      email={email}
-                      linkState={{ ids: emailIds }}
-                    />
-                  );
-                })}
-              </div>
+      {/* ── Spaţiul de lucru: listă | mesaj ───────────────────────────────── */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[360px_minmax(0,1fr)]">
+        {/* Lista */}
+        <aside className="flex min-h-0 flex-col overflow-y-auto border-border md:border-r">
+          {!isConnected ? (
+            <div className="p-4">
+              <EmptyState
+                title="Connect Gmail to see your inbox"
+                message="SecureInbox scans every message once your account is linked."
+              />
             </div>
-          ))}
-          <Pagination page={page} totalPages={totalPages} onPage={setPage} />
-        </Card>
-      )}
+          ) : loading ? (
+            <div className="p-2">
+              <InboxSkeleton />
+            </div>
+          ) : error ? (
+            <div className="p-4">
+              <ErrorState message={error} onRetry={reload} />
+            </div>
+          ) : emails.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={ShieldCheck}
+                title="Nothing here"
+                message={
+                  debouncedSearch
+                    ? 'No message matches that search in this time range.'
+                    : 'No messages in this category for the selected time range.'
+                }
+              />
+            </div>
+          ) : (
+            <>
+              {groups.map((group) => (
+                <div key={group.label}>
+                  <p className="sticky top-0 z-10 bg-background px-4 py-2 text-[11px] font-semibold text-muted-foreground">
+                    {group.label}
+                  </p>
+                  <div className="divide-y divide-border">
+                    {group.emails.map((email) => {
+                      const id = emailId(email);
+                      return (
+                        <ListRow
+                          key={id}
+                          email={email}
+                          selected={!selectMode && id === selectedId}
+                          onSelect={selectEmail}
+                          checkable={selectMode}
+                          checked={checkedIds.has(id)}
+                          onCheck={toggleChecked}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
 
-      {/* Bulk action bar */}
+              {totalPages > 1 && (
+                <div className="mt-auto border-t border-border px-3 py-2">
+                  <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+                </div>
+              )}
+            </>
+          )}
+        </aside>
+
+        {/* Mesajul */}
+        <main className="min-h-0 overflow-y-auto border-t border-border md:border-t-0">
+          {isConnected && selectedId ? (
+            <MessagePane key={selectedId} id={selectedId} onReviewed={afterReview} />
+          ) : (
+            <MessagePaneEmpty />
+          )}
+        </main>
+      </div>
+
+      {/* ── Bara de acţiuni în masă ───────────────────────────────────────── */}
       <AnimatePresence>
-        {selectMode && selected.size > 0 && (
+        {selectMode && checkedIds.size > 0 && (
           <motion.div
             initial={{ y: 60, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 60, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2 shadow-lg backdrop-blur-xl"
+            className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur-xl"
           >
-            <span className="text-sm font-medium">{selected.size} selected</span>
-            <div className="h-4 w-px bg-border" />
+            <span className="px-2 text-[13px] tabular-nums text-muted-foreground">
+              {checkedIds.size} selected
+            </span>
             <Button
-              size="sm"
               variant="ghost"
-              className="text-risk-safe"
-              onClick={handleBulkSafe}
+              size="sm"
               disabled={bulkBusy}
+              className="text-risk-safe"
+              onClick={() => runBulk(markEmailSafe, 'marked safe')}
             >
-              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              <ShieldCheck className="h-3.5 w-3.5" />
               Mark safe
             </Button>
             <Button
-              size="sm"
               variant="ghost"
-              className="text-risk-quarantine"
-              onClick={handleBulkPhishing}
+              size="sm"
               disabled={bulkBusy}
+              className="text-risk-quarantine"
+              onClick={() => runBulk(markEmailPhishing, 'marked as phishing')}
             >
-              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldX className="h-4 w-4" />}
+              <ShieldX className="h-3.5 w-3.5" />
               Mark phishing
-            </Button>
-            <Button size="sm" variant="ghost" onClick={exitSelectMode} disabled={bulkBusy}>
-              <X className="h-4 w-4" />
-              Cancel
             </Button>
           </motion.div>
         )}
@@ -475,3 +478,5 @@ export function InboxPage() {
     </div>
   );
 }
+
+export default InboxPage;

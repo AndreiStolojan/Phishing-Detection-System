@@ -12,19 +12,19 @@ export function MobileTopbar({ onMenu }) {
   const { isConnected, syncing, sync } = useMailAccount();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-1 border-b border-border bg-card/80 px-2 backdrop-blur-xl md:hidden">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-1 border-b border-border bg-background/85 px-2 backdrop-blur-xl md:hidden">
       <button
         type="button"
         onClick={onMenu}
         aria-label="Open navigation menu"
-        className="flex h-11 w-11 items-center justify-center rounded-lg text-foreground outline-none transition-colors hover:bg-accent"
+        className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <Menu className="h-5 w-5" />
       </button>
 
       <div className="flex items-center gap-2">
-        <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
-        <span className="text-sm font-semibold tracking-tight">SecureInbox</span>
+        <img src="/logo.png" alt="" className="h-6 w-6 object-contain" />
+        <span className="text-sm font-semibold tracking-tight text-foreground">SecureInbox</span>
       </div>
 
       {isConnected && (
@@ -34,8 +34,8 @@ export function MobileTopbar({ onMenu }) {
           disabled={syncing}
           aria-label="Sync inbox"
           className={cn(
-            'ml-auto flex h-11 w-11 items-center justify-center rounded-lg text-primary outline-none transition-colors hover:bg-accent',
-            syncing && 'opacity-70'
+            'ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60',
+            syncing && 'text-primary opacity-70'
           )}
         >
           <RefreshCw className={cn('h-5 w-5', syncing && 'animate-spin')} />
@@ -71,7 +71,7 @@ export function MobileDrawer({ open, onClose }) {
             exit={{ opacity: 0 }}
             transition={fadeTween}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm"
           />
           <motion.aside
             initial={{ x: '-100%' }}
@@ -81,7 +81,7 @@ export function MobileDrawer({ open, onClose }) {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
-            className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] overflow-y-auto border-r border-border bg-card shadow-xl"
+            className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] overflow-y-auto border-r border-border bg-card shadow-lg"
           >
             <SidebarContent onNavigate={onClose} />
           </motion.aside>
