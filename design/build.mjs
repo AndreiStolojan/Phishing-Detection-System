@@ -25,10 +25,12 @@ const DIRECTIONS = [
   { key: 'atrium', letter: 'H', round: 3, name: 'Atrium', blurb: 'R3 · warm wash + huge concentric rings · serif display, Inter for figures' },
   { key: 'aperture', letter: 'I', round: 4, name: 'Aperture', blurb: 'R4 · C’s centred gauge · neutral graphite, halo behind the instrument · Inter' },
   { key: 'ledger', letter: 'J', round: 4, name: 'Ledger', blurb: 'R4 · C’s centred gauge · deep petrol, brushed bands · mono figures, Inter prose' },
+  { key: 'quartz', letter: 'K', round: 5, name: 'Quartz', blurb: 'R5 · Apple register · gauge left · two-pane inbox · monochrome, red only at the top' },
+  { key: 'harbor', letter: 'L', round: 5, name: 'Harbor', blurb: 'R5 · Apple register · gauge left · two-pane inbox · system blue / orange / red' },
 ];
 
-// Round 4 is the live comparison, so open on I.
-const DEFAULT_KEY = 'aperture';
+// Round 5 is the live comparison, so open on K.
+const DEFAULT_KEY = 'quartz';
 
 const problems = [];
 
@@ -211,11 +213,14 @@ ${fragments
 
   buttons.forEach((b) => b.addEventListener('click', () => show(b.dataset.target)));
 
-  // Keyboard: 1..9 then 0 for the tenth direction.
+  // Keyboard: the direction's own letter (A..L). Numbers ran out at ten, and
+  // the letter is already printed on the pill, so there is nothing to learn.
+  const LETTERS = ${JSON.stringify(Object.fromEntries(fragments.map((d) => [d.letter, d.key])))};
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, textarea')) return;
-    const idx = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].indexOf(e.key);
-    if (idx > -1 && buttons[idx]) show(buttons[idx].dataset.target);
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const key = LETTERS[e.key.toUpperCase()];
+    if (key) show(key);
   });
 
   function showFromHash() {

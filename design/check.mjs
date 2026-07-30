@@ -18,6 +18,7 @@ const KEYS = [
   'vellum', 'console', 'slate',
   'meridian', 'atrium',
   'aperture', 'ledger',
+  'quartz', 'harbor',
 ];
 
 // Rounds 1-2 forced a single accent hue. Round 3 lifts that: professional tools
