@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { PanelLeftOpen } from 'lucide-react';
 
 import { MailAccountProvider } from '@/context/MailAccountContext';
@@ -51,19 +51,35 @@ export function AppShell() {
           {/* Când coloana e ascunsă, butonul de revenire stă în colţ, iar
               conţinutul primeşte un culoar de 44px ca nimic să nu ajungă
               dedesubtul lui. Doar pe desktop — pe mobil există deja drawer-ul. */}
-          {collapsed && (
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-label="Show sidebar"
-              title="Show sidebar"
-              className="fixed left-2.5 top-2.5 z-50 hidden rounded-md border border-border bg-card p-1.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 md:block"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
-          )}
+          {/* Fades in after the column has finished sliding away, so the two
+              movements read as one gesture instead of overlapping. */}
+          <AnimatePresence>
+            {collapsed && (
+              <motion.button
+                type="button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18, delay: 0.12 }}
+                onClick={toggleCollapsed}
+                aria-label="Show sidebar"
+                title="Show sidebar"
+                className="fixed left-2.5 top-2.5 z-50 hidden rounded-md border border-border bg-card p-1.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 md:block"
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
 
-          <div className={cn('flex min-w-0 flex-1 flex-col', collapsed && 'md:pl-11')}>
+          {/* The padding shifts in step with the sidebar width so the content
+              edge travels at the same rate as the column. */}
+          <div
+            className={cn(
+              'flex min-w-0 flex-1 flex-col',
+              'transition-[padding] duration-[var(--duration-base)] ease-[var(--ease-out)]',
+              collapsed && 'md:pl-11'
+            )}
+          >
             <MobileTopbar onMenu={() => setNavOpen(true)} />
             {fullBleed ? (
               /* Edge-to-edge: no padding, no space-y wrapper, and no

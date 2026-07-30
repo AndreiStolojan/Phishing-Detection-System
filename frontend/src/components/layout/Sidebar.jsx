@@ -9,7 +9,7 @@
 // sidebar nu există nimic periculos, doar locuri unde poţi merge.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -224,6 +224,10 @@ export function SidebarContent({ onNavigate, onCollapse }) {
 
 export function Sidebar({ width, collapsed, onCollapse, onResize }) {
   const asideRef = useRef(null);
+  // Dragging the edge sets width on every pointermove. If the width transition
+  // were live during a drag, the column would lag behind the cursor, so the
+  // animation is suppressed while dragging and only used for collapse/expand.
+  const [dragging, setDragging] = useState(false);
 
   // Trage de muchia din dreapta. Folosim pointer capture ca gestul să continue
   // chiar dacă mouse-ul iese din zona de 5px — altfel redimensionarea "scapă"
@@ -234,6 +238,7 @@ export function Sidebar({ width, collapsed, onCollapse, onResize }) {
       const handle = event.currentTarget;
       const left = asideRef.current?.getBoundingClientRect().left ?? 0;
       handle.setPointerCapture?.(event.pointerId);
+      setDragging(true);
 
       const onMove = (e) => onResize(clampSidebarWidth(e.clientX - left));
       const onUp = () => {
@@ -242,6 +247,7 @@ export function Sidebar({ width, collapsed, onCollapse, onResize }) {
         handle.removeEventListener('pointerup', onUp);
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
+        setDragging(false);
       };
 
       handle.addEventListener('pointermove', onMove);
@@ -261,35 +267,54 @@ export function Sidebar({ width, collapsed, onCollapse, onResize }) {
     [onResize, width]
   );
 
-  if (collapsed) return null;
+  /*
+    Collapsing animates the column's width to 0 rather than unmounting it —
+    unmounting is what made the old behaviour snap. The inner track keeps its
+    full pixel width and is clipped by the parent, so the nav content slides out
+    of view intact instead of reflowing narrower and narrower as it goes.
 
+    `inert` + aria-hidden while collapsed keep a zero-width column out of the
+    tab order; without it, focus could land on links nobody can see.
+    Reduced-motion users get the instant version via the global rule in
+    index.css that zeroes every transition-duration.
+  */
   return (
     <aside
       ref={asideRef}
       aria-label="Primary"
-      style={{ width }}
-      className="sticky top-0 hidden h-screen shrink-0 border-r border-border/70 bg-background md:block"
+      aria-hidden={collapsed || undefined}
+      inert={collapsed ? true : undefined}
+      style={{ width: collapsed ? 0 : width }}
+      className={cn(
+        'sticky top-0 hidden h-screen shrink-0 bg-background md:block',
+        collapsed ? 'border-r-0' : 'border-r border-border/70',
+        !dragging && 'transition-[width] duration-[var(--duration-base)] ease-[var(--ease-out)]'
+      )}
     >
-      <div className="h-full overflow-y-auto">
-        <SidebarContent onCollapse={onCollapse} />
+      <div className="h-full overflow-hidden">
+        <div style={{ width }} className="h-full overflow-y-auto">
+          <SidebarContent onCollapse={onCollapse} />
+        </div>
       </div>
 
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize sidebar"
-        aria-valuenow={width}
-        aria-valuemin={SIDEBAR_MIN_WIDTH}
-        aria-valuemax={SIDEBAR_MAX_WIDTH}
-        tabIndex={0}
-        onPointerDown={startDrag}
-        onKeyDown={onHandleKeyDown}
-        className="group absolute inset-y-0 -right-[3px] z-20 w-[6px] cursor-col-resize outline-none"
-      >
-        {/* Linia se aprinde doar la hover/focus — în rest muchia rămâne o
-            hairline obişnuită, ca să nu arate ca un element de UI în plus. */}
-        <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-primary opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-100" />
-      </div>
+      {!collapsed && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          aria-valuenow={width}
+          aria-valuemin={SIDEBAR_MIN_WIDTH}
+          aria-valuemax={SIDEBAR_MAX_WIDTH}
+          tabIndex={0}
+          onPointerDown={startDrag}
+          onKeyDown={onHandleKeyDown}
+          className="group absolute inset-y-0 -right-[3px] z-20 w-[6px] cursor-col-resize outline-none"
+        >
+          {/* Linia se aprinde doar la hover/focus — în rest muchia rămâne o
+              hairline obişnuită, ca să nu arate ca un element de UI în plus. */}
+          <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-primary opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-100" />
+        </div>
+      )}
     </aside>
   );
 }

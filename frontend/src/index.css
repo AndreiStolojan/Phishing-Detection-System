@@ -73,7 +73,12 @@
   --color-secondary-foreground: #c9cbd6;
   --color-muted: #14151c;
   --color-muted-foreground: #9b9ead;
-  --color-muted-foreground-subtle: #6e7180;
+  /* 2026-07-30 — raised from #6e7180, which measured 4.11:1 on the background
+     and so failed WCAG AA (4.5:1) for the small tertiary text it is used on.
+     #7c7f8e measures 5.00:1, keeping a clear step below muted-foreground
+     (7.47:1) while staying legible. Verified with contrastRatio() in
+     src/lib/scoreScale.js. */
+  --color-muted-foreground-subtle: #7c7f8e;
   --color-accent: #16171f;
   --color-accent-foreground: #e6e7ee;
   /* `destructive` stays light so it passes as text/icon on dark surfaces
@@ -290,10 +295,23 @@
   .email-body :where(h2) { font-size: 1.125rem; }
   .email-body :where(h3, h4) { font-size: 1rem; }
   .email-body :where(p) { margin: 0.75em 0; }
+  /*
+    Links inside a rendered email are deliberately DEAD — the href is stripped
+    when the body is sanitised, because a single accidental click in a phishing
+    tool is the exact failure this app exists to prevent.
+
+    So they must not LOOK clickable either. Periwinkle + solid underline is the
+    app's "you can act on this" signal and would be a lie here. A dotted
+    underline in the running text colour keeps the phrase visible as a link the
+    sender wrote, without inviting a click. The real destination is listed,
+    inspectable and copyable, in the Links section instead.
+  */
   .email-body :where(a) {
-    color: var(--color-link);
-    text-decoration: underline;
+    color: inherit;
+    text-decoration: underline dotted;
+    text-decoration-color: var(--color-muted-foreground-subtle);
     text-underline-offset: 2px;
+    cursor: default;
   }
   .email-body :where(ul, ol) { margin: 0.75em 0; padding-left: 1.5em; }
   .email-body :where(ul) { list-style: disc; }

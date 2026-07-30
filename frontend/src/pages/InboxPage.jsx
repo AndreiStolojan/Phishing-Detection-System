@@ -1,14 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// InboxPage.jsx — spațiul de lucru al inbox-ului: listă în stânga, mesajul în
-// dreapta, pe toată lățimea ecranului.
+// InboxPage.jsx — the inbox workspace: list on the left, message on the right,
+// across the full width of the screen.
 //
-// Nu e o pagină cu un card înăuntru: AppShell marchează /inbox ca "full bleed"
-// (fără padding), aşa că bara de sus se întinde peste tot, iar dedesubt lista
-// şi mesajul umplu tot ce rămâne, despărţite de o singură linie verticală.
+// It is not a page with a card in it: AppShell marks /inbox as "full bleed" (no
+// padding), so the toolbar spans everything and the list + message fill what is
+// left, separated by a single vertical hairline.
 //
-// Selecţia stă în URL (`?selected=<id>`), la fel ca filtrul, căutarea şi
-// pagina — aşa un link trimis unui coleg deschide exact acelaşi ecran. Ruta
-// veche /inbox/:emailId rămâne funcţională pentru linkuri mai vechi.
+// LAYOUT CONTRACT — the message list keeps its width, always.
+// The workspace grid is `[LIST_WIDTH minmax(0,1fr)]`. The first track is a
+// fixed length, so when the sidebar collapses and this container gets wider,
+// every extra pixel goes to the second track — the detail pane — and the list
+// does not move at all. `minmax(0,1fr)` (not `1fr`) is what lets that track
+// shrink below its content instead of forcing the page to scroll sideways.
+// The animation itself comes from the shell's width transition, which changes
+// this container's width frame by frame; adding a second transition here would
+// only fight it.
+//
+// Selection lives in the URL (`?selected=<id>`), like the filter, the search and
+// the page — so a link sent to a colleague opens exactly the same screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from 'react';
@@ -19,8 +28,9 @@ import { toast } from 'sonner';
 
 import { InboxSkeleton, ErrorState, EmptyState } from '@/components/common/states';
 import { Pagination } from '@/components/common/Pagination';
+import { EmailRow } from '@/components/inbox/EmailRow';
+import { FilterTabs } from '@/components/inbox/FilterTabs';
 import { MessagePane, MessagePaneEmpty } from '@/components/inbox/MessagePane';
-import { ScoreMeter } from '@/components/inbox/ScoreMeter';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useApi, bustCacheByPrefix } from '@/hooks/useApi';
@@ -30,13 +40,17 @@ import { useTimeRange } from '@/context/TimeRangeContext';
 import { getEmails, getEmailStats } from '@/api/emailsApi';
 import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
 import { normalizeEmailList } from '@/lib/email-list';
-import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
-import { RISK_FILTERS, getRiskMeta } from '@/lib/risk';
-import { getDateGroupLabel, formatEmailDate } from '@/utils/formatDate';
-import { springSoft } from '@/lib/motion';
+import { emailId } from '@/lib/email';
+import { RISK_FILTERS } from '@/lib/risk';
+import { getDateGroupLabel } from '@/utils/formatDate';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
+
+// The one place the list width is written down. Wide enough for a sender name,
+// an address and a verdict on one row; narrow enough that the message keeps the
+// lion's share of the screen.
+const LIST_WIDTH = '22.5rem'; // 360px
 
 const DATE_GROUP_ORDER = ['Today', 'Yesterday', 'This week', 'Older'];
 
@@ -53,6 +67,7 @@ function groupByDate(emails) {
   }));
 }
 
+// Filter key (from RISK_FILTERS) → the key it has in the /emails/stats payload.
 const FILTER_COUNT_MAP = {
   '': '__total__',
   quarantine: 'quarantine',
@@ -60,84 +75,6 @@ const FILTER_COUNT_MAP = {
   confirmed_phishing: 'confirmed_phishing',
   safe: 'safe',
 };
-
-const filterHex = (key) => (key ? getRiskMeta(key).tone.hex : 'var(--color-primary)');
-
-// ── Un rând din listă ────────────────────────────────────────────────────────
-// Adresa expeditorului e pe rândul ei: într-o listă de triaj antiphishing
-// adresa E dovada (paypal-account-verify.com), nu decor — a o ascunde până
-// deschizi mesajul ar anula rostul parcurgerii listei.
-function ListRow({ email, selected, onSelect, checkable, checked, onCheck }) {
-  const id = emailId(email);
-  const meta = getRiskMeta(email.riskBucket);
-  const score = email.latestScan?.score ?? null;
-
-  return (
-    <div
-      className={cn(
-        'group relative flex items-start gap-3 border-l-2 px-4 py-3 transition-colors',
-        selected
-          ? 'border-l-primary bg-primary/12'
-          : 'border-l-transparent hover:bg-accent'
-      )}
-    >
-      {checkable && (
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={() => onCheck(id)}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Select ${email.subject || 'message'}`}
-          className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary"
-        />
-      )}
-
-      <button
-        type="button"
-        onClick={() => onSelect(id)}
-        aria-current={selected ? 'true' : undefined}
-        className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-      >
-        <span className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
-            {getSenderName(email)}
-          </span>
-          <time className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-            {formatEmailDate(email.receivedAt)}
-          </time>
-        </span>
-
-        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-          {getSenderAddress(email)}
-        </span>
-
-        <span
-          className={cn(
-            'mt-1 block truncate text-[13px]',
-            selected ? 'text-foreground/90' : 'text-muted-foreground'
-          )}
-        >
-          {email.subject || '(no subject)'}
-        </span>
-
-        <span className="mt-2 flex items-center gap-2.5">
-          <ScoreMeter score={score} hex={meta.tone.hex} className="w-14" />
-          <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
-            {score ?? '—'}
-          </span>
-          <span className={cn('flex items-center gap-1.5 text-[11px] font-medium', meta.tone.text)}>
-            <span
-              aria-hidden="true"
-              className="h-[5px] w-[5px] rounded-full"
-              style={{ backgroundColor: meta.tone.hex }}
-            />
-            {meta.label}
-          </span>
-        </span>
-      </button>
-    </div>
-  );
-}
 
 export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -153,8 +90,8 @@ export function InboxPage() {
   const [searchInput, setSearchInput] = useState(rawSearch);
   const debouncedSearch = useDebounce(searchInput, 300);
 
-  // Selecţia în masă (checkbox-uri). Numele e `checked*` ca să nu se confunde
-  // cu `selected`, care e mesajul deschis în panoul din dreapta.
+  // Bulk selection (checkboxes). Named `checked*` so it is never confused with
+  // `selected`, which is the message open in the right-hand pane.
   const [selectMode, setSelectMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -174,6 +111,8 @@ export function InboxPage() {
     cacheKey
   );
 
+  // Tab counts. Deliberately NOT keyed on the search box: these are the totals
+  // for the time range, and they must not jump around as the user types.
   const countsQuery = useApi(
     () => getEmailStats({ from, to }),
     [syncVersion, from, to],
@@ -181,7 +120,16 @@ export function InboxPage() {
   );
   const counts = countsQuery.data?.counts || {};
   const totalCount = countsQuery.data?.total ?? 0;
+  // While searching, the visible list is a subset of the range, so range totals
+  // on the tabs would be misleading — hide them until the search is cleared.
   const showCounts = isConnected && !debouncedSearch;
+
+  const tabCounts = Object.fromEntries(
+    RISK_FILTERS.map(({ key }) => {
+      const mapped = FILTER_COUNT_MAP[key];
+      return [key, mapped === '__total__' ? totalCount : counts[mapped] ?? 0];
+    })
+  );
 
   const emails = normalizeEmailList(data);
   const totalPages = data?.pagination?.totalPages ?? (emails.length > 0 ? 1 : 0);
@@ -189,8 +137,9 @@ export function InboxPage() {
   const groups = groupByDate(emails);
   const searching = loading || searchInput !== debouncedSearch;
 
-  // Dacă id-ul din URL nu e pe pagina curentă (filtru schimbat, altă pagină),
-  // cădem pe primul mesaj — panoul din dreapta nu rămâne niciodată gol degeaba.
+  // If the id in the URL is not on the current page (filter changed, other
+  // page), fall back to the first message — the right pane is never blank
+  // without a reason.
   const selectedId = emailIds.includes(selectedParam) ? selectedParam : emailIds[0] || '';
 
   useEffect(() => {
@@ -263,16 +212,10 @@ export function InboxPage() {
     }
   };
 
-  const chipCount = (key) => {
-    const mapped = FILTER_COUNT_MAP[key];
-    if (mapped === '__total__') return totalCount;
-    return counts[mapped] ?? 0;
-  };
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* ── Bara de sus, pe toată lăţimea ─────────────────────────────────── */}
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2.5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden">
+      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
+      <div className="flex shrink-0 flex-wrap items-center gap-3 px-4 py-2.5">
         <div className="flex items-baseline gap-2">
           <h1 className="text-[15px] font-semibold tracking-tight">Inbox</h1>
           {showCounts && (
@@ -308,43 +251,6 @@ export function InboxPage() {
           )}
         </div>
 
-        {/* Chips */}
-        <div className="scrollbar-none -mx-1 flex max-w-full items-center gap-0.5 overflow-x-auto px-1">
-          {RISK_FILTERS.map(({ key, label }) => {
-            const active = riskBucket === key;
-            const count = chipCount(key);
-            return (
-              <button
-                key={key || 'all'}
-                type="button"
-                onClick={() => setFilter(key)}
-                className={cn(
-                  'relative shrink-0 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="filter-pill"
-                    transition={springSoft}
-                    className="absolute inset-0 rounded-md"
-                    style={{
-                      backgroundColor: `color-mix(in oklab, ${filterHex(key)} 16%, transparent)`,
-                      boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${filterHex(key)} 38%, transparent)`,
-                    }}
-                  />
-                )}
-                <span className="relative">
-                  {label}
-                  {showCounts && count > 0 && (
-                    <span className="ml-1.5 tabular-nums text-muted-foreground">{count}</span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
         <div className="ml-auto flex items-center gap-1.5">
           {selectMode ? (
             <Button variant="ghost" size="sm" onClick={exitSelectMode}>
@@ -363,10 +269,21 @@ export function InboxPage() {
         </div>
       </div>
 
-      {/* ── Spaţiul de lucru: listă | mesaj ───────────────────────────────── */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[360px_minmax(0,1fr)]">
-        {/* Lista */}
-        <aside className="flex min-h-0 flex-col overflow-y-auto border-border md:border-r">
+      {/* ── Filter tabs, directly above the list ──────────────────────────── */}
+      <FilterTabs
+        active={riskBucket}
+        counts={tabCounts}
+        showCounts={showCounts}
+        onSelect={setFilter}
+      />
+
+      {/* ── Workspace: list | message ─────────────────────────────────────── */}
+      <div
+        className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[var(--inbox-list-w)_minmax(0,1fr)]"
+        style={{ '--inbox-list-w': LIST_WIDTH }}
+      >
+        {/* The list. Fixed track above, so this never resizes. */}
+        <aside className="flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden border-border md:border-r">
           {!isConnected ? (
             <div className="p-4">
               <EmptyState
@@ -386,7 +303,7 @@ export function InboxPage() {
             <div className="p-4">
               <EmptyState
                 icon={ShieldCheck}
-                title="Nothing here"
+                title={debouncedSearch ? 'No matches' : 'Nothing to review here'}
                 message={
                   debouncedSearch
                     ? 'No message matches that search in this time range.'
@@ -398,17 +315,17 @@ export function InboxPage() {
             <>
               {groups.map((group) => (
                 <div key={group.label}>
-                  <p className="sticky top-0 z-10 bg-background px-4 py-2 text-[11px] font-semibold text-muted-foreground">
+                  <p className="sticky top-0 z-10 bg-background px-[18px] py-2 text-[11px] font-semibold text-muted-foreground">
                     {group.label}
                   </p>
                   <div className="divide-y divide-border">
                     {group.emails.map((email) => {
                       const id = emailId(email);
                       return (
-                        <ListRow
+                        <EmailRow
                           key={id}
                           email={email}
-                          selected={!selectMode && id === selectedId}
+                          active={!selectMode && id === selectedId}
                           onSelect={selectEmail}
                           checkable={selectMode}
                           checked={checkedIds.has(id)}
@@ -421,7 +338,7 @@ export function InboxPage() {
               ))}
 
               {totalPages > 1 && (
-                <div className="mt-auto border-t border-border px-3 py-2">
+                <div className="mt-auto">
                   <Pagination page={page} totalPages={totalPages} onPage={setPage} />
                 </div>
               )}
@@ -429,8 +346,8 @@ export function InboxPage() {
           )}
         </aside>
 
-        {/* Mesajul */}
-        <main className="min-h-0 overflow-y-auto border-t border-border md:border-t-0">
+        {/* The message. This is the only track that grows or shrinks. */}
+        <main className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden border-t border-border md:border-t-0">
           {isConnected && selectedId ? (
             <MessagePane key={selectedId} id={selectedId} onReviewed={afterReview} />
           ) : (
@@ -439,7 +356,7 @@ export function InboxPage() {
         </main>
       </div>
 
-      {/* ── Bara de acţiuni în masă ───────────────────────────────────────── */}
+      {/* ── Bulk action bar ───────────────────────────────────────────────── */}
       <AnimatePresence>
         {selectMode && checkedIds.size > 0 && (
           <motion.div

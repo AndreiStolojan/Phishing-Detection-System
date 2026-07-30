@@ -2,15 +2,20 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, Loader2, ShieldCheck, Mail, RotateCw, Inbox } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 /*
   Shared status screens. These are on-screen far more than usual in this app —
   small dev dataset, backend that is sometimes down — so each one is composed
-  like a real screen: framed surface, icon in a soft chip, a heading, exactly
-  one line of explanation, and an action where an action exists.
+  like a real screen: icon in a soft chip, a heading, exactly one line of
+  explanation, and an action where an action exists.
+
+  2026-07-30 — the surrounding card frame was removed. The pages these sit on
+  are card-free now, so a bordered panel made the empty/error case the only
+  boxed thing on the screen — the state that matters least drawing the most
+  attention. The centred composition and the generous vertical padding already
+  separate them from the page; they do not need a border to do it.
 */
 
 export function LoadingState({ label = 'Loading…', className }) {
@@ -36,7 +41,7 @@ export function ErrorState({ message, onRetry, className }) {
     <div
       role="alert"
       className={cn(
-        'flex flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-6 py-14 text-center',
+        'flex flex-col items-center justify-center gap-4 px-6 py-14 text-center',
         className
       )}
     >
@@ -63,7 +68,7 @@ export function EmptyState({ icon: Icon = Inbox, title, description, action, cla
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-6 py-16 text-center',
+        'flex flex-col items-center justify-center gap-4 px-6 py-16 text-center',
         className
       )}
     >
@@ -90,26 +95,24 @@ export function EmptyState({ icon: Icon = Inbox, title, description, action, cla
 */
 export function ConnectGmailState() {
   return (
-    <Card className="border-border">
-      <CardContent className="flex flex-col items-center gap-5 px-6 py-16 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
-          <ShieldCheck className="h-6 w-6" />
-        </span>
-        <div className="space-y-1.5">
-          <h3 className="text-h3 font-semibold text-foreground">Connect Gmail to get started</h3>
-          <p className="mx-auto max-w-md text-sm text-muted-foreground">
-            SecureInbox syncs your inbox, scans every message for phishing signals, and keeps a
-            security overlay on top — without you opening Gmail.
-          </p>
-        </div>
-        <Button asChild size="sm">
-          <Link to="/settings">
-            <Mail className="h-4 w-4" />
-            Connect Gmail
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col items-center gap-5 px-6 py-16 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+        <ShieldCheck className="h-6 w-6" />
+      </span>
+      <div className="space-y-1.5">
+        <h3 className="text-h3 font-semibold text-foreground">Connect Gmail to get started</h3>
+        <p className="mx-auto max-w-md text-sm text-muted-foreground">
+          SecureInbox syncs your inbox, scans every message for phishing signals, and keeps a
+          security overlay on top — without you opening Gmail.
+        </p>
+      </div>
+      <Button asChild size="sm">
+        <Link to="/settings">
+          <Mail className="h-4 w-4" />
+          Connect Gmail
+        </Link>
+      </Button>
+    </div>
   );
 }
 
@@ -147,9 +150,16 @@ export function InboxSkeleton({ rows = 8 }) {
   );
 }
 
+/*
+  A skeleton is a promise about what is arriving. This one mirrors the four
+  blocks of the real dashboard — posture, review queue, trend, domains — and is
+  card-free like the page it precedes. The previous version drew four stat cards
+  and a donut, neither of which the dashboard has any more, so the layout
+  visibly rearranged itself the moment the data landed.
+*/
 export function DashboardSkeleton() {
   return (
-    <div role="status" aria-label="Loading dashboard" className="space-y-6">
+    <div role="status" aria-label="Loading dashboard" className="space-y-10">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-2">
@@ -159,38 +169,59 @@ export function DashboardSkeleton() {
         <Skeleton className="h-[34px] w-32 rounded-md" />
       </div>
 
-      {/* Stat row */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-border bg-card p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 space-y-2.5">
-                <Skeleton className="h-2.5 w-16" />
-                <Skeleton className="h-7 w-12" />
-                <Skeleton className="h-2.5 w-20" />
-              </div>
-              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-            </div>
+      {/* 1 — Posture: gauge beside the conclusion, counts on a hairline */}
+      <div className="space-y-6">
+        <div className="flex flex-col gap-8 min-[780px]:flex-row min-[780px]:items-center">
+          <Skeleton className="h-[216px] w-[216px] shrink-0 rounded-full max-[780px]:h-[180px] max-[780px]:w-[180px]" />
+          <div className="min-w-0 flex-1 space-y-3">
+            <Skeleton className="h-7 w-64 max-w-full" />
+            <Skeleton className="h-3.5 w-full max-w-[46ch]" />
+            <Skeleton className="h-3.5 w-3/4 max-w-[38ch]" />
           </div>
-        ))}
+        </div>
+        <div className="grid grid-cols-2 gap-6 border-t border-border/70 pt-5 min-[780px]:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-2.5 w-20" />
+              <Skeleton className="h-6 w-12" />
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Donut + attention */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="rounded-xl border border-border bg-card p-6 lg:col-span-2">
-          <Skeleton className="mb-5 h-3.5 w-28" />
-          <Skeleton className="mx-auto h-48 w-48 rounded-full" />
+      {/* 2 — Needs your review */}
+      <div className="space-y-4">
+        <Skeleton className="h-3.5 w-36" />
+        <div className="space-y-px">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 border-b border-border/70 py-3">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-1/3 min-w-[8rem]" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+              <Skeleton className="h-5 w-9 shrink-0" />
+            </div>
+          ))}
         </div>
-        <div className="rounded-xl border border-border bg-card p-6 lg:col-span-3">
-          <div className="mb-5 flex items-center justify-between">
-            <Skeleton className="h-3.5 w-36" />
-            <Skeleton className="h-7 w-16 rounded-md" />
-          </div>
-          <div className="space-y-2.5">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-11 w-full rounded-lg" />
-            ))}
-          </div>
+      </div>
+
+      {/* 3 — Risk over time */}
+      <div className="space-y-4">
+        <Skeleton className="h-3.5 w-32" />
+        <Skeleton className="h-[220px] w-full rounded-lg" />
+      </div>
+
+      {/* 4 — Where the risky mail came from */}
+      <div className="space-y-4">
+        <Skeleton className="h-3.5 w-52" />
+        <div className="space-y-px">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 border-b border-border/70 py-3">
+              <Skeleton className="h-3.5 w-1/4 min-w-[7rem]" />
+              <Skeleton className="h-3 min-w-0 flex-1" />
+              <Skeleton className="h-5 w-8 shrink-0" />
+            </div>
+          ))}
         </div>
       </div>
     </div>
