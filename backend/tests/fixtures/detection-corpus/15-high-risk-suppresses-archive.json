@@ -1,0 +1,14 @@
+{
+  "id": "high-risk-suppresses-archive",
+  "email": {
+    "senderDomain": "example.test",
+    "attachmentExtensions": [
+      "zip",
+      "exe",
+      "rar"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

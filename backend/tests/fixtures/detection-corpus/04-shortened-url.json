@@ -1,0 +1,10 @@
+{
+  "id": "shortened-url",
+  "email": {
+    "senderDomain": "example.test",
+    "hasShortenedUrl": true
+  },
+  "ai": {
+    "enabled": false
+  }
+}

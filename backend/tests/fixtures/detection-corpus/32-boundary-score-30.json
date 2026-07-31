@@ -1,0 +1,13 @@
+{
+  "id": "boundary-score-30",
+  "email": {
+    "senderDomain": "example.test",
+    "replyToDomain": "reply.example.test",
+    "attachmentExtensions": [
+      "zip"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

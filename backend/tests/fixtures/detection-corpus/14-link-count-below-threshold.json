@@ -1,0 +1,10 @@
+{
+  "id": "link-count-below-threshold",
+  "email": {
+    "senderDomain": "example.test",
+    "linkCount": 5
+  },
+  "ai": {
+    "enabled": false
+  }
+}

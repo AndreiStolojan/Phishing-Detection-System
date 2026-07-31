@@ -167,6 +167,12 @@ const scanSchema = new mongoose.Schema(
             default: null,
             trim: true,
         },
+        // Rezultatul fiecărui provider (success/error/skipped), păstrat pentru
+        // observabilitate fără a schimba forma răspunsului public al API-ului.
+        providerMeta: {
+            type: mongoose.Schema.Types.Mixed,
+            default: [],
+        },
 
         // ── Date AI (Ollama), formă liberă ─────────────────────────────────
         // "Mixed" = poate fi orice tip de date (obiect, listă etc.), Mongoose

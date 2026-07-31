@@ -63,6 +63,15 @@
       "targets": [
         {"expr": "max by (task) (secureinbox_scheduled_task_last_success_timestamp_seconds) * 1000", "refId": "A"}
       ]
+    },
+    {
+      "id": 8,
+      "title": "Detection provider outcomes (1h)",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (provider, result) (increase(secureinbox_detection_provider_total[1h]))", "refId": "A"}
+      ]
     }
   ],
   "schemaVersion": 41,

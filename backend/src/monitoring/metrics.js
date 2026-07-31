@@ -42,6 +42,13 @@ export const scheduledTaskLastSuccessTimestampSeconds = new Gauge({
   registers: [metricsRegistry],
 });
 
+export const detectionProviderTotal = new Counter({
+  name: 'secureinbox_detection_provider_total',
+  help: 'Detection provider executions grouped by provider and bounded outcome.',
+  labelNames: ['provider', 'result'],
+  registers: [metricsRegistry],
+});
+
 export const recordScheduledTask = ({ task, result }) => {
   if (!['auto_sync', 'daily_digest'].includes(task)) {
     throw new Error(`Unknown scheduled task metric label: ${task}`);

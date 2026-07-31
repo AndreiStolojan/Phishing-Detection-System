@@ -1,0 +1,12 @@
+{
+  "id": "archive-attachment",
+  "email": {
+    "senderDomain": "example.test",
+    "attachmentExtensions": [
+      "zip"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

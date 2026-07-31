@@ -1,0 +1,29 @@
+{
+  "id": "allowlist-context-suppressed",
+  "email": {
+    "senderDomain": "trusted.example",
+    "replyToDomain": "esp.example",
+    "hasShortenedUrl": true,
+    "suspiciousLinkPatterns": [
+      "very_long_url"
+    ],
+    "linkCount": 10
+  },
+  "listContext": {
+    "senderAllowlisted": true,
+    "senderBlocklisted": false,
+    "listMatch": {
+      "listType": "allow",
+      "kind": "domain",
+      "value": "trusted.example"
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "high",
+      "loginOrActionRequest": true,
+      "brandImpersonationSuspected": true
+    }
+  }
+}
