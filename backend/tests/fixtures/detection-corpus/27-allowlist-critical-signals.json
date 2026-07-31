@@ -1,0 +1,29 @@
+{
+  "id": "allowlist-critical-signals",
+  "email": {
+    "senderDomain": "trusted.example",
+    "suspiciousLinkPatterns": [
+      "ip_address_link",
+      "embedded_credentials",
+      "punycode_domain"
+    ],
+    "attachmentExtensions": [
+      "exe"
+    ]
+  },
+  "listContext": {
+    "senderAllowlisted": true,
+    "senderBlocklisted": false,
+    "listMatch": {
+      "listType": "allow",
+      "kind": "sender",
+      "value": "billing@trusted.example"
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "sensitiveDataRequest": true
+    }
+  }
+}

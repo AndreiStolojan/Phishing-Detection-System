@@ -27,6 +27,16 @@
 // Detalii: docs/EXPLICATIE_BACKEND.md §4.1, §4.3, §4.4.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import {
+    AI_SIGNAL_WEIGHTS,
+    RULE_WEIGHTS,
+} from '../detection/weights/index.js';
+
+export {
+    AI_SIGNAL_WEIGHTS,
+    RULE_WEIGHTS,
+};
+
 // Capătul de sus al scalei 0–100. Scorul final e plafonat (clamp) la această valoare.
 export const SCORE_MAX = 100;
 
@@ -37,33 +47,8 @@ export const RISK_THRESHOLDS = {
     likelyPhishing: 60, // scor >= 60 -> "likely_phishing" (risc mare)
 };
 
-// Punctele regulilor deterministe (se adună la scorReguli când regula se declanșează).
-// Fiecare valoare are un motiv concret — comentariile de pe fiecare linie explică
-// de ce e "tare" (multe puncte) sau "slabă" (puține puncte) o regulă.
-export const RULE_WEIGHTS = {
-    high_risk_attachment_extension: 35, // tare: atașamente executabile (.exe, .scr...) = abuz aproape sigur
-    ip_address_link: 25, // tare: serviciile reale nu trimit linkuri către o adresă IP brută
-    embedded_credentials: 25, // tare: "user:pass@host" e extrem de anormal în email real
-    reply_to_mismatch: 18, // mediu: apare și la marketing/ESP legitim, de-aia e coborâtă de la "tare"
-    punycode_domain: 20, // tare: semnal de "spoofing vizual" (ex: paypaI.com), puține fals-pozitive
-    shortened_url_detected: 15, // mediu: dual-use — și newsletterele folosesc bit.ly etc.
-    too_many_links_high: 18, // slabă (euristică, >=10 linkuri): nu trebuie să ajungă singură la "suspect"
-    too_many_links_medium: 10, // slabă (euristică, 6-9 linkuri): doar un mic semnal, nu aproape-verdict
-    archive_attachment_extension: 12, // slab-mediu: arhivele (.zip etc.) sunt dual-use
-    very_long_url: 8, // slabă: link-uri lungi de tracking sunt comune în email legitim
-};
-
-// Punctele semnalelor AI (se adună la scorAI). Sunt secundare și mai conservatoare
-// decât regulile — un LLM poate "halucina", așa că nu-i dăm puncte la fel de mari.
-export const AI_SIGNAL_WEIGHTS = {
-    urgency_high: 8,
-    urgency_medium: 4,
-    sensitive_data_request: 20, // cel mai puternic semnal AI: cerere de parolă/OTP/card
-    login_or_action_request: 8,
-    social_engineering_high: 12,
-    social_engineering_medium: 6,
-    brand_impersonation_suspected: 10,
-};
+// Punctele regulilor sunt împărțite pe domenii în detection/weights/*.weights.js
+// și reunite cu verificare de duplicate în detection/weights/index.js.
 
 // Plafonul (cap) strict pentru contribuția AI la scorul final. Ținut sub
 // RISK_THRESHOLDS.likelyPhishing (60) ca AI să poată RIDICA suspiciunea și

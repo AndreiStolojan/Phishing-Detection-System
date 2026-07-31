@@ -1,0 +1,10 @@
+{
+  "id": "link-count-medium-upper",
+  "email": {
+    "senderDomain": "example.test",
+    "linkCount": 9
+  },
+  "ai": {
+    "enabled": false
+  }
+}

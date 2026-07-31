@@ -27,20 +27,32 @@ import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 import { verifySenderBrand } from './brand-verification.service.js';
 import { getSenderListContextForEmail } from './sender-list.service.js';
 import { isAiSemanticGloballyEnabled, SCAN_CONCURRENCY } from '../config/env.js';
+import { createDetectionContext } from '../detection/context.js';
+import { runDetection } from '../detection/index.js';
 import {
-    AI_SCORE_MAX,
-    AI_SIGNAL_WEIGHTS,
-    RISK_THRESHOLDS,
-    RULE_WEIGHTS,
-    SCORE_MAX,
-    USER_BLOCKLIST_RULE_POINTS,
-    applyScoreContextModifiers,
-} from '../config/scoring.config.js';
+    collectAiSignals,
+} from '../detection/providers/ai-semantic.provider.js';
+import {
+    collectAttachmentSignals,
+} from '../detection/providers/attachment-extension.provider.js';
+import {
+    collectLinkSignals,
+} from '../detection/providers/link-analysis.provider.js';
+import {
+    collectReplyToSignals,
+} from '../detection/providers/reply-to.provider.js';
+import {
+    collectSenderListSignals,
+} from '../detection/providers/sender-list.provider.js';
+import {
+    mapScoreToVerdict,
+    scoreSignals,
+} from '../detection/scorer.js';
 
-// Versiunea motorului. Urcată v6 -> v7 când s-a adăugat stratul listelor userului
-// (allowlist / blocklist). Scanările vechi își păstrează scorul v6 până la o
+// Versiunea motorului. Urcată v7 -> v8 pentru arhitectura modulară de provideri.
+// Scanările vechi își păstrează scorul v7 până la o
 // rescanare (nu rescorăm retroactiv toată baza de date).
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v7';
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v8';
 
 const DEFAULT_SCAN_CONCURRENCY = 4;
 const MAX_SCAN_CONCURRENCY = 10;
@@ -53,56 +65,6 @@ const getScanConcurrency = () => {
     }
 
     return Math.min(Math.max(parsedValue, 1), MAX_SCAN_CONCURRENCY);
-};
-
-const HIGH_RISK_ATTACHMENT_EXTENSIONS = new Set([
-    'exe',
-    'js',
-    'scr',
-    'bat',
-    'cmd',
-    'com',
-    'pif',
-    'lnk',
-    'jar',
-    'vbs',
-    'msi',
-    'iso',
-    'img',
-    'hta',
-]);
-
-const ARCHIVE_ATTACHMENT_EXTENSIONS = new Set([
-    'zip',
-    'rar',
-    '7z',
-    'gz',
-    'tar',
-]);
-
-// Tiparele de link suspecte și textele lor. Punctele vin din configul central
-// (RULE_WEIGHTS); aici stă doar maparea tipar -> mesaj.
-const LINK_PATTERN_RULES = {
-    ip_address_link: {
-        points: RULE_WEIGHTS.ip_address_link,
-        details: 'Found URL that uses an IP address host.',
-        reason: 'At least one link points to an IP address, which is often risky.',
-    },
-    embedded_credentials: {
-        points: RULE_WEIGHTS.embedded_credentials,
-        details: 'Found URL with embedded credentials.',
-        reason: 'At least one link contains embedded credentials.',
-    },
-    punycode_domain: {
-        points: RULE_WEIGHTS.punycode_domain,
-        details: 'Found URL using punycode domain.',
-        reason: 'At least one link uses a punycode domain.',
-    },
-    very_long_url: {
-        points: RULE_WEIGHTS.very_long_url,
-        details: 'Found URL longer than expected.',
-        reason: 'At least one link is unusually long.',
-    },
 };
 
 const toPublicScan = (scan) => ({
@@ -128,268 +90,44 @@ const toPublicScan = (scan) => ({
     updatedAt: scan.updatedAt,
 });
 
-// Traduce un scor numeric (0–100) într-un verdict text, comparându-l cu pragurile.
-// >= 60 => likely_phishing, >= 30 => suspicious, restul => safe.
-export const mapScoreToVerdict = (score) => {
-    if (score >= RISK_THRESHOLDS.likelyPhishing) {
-        return 'likely_phishing';
-    }
+export { mapScoreToVerdict };
 
-    if (score >= RISK_THRESHOLDS.suspicious) {
-        return 'suspicious';
-    }
-
-    return 'safe';
-};
-
-// Aplică REGULILE DETERMINISTE (faptele dure) pe un email și adună punctele.
-// `scanContext` aduce contextul (brand verificat / liste user) care poate REDUCE
-// punctele anumitor reguli. Întoarce scorul, motivele și lista regulilor declanșate.
+// Fațade sincrone de compatibilitate pentru testele și consumatorii existenți.
+// Evaluarea propriu-zisă trăiește în provideri și scorer, nu în acest serviciu.
 export const calculateRulesForEmail = (email, scanContext = {}) => {
-    let score = 0; // scorul acumulat din reguli
-    const reasons = []; // motive în limbaj uman (pentru explicație)
-    const triggeredRules = []; // regulile care s-au aprins, cu punctele lor
-
-    // Helper care "aprinde" o regulă: aplică reducerile de context pe puncte și, dacă
-    // mai rămân puncte (>0), le adună la scor și reține regula. `modifierKey` zice ce
-    // cheie de reducere se folosește (implicit chiar id-ul regulii); regulile
-    // suspicious_link_pattern:* nu sunt în tabelele de reduceri, deci rămân la greutate plină.
-    const triggerRule = ({ rule, modifierKey, points, details, reason }) => {
-        const effectivePoints = applyScoreContextModifiers(
-            modifierKey || rule,
-            points,
-            scanContext
-        );
-
-        if (effectivePoints <= 0) {
-            return;
-        }
-
-        score += effectivePoints;
-        reasons.push(reason);
-        triggeredRules.push({
-            rule,
-            points: effectivePoints,
-            details,
-        });
-    };
-
-    // Lista de BLOCARE a userului — decizie explicită, nu o euristică, deci e
-    // scutită de reducerile de context. Adaugă fix pragul de phishing (60), deci
-    // verdictul "likely_phishing" e GARANTAT, oricât ar adăuga celelalte reguli.
-    if (scanContext.senderBlocklisted) {
-        const match = scanContext.listMatch || {};
-        const matchLabel =
-            match.kind === 'domain'
-                ? `domain (${match.value})`
-                : `sender (${match.value})`;
-
-        score += USER_BLOCKLIST_RULE_POINTS;
-        reasons.push('Sender is on your blocked list.');
-        triggeredRules.push({
-            rule: 'user_blocklist_match',
-            points: USER_BLOCKLIST_RULE_POINTS,
-            details: `You blocked this ${matchLabel}, so the email is always treated as likely phishing.`,
-        });
-    }
-
-    if (
-        email.replyToDomain &&
-        email.senderDomain &&
-        email.replyToDomain !== email.senderDomain
-    ) {
-        triggerRule({
-            rule: 'reply_to_mismatch',
-            points: RULE_WEIGHTS.reply_to_mismatch,
-            details: `Reply-To domain (${email.replyToDomain}) differs from sender domain (${email.senderDomain}).`,
-            reason: 'Reply-To domain differs from sender domain.',
-        });
-    }
-
-    if (email.hasShortenedUrl) {
-        triggerRule({
-            rule: 'shortened_url_detected',
-            points: RULE_WEIGHTS.shortened_url_detected,
-            details: 'At least one known URL shortener was found in the email links.',
-            reason: 'Email contains shortened URL links.',
-        });
-    }
-
-    for (const pattern of email.suspiciousLinkPatterns || []) {
-        const patternRule = LINK_PATTERN_RULES[pattern];
-
-        if (!patternRule) {
-            continue;
-        }
-
-        triggerRule({
-            rule: `suspicious_link_pattern:${pattern}`,
-            points: patternRule.points,
-            details: patternRule.details,
-            reason: patternRule.reason,
-        });
-    }
-
-    const attachmentExtensions = email.attachmentExtensions || [];
-    const highRiskAttachments = attachmentExtensions.filter((ext) =>
-        HIGH_RISK_ATTACHMENT_EXTENSIONS.has(ext)
-    );
-    const archiveAttachments = attachmentExtensions.filter((ext) =>
-        ARCHIVE_ATTACHMENT_EXTENSIONS.has(ext)
-    );
-
-    if (highRiskAttachments.length > 0) {
-        triggerRule({
-            rule: 'high_risk_attachment_extension',
-            points: RULE_WEIGHTS.high_risk_attachment_extension,
-            details: `Found high-risk attachment extensions: ${highRiskAttachments.join(', ')}.`,
-            reason: 'Email contains high-risk attachment extensions.',
-        });
-    } else if (archiveAttachments.length > 0) {
-        triggerRule({
-            rule: 'archive_attachment_extension',
-            points: RULE_WEIGHTS.archive_attachment_extension,
-            details: `Found archive attachment extensions: ${archiveAttachments.join(', ')}.`,
-            reason: 'Email contains archive attachments.',
-        });
-    }
-
-    const linkCount = email.linkCount || 0;
-
-    if (linkCount >= 10) {
-        triggerRule({
-            rule: 'too_many_links_high',
-            points: RULE_WEIGHTS.too_many_links_high,
-            details: `Email includes ${linkCount} links.`,
-            reason: 'Email includes an unusually high number of links.',
-        });
-    } else if (linkCount >= 6) {
-        triggerRule({
-            rule: 'too_many_links_medium',
-            points: RULE_WEIGHTS.too_many_links_medium,
-            details: `Email includes ${linkCount} links.`,
-            reason: 'Email includes many links.',
-        });
-    }
+    const ctx = { email, scanContext };
+    const signals = [
+        ...collectSenderListSignals(ctx),
+        ...collectReplyToSignals(ctx),
+        ...collectLinkSignals(ctx),
+        ...collectAttachmentSignals(ctx),
+    ].map((signal, sequence) => ({
+        ...signal,
+        kind: 'rule',
+        sequence,
+    }));
+    const result = scoreSignals(signals, scanContext);
 
     return {
-        score,
-        ruleScore: score,
-        reasons,
-        triggeredRules,
+        score: result.ruleScore,
+        ruleScore: result.ruleScore,
+        reasons: result.reasons,
+        triggeredRules: result.triggeredRules,
     };
 };
 
-// Transformă semnalele venite de la AI (urgență, cerere de date sensibile etc.)
-// în puncte. La final scorul AI este PLAFONAT (AI_SCORE_MAX = 50), ca AI-ul să
-// poată ridica suspiciunea, dar niciodată să declare singur phishing.
 export const calculateAiScoreFromSignals = (aiSignals, scanContext = {}) => {
-    let aiScore = 0;
-    const aiTriggeredRules = [];
-    const aiReasons = [];
-
-    // La fel ca triggerRule, dar pentru semnalele AI. `modifierKey` e cheia din tabelul
-    // de reduceri (fără prefixul ai_semantic:). Dacă expeditorul e brand verificat sau
-    // pe allowlist, punctele se reduc; un semnal redus la 0 (ex. impersonare de brand)
-    // e eliminat complet, ca să nu apară nici ca avertisment.
-    const triggerAiRule = ({ rule, modifierKey, points, reason, details }) => {
-        const effectivePoints = applyScoreContextModifiers(modifierKey, points, scanContext);
-
-        if (effectivePoints <= 0) {
-            return;
-        }
-
-        aiScore += effectivePoints;
-        aiReasons.push(reason);
-        aiTriggeredRules.push({
-            rule,
-            points: effectivePoints,
-            details,
-        });
-    };
-
-    if (!aiSignals || aiSignals.status !== 'evaluated') {
-        return {
-            aiScore,
-            aiReasons,
-            aiTriggeredRules,
-        };
-    }
-
-    if (aiSignals.urgencyLevel === 'high') {
-        triggerAiRule({
-            rule: 'ai_semantic:urgency_high',
-            modifierKey: 'urgency_high',
-            points: AI_SIGNAL_WEIGHTS.urgency_high,
-            reason: 'AI semantic: high urgency language detected.',
-            details: 'AI flagged urgent pressure language as high.',
-        });
-    } else if (aiSignals.urgencyLevel === 'medium') {
-        triggerAiRule({
-            rule: 'ai_semantic:urgency_medium',
-            modifierKey: 'urgency_medium',
-            points: AI_SIGNAL_WEIGHTS.urgency_medium,
-            reason: 'AI semantic: medium urgency language detected.',
-            details: 'AI flagged urgent pressure language as medium.',
-        });
-    }
-
-    if (aiSignals.sensitiveDataRequest) {
-        triggerAiRule({
-            rule: 'ai_semantic:sensitive_data_request',
-            modifierKey: 'sensitive_data_request',
-            points: AI_SIGNAL_WEIGHTS.sensitive_data_request,
-            reason: 'AI semantic: request for sensitive data detected.',
-            details: 'AI detected password/card/OTP style data request.',
-        });
-    }
-
-    if (aiSignals.loginOrActionRequest) {
-        triggerAiRule({
-            rule: 'ai_semantic:login_or_action_request',
-            modifierKey: 'login_or_action_request',
-            points: AI_SIGNAL_WEIGHTS.login_or_action_request,
-            reason: 'AI semantic: login or rapid action request detected.',
-            details: 'AI detected push toward login or immediate user action.',
-        });
-    }
-
-    if (aiSignals.socialEngineeringLevel === 'high') {
-        triggerAiRule({
-            rule: 'ai_semantic:social_engineering_high',
-            modifierKey: 'social_engineering_high',
-            points: AI_SIGNAL_WEIGHTS.social_engineering_high,
-            reason: 'AI semantic: high social engineering pressure detected.',
-            details: 'AI flagged social engineering patterns as high.',
-        });
-    } else if (aiSignals.socialEngineeringLevel === 'medium') {
-        triggerAiRule({
-            rule: 'ai_semantic:social_engineering_medium',
-            modifierKey: 'social_engineering_medium',
-            points: AI_SIGNAL_WEIGHTS.social_engineering_medium,
-            reason: 'AI semantic: medium social engineering pressure detected.',
-            details: 'AI flagged social engineering patterns as medium.',
-        });
-    }
-
-    if (aiSignals.brandImpersonationSuspected) {
-        triggerAiRule({
-            rule: 'ai_semantic:brand_impersonation_suspected',
-            modifierKey: 'brand_impersonation_suspected',
-            points: AI_SIGNAL_WEIGHTS.brand_impersonation_suspected,
-            reason: 'AI semantic: possible brand impersonation detected.',
-            details: 'AI found likely impersonation of known organization/brand.',
-        });
-    }
-
-    // Plafonarea AI: AI e un semnal SECUNDAR. Tăiem scorul la AI_SCORE_MAX (50),
-    // care e sub pragul de phishing (60), deci AI singur nu poate da verdictul.
-    aiScore = Math.min(aiScore, AI_SCORE_MAX);
+    const signals = collectAiSignals(aiSignals).map((signal, sequence) => ({
+        ...signal,
+        kind: 'ai',
+        sequence,
+    }));
+    const result = scoreSignals(signals, scanContext);
 
     return {
-        aiScore,
-        aiReasons,
-        aiTriggeredRules,
+        aiScore: result.aiScore,
+        aiReasons: result.reasons,
+        aiTriggeredRules: result.triggeredRules,
     };
 };
 
@@ -427,15 +165,6 @@ const getUserAiEnabled = async (userId) => {
 
     return Boolean(user?.settings?.aiEnabled);
 };
-
-const buildAiDisabledSignals = () => ({
-    status: 'disabled',
-    provider: 'ollama',
-    mode: 'local',
-    latencyMs: 0,
-    evaluatedAt: new Date(),
-    disabledReason: 'ai_disabled',
-});
 
 const buildFallbackExplanationResult = ({
     verdict,
@@ -543,6 +272,7 @@ const upsertCurrentScanForEmail = async ({
     scanSource,
     result,
     aiSignals,
+    providerMeta,
     aiExplanation,
     aiExplanationMeta,
 }) => {
@@ -566,6 +296,7 @@ const upsertCurrentScanForEmail = async ({
             scanSource,
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
             aiSignals,
+            providerMeta,
             aiExplanation,
             aiExplanationMeta,
             scannedAt: now,
@@ -702,28 +433,24 @@ export const scanEmailWithRules = async ({
         };
     }
 
-    const rulesResult = calculateRulesForEmail(email, scanContext); // pasul reguli
-    // Semnale AI doar dacă userul are AI pornit; altfel un obiect "disabled".
-    const aiSignals = aiEnabled
-        ? await analyzeEmailSemanticsWithOllama({
-              analysisInput: aiInput,
-              enabled: true,
-              brandContext: scanContext,
-          })
-        : buildAiDisabledSignals();
-    const aiScoreResult = calculateAiScoreFromSignals(aiSignals, scanContext);
-    // Scor final = reguli + AI, dar niciodată peste 100 (SCORE_MAX).
-    const finalScore = Math.min(SCORE_MAX, rulesResult.ruleScore + aiScoreResult.aiScore);
+    const detectionContext = createDetectionContext({
+        email,
+        senderListContext: listContext,
+        brandContext,
+        scanContext,
+        userSettings: { aiEnabled },
+        aiInput,
+        semanticAnalyzer: analyzeEmailSemanticsWithOllama,
+    });
+    const detectionResult = await runDetection(detectionContext);
+    const aiSignals = detectionResult.aiSignals;
     const finalResult = {
-        score: finalScore,
-        ruleScore: rulesResult.ruleScore,
-        aiScore: aiScoreResult.aiScore,
-        verdict: mapScoreToVerdict(finalScore),
-        reasons: [...rulesResult.reasons, ...aiScoreResult.aiReasons],
-        triggeredRules: [
-            ...rulesResult.triggeredRules,
-            ...aiScoreResult.aiTriggeredRules,
-        ],
+        score: detectionResult.score,
+        ruleScore: detectionResult.ruleScore,
+        aiScore: detectionResult.aiScore,
+        verdict: detectionResult.verdict,
+        reasons: detectionResult.reasons,
+        triggeredRules: detectionResult.triggeredRules,
         senderVerifiedBrand: Boolean(scanContext.senderVerifiedBrand),
         verifiedBrandName: scanContext.senderVerifiedBrand
             ? scanContext.brandName || null
@@ -761,6 +488,7 @@ export const scanEmailWithRules = async ({
         scanSource,
         result: finalResult,
         aiSignals,
+        providerMeta: detectionResult.providerMeta,
         aiExplanation: finalExplanationResult.explanation,
         aiExplanationMeta: finalExplanationResult.meta,
     });

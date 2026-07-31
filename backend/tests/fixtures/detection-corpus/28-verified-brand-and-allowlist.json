@@ -1,0 +1,29 @@
+{
+  "id": "verified-brand-and-allowlist",
+  "email": {
+    "senderDomain": "paypal.com",
+    "replyToDomain": "esp.example",
+    "attachmentExtensions": [
+      "zip"
+    ],
+    "linkCount": 10
+  },
+  "listContext": {
+    "senderAllowlisted": true,
+    "senderBlocklisted": false,
+    "listMatch": {
+      "listType": "allow",
+      "kind": "domain",
+      "value": "paypal.com"
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "high",
+      "loginOrActionRequest": true,
+      "socialEngineeringLevel": "high",
+      "brandImpersonationSuspected": true
+    }
+  }
+}

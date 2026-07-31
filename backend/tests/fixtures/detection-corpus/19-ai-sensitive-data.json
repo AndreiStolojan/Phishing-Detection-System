@@ -1,0 +1,12 @@
+{
+  "id": "ai-sensitive-data",
+  "email": {
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "sensitiveDataRequest": true
+    }
+  }
+}

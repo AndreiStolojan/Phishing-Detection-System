@@ -1,0 +1,910 @@
+{
+  "schemaVersion": 1,
+  "baselineEngineVersion": "rules-ai-v7",
+  "baseRevision": "0d4b7b2db9c9064e5d0dabe673058fd28d7518dd",
+  "corpusSize": 36,
+  "results": [
+    {
+      "id": "clean-ai-disabled",
+      "score": 0,
+      "ruleScore": 0,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [],
+      "triggeredRules": [],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "clean-ai-evaluated",
+      "score": 0,
+      "ruleScore": 0,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [],
+      "triggeredRules": [],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-failed",
+      "score": 0,
+      "ruleScore": 0,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [],
+      "triggeredRules": [],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "reply-to-mismatch",
+      "score": 18,
+      "ruleScore": 18,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "Reply-To domain differs from sender domain."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "reply_to_mismatch",
+          "points": 18,
+          "details": "Reply-To domain (reply.example.test) differs from sender domain (example.test)."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "shortened-url",
+      "score": 15,
+      "ruleScore": 15,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "Email contains shortened URL links."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "shortened_url_detected",
+          "points": 15,
+          "details": "At least one known URL shortener was found in the email links."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ip-address-link",
+      "score": 25,
+      "ruleScore": 25,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "At least one link points to an IP address, which is often risky."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "suspicious_link_pattern:ip_address_link",
+          "points": 25,
+          "details": "Found URL that uses an IP address host."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "embedded-credentials",
+      "score": 25,
+      "ruleScore": 25,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "At least one link contains embedded credentials."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "suspicious_link_pattern:embedded_credentials",
+          "points": 25,
+          "details": "Found URL with embedded credentials."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "punycode-domain",
+      "score": 20,
+      "ruleScore": 20,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "At least one link uses a punycode domain."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "suspicious_link_pattern:punycode_domain",
+          "points": 20,
+          "details": "Found URL using punycode domain."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "very-long-url",
+      "score": 8,
+      "ruleScore": 8,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "At least one link is unusually long."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "suspicious_link_pattern:very_long_url",
+          "points": 8,
+          "details": "Found URL longer than expected."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "high-risk-attachment",
+      "score": 35,
+      "ruleScore": 35,
+      "aiScore": 0,
+      "verdict": "suspicious",
+      "reasons": [
+        "Email contains high-risk attachment extensions."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "high_risk_attachment_extension",
+          "points": 35,
+          "details": "Found high-risk attachment extensions: exe."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "archive-attachment",
+      "score": 12,
+      "ruleScore": 12,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "Email contains archive attachments."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "archive_attachment_extension",
+          "points": 12,
+          "details": "Found archive attachment extensions: zip."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "link-count-medium-lower",
+      "score": 10,
+      "ruleScore": 10,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "Email includes many links."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "too_many_links_medium",
+          "points": 10,
+          "details": "Email includes 6 links."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "link-count-medium-upper",
+      "score": 10,
+      "ruleScore": 10,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "Email includes many links."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "too_many_links_medium",
+          "points": 10,
+          "details": "Email includes 9 links."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "link-count-high-lower",
+      "score": 18,
+      "ruleScore": 18,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "Email includes an unusually high number of links."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "too_many_links_high",
+          "points": 18,
+          "details": "Email includes 10 links."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "link-count-below-threshold",
+      "score": 0,
+      "ruleScore": 0,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [],
+      "triggeredRules": [],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "high-risk-suppresses-archive",
+      "score": 35,
+      "ruleScore": 35,
+      "aiScore": 0,
+      "verdict": "suspicious",
+      "reasons": [
+        "Email contains high-risk attachment extensions."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "high_risk_attachment_extension",
+          "points": 35,
+          "details": "Found high-risk attachment extensions: exe."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "dead-shortened-pattern",
+      "score": 0,
+      "ruleScore": 0,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [],
+      "triggeredRules": [],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-urgency-high",
+      "score": 8,
+      "ruleScore": 0,
+      "aiScore": 8,
+      "verdict": "safe",
+      "reasons": [
+        "AI semantic: high urgency language detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:urgency_high",
+          "points": 8,
+          "details": "AI flagged urgent pressure language as high."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-urgency-medium",
+      "score": 4,
+      "ruleScore": 0,
+      "aiScore": 4,
+      "verdict": "safe",
+      "reasons": [
+        "AI semantic: medium urgency language detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:urgency_medium",
+          "points": 4,
+          "details": "AI flagged urgent pressure language as medium."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-sensitive-data",
+      "score": 20,
+      "ruleScore": 0,
+      "aiScore": 20,
+      "verdict": "safe",
+      "reasons": [
+        "AI semantic: request for sensitive data detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:sensitive_data_request",
+          "points": 20,
+          "details": "AI detected password/card/OTP style data request."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-login-action",
+      "score": 8,
+      "ruleScore": 0,
+      "aiScore": 8,
+      "verdict": "safe",
+      "reasons": [
+        "AI semantic: login or rapid action request detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:login_or_action_request",
+          "points": 8,
+          "details": "AI detected push toward login or immediate user action."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-social-engineering-high",
+      "score": 12,
+      "ruleScore": 0,
+      "aiScore": 12,
+      "verdict": "safe",
+      "reasons": [
+        "AI semantic: high social engineering pressure detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:social_engineering_high",
+          "points": 12,
+          "details": "AI flagged social engineering patterns as high."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-social-engineering-medium",
+      "score": 6,
+      "ruleScore": 0,
+      "aiScore": 6,
+      "verdict": "safe",
+      "reasons": [
+        "AI semantic: medium social engineering pressure detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:social_engineering_medium",
+          "points": 6,
+          "details": "AI flagged social engineering patterns as medium."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-brand-impersonation",
+      "score": 10,
+      "ruleScore": 0,
+      "aiScore": 10,
+      "verdict": "safe",
+      "reasons": [
+        "AI semantic: possible brand impersonation detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:brand_impersonation_suspected",
+          "points": 10,
+          "details": "AI found likely impersonation of known organization/brand."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "ai-cap",
+      "score": 50,
+      "ruleScore": 0,
+      "aiScore": 50,
+      "verdict": "suspicious",
+      "reasons": [
+        "AI semantic: high urgency language detected.",
+        "AI semantic: request for sensitive data detected.",
+        "AI semantic: login or rapid action request detected.",
+        "AI semantic: high social engineering pressure detected.",
+        "AI semantic: possible brand impersonation detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "ai_semantic:urgency_high",
+          "points": 8,
+          "details": "AI flagged urgent pressure language as high."
+        },
+        {
+          "rule": "ai_semantic:sensitive_data_request",
+          "points": 20,
+          "details": "AI detected password/card/OTP style data request."
+        },
+        {
+          "rule": "ai_semantic:login_or_action_request",
+          "points": 8,
+          "details": "AI detected push toward login or immediate user action."
+        },
+        {
+          "rule": "ai_semantic:social_engineering_high",
+          "points": 12,
+          "details": "AI flagged social engineering patterns as high."
+        },
+        {
+          "rule": "ai_semantic:brand_impersonation_suspected",
+          "points": 10,
+          "details": "AI found likely impersonation of known organization/brand."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "verified-brand-modifiers",
+      "score": 28,
+      "ruleScore": 16,
+      "aiScore": 12,
+      "verdict": "safe",
+      "reasons": [
+        "Reply-To domain differs from sender domain.",
+        "Email includes an unusually high number of links.",
+        "AI semantic: high urgency language detected.",
+        "AI semantic: login or rapid action request detected.",
+        "AI semantic: high social engineering pressure detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "reply_to_mismatch",
+          "points": 9,
+          "details": "Reply-To domain (paypal-support.example) differs from sender domain (mail.paypal.com)."
+        },
+        {
+          "rule": "too_many_links_high",
+          "points": 7,
+          "details": "Email includes 10 links."
+        },
+        {
+          "rule": "ai_semantic:urgency_high",
+          "points": 4,
+          "details": "AI flagged urgent pressure language as high."
+        },
+        {
+          "rule": "ai_semantic:login_or_action_request",
+          "points": 2,
+          "details": "AI detected push toward login or immediate user action."
+        },
+        {
+          "rule": "ai_semantic:social_engineering_high",
+          "points": 6,
+          "details": "AI flagged social engineering patterns as high."
+        }
+      ],
+      "senderVerifiedBrand": true,
+      "verifiedBrandName": "PayPal",
+      "senderListMatch": null
+    },
+    {
+      "id": "allowlist-context-suppressed",
+      "score": 8,
+      "ruleScore": 8,
+      "aiScore": 0,
+      "verdict": "safe",
+      "reasons": [
+        "At least one link is unusually long."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "suspicious_link_pattern:very_long_url",
+          "points": 8,
+          "details": "Found URL longer than expected."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": {
+        "listType": "allow",
+        "kind": "domain",
+        "value": "trusted.example"
+      }
+    },
+    {
+      "id": "allowlist-critical-signals",
+      "score": 100,
+      "ruleScore": 105,
+      "aiScore": 20,
+      "verdict": "likely_phishing",
+      "reasons": [
+        "At least one link points to an IP address, which is often risky.",
+        "At least one link contains embedded credentials.",
+        "At least one link uses a punycode domain.",
+        "Email contains high-risk attachment extensions.",
+        "AI semantic: request for sensitive data detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "suspicious_link_pattern:ip_address_link",
+          "points": 25,
+          "details": "Found URL that uses an IP address host."
+        },
+        {
+          "rule": "suspicious_link_pattern:embedded_credentials",
+          "points": 25,
+          "details": "Found URL with embedded credentials."
+        },
+        {
+          "rule": "suspicious_link_pattern:punycode_domain",
+          "points": 20,
+          "details": "Found URL using punycode domain."
+        },
+        {
+          "rule": "high_risk_attachment_extension",
+          "points": 35,
+          "details": "Found high-risk attachment extensions: exe."
+        },
+        {
+          "rule": "ai_semantic:sensitive_data_request",
+          "points": 20,
+          "details": "AI detected password/card/OTP style data request."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": {
+        "listType": "allow",
+        "kind": "sender",
+        "value": "billing@trusted.example"
+      }
+    },
+    {
+      "id": "verified-brand-and-allowlist",
+      "score": 12,
+      "ruleScore": 6,
+      "aiScore": 6,
+      "verdict": "safe",
+      "reasons": [
+        "Email contains archive attachments.",
+        "AI semantic: high social engineering pressure detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "archive_attachment_extension",
+          "points": 6,
+          "details": "Found archive attachment extensions: zip."
+        },
+        {
+          "rule": "ai_semantic:social_engineering_high",
+          "points": 6,
+          "details": "AI flagged social engineering patterns as high."
+        }
+      ],
+      "senderVerifiedBrand": true,
+      "verifiedBrandName": "PayPal",
+      "senderListMatch": {
+        "listType": "allow",
+        "kind": "domain",
+        "value": "paypal.com"
+      }
+    },
+    {
+      "id": "blocklist-domain-floor",
+      "score": 60,
+      "ruleScore": 60,
+      "aiScore": 0,
+      "verdict": "likely_phishing",
+      "reasons": [
+        "Sender is on your blocked list."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "user_blocklist_match",
+          "points": 60,
+          "details": "You blocked this domain (blocked.example), so the email is always treated as likely phishing."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": {
+        "listType": "block",
+        "kind": "domain",
+        "value": "blocked.example"
+      }
+    },
+    {
+      "id": "blocklist-suppresses-brand",
+      "score": 78,
+      "ruleScore": 78,
+      "aiScore": 0,
+      "verdict": "likely_phishing",
+      "reasons": [
+        "Sender is on your blocked list.",
+        "Email includes an unusually high number of links."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "user_blocklist_match",
+          "points": 60,
+          "details": "You blocked this sender (alerts@paypal.com), so the email is always treated as likely phishing."
+        },
+        {
+          "rule": "too_many_links_high",
+          "points": 18,
+          "details": "Email includes 10 links."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": {
+        "listType": "block",
+        "kind": "sender",
+        "value": "alerts@paypal.com"
+      }
+    },
+    {
+      "id": "boundary-score-29",
+      "score": 29,
+      "ruleScore": 25,
+      "aiScore": 4,
+      "verdict": "safe",
+      "reasons": [
+        "Email contains shortened URL links.",
+        "Email includes many links.",
+        "AI semantic: medium urgency language detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "shortened_url_detected",
+          "points": 15,
+          "details": "At least one known URL shortener was found in the email links."
+        },
+        {
+          "rule": "too_many_links_medium",
+          "points": 10,
+          "details": "Email includes 6 links."
+        },
+        {
+          "rule": "ai_semantic:urgency_medium",
+          "points": 4,
+          "details": "AI flagged urgent pressure language as medium."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "boundary-score-30",
+      "score": 30,
+      "ruleScore": 30,
+      "aiScore": 0,
+      "verdict": "suspicious",
+      "reasons": [
+        "Reply-To domain differs from sender domain.",
+        "Email contains archive attachments."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "reply_to_mismatch",
+          "points": 18,
+          "details": "Reply-To domain (reply.example.test) differs from sender domain (example.test)."
+        },
+        {
+          "rule": "archive_attachment_extension",
+          "points": 12,
+          "details": "Found archive attachment extensions: zip."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "boundary-score-59",
+      "score": 59,
+      "ruleScore": 35,
+      "aiScore": 24,
+      "verdict": "suspicious",
+      "reasons": [
+        "Email contains high-risk attachment extensions.",
+        "AI semantic: medium urgency language detected.",
+        "AI semantic: request for sensitive data detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "high_risk_attachment_extension",
+          "points": 35,
+          "details": "Found high-risk attachment extensions: exe."
+        },
+        {
+          "rule": "ai_semantic:urgency_medium",
+          "points": 4,
+          "details": "AI flagged urgent pressure language as medium."
+        },
+        {
+          "rule": "ai_semantic:sensitive_data_request",
+          "points": 20,
+          "details": "AI detected password/card/OTP style data request."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "boundary-score-60",
+      "score": 60,
+      "ruleScore": 60,
+      "aiScore": 0,
+      "verdict": "likely_phishing",
+      "reasons": [
+        "At least one link points to an IP address, which is often risky.",
+        "Email contains high-risk attachment extensions."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "suspicious_link_pattern:ip_address_link",
+          "points": 25,
+          "details": "Found URL that uses an IP address host."
+        },
+        {
+          "rule": "high_risk_attachment_extension",
+          "points": 35,
+          "details": "Found high-risk attachment extensions: exe."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": null
+    },
+    {
+      "id": "final-score-cap",
+      "score": 100,
+      "ruleScore": 224,
+      "aiScore": 50,
+      "verdict": "likely_phishing",
+      "reasons": [
+        "Sender is on your blocked list.",
+        "Reply-To domain differs from sender domain.",
+        "Email contains shortened URL links.",
+        "At least one link points to an IP address, which is often risky.",
+        "At least one link contains embedded credentials.",
+        "At least one link uses a punycode domain.",
+        "At least one link is unusually long.",
+        "Email contains high-risk attachment extensions.",
+        "Email includes an unusually high number of links.",
+        "AI semantic: high urgency language detected.",
+        "AI semantic: request for sensitive data detected.",
+        "AI semantic: login or rapid action request detected.",
+        "AI semantic: high social engineering pressure detected.",
+        "AI semantic: possible brand impersonation detected."
+      ],
+      "triggeredRules": [
+        {
+          "rule": "user_blocklist_match",
+          "points": 60,
+          "details": "You blocked this domain (blocked.example), so the email is always treated as likely phishing."
+        },
+        {
+          "rule": "reply_to_mismatch",
+          "points": 18,
+          "details": "Reply-To domain (reply.example) differs from sender domain (blocked.example)."
+        },
+        {
+          "rule": "shortened_url_detected",
+          "points": 15,
+          "details": "At least one known URL shortener was found in the email links."
+        },
+        {
+          "rule": "suspicious_link_pattern:ip_address_link",
+          "points": 25,
+          "details": "Found URL that uses an IP address host."
+        },
+        {
+          "rule": "suspicious_link_pattern:embedded_credentials",
+          "points": 25,
+          "details": "Found URL with embedded credentials."
+        },
+        {
+          "rule": "suspicious_link_pattern:punycode_domain",
+          "points": 20,
+          "details": "Found URL using punycode domain."
+        },
+        {
+          "rule": "suspicious_link_pattern:very_long_url",
+          "points": 8,
+          "details": "Found URL longer than expected."
+        },
+        {
+          "rule": "high_risk_attachment_extension",
+          "points": 35,
+          "details": "Found high-risk attachment extensions: exe."
+        },
+        {
+          "rule": "too_many_links_high",
+          "points": 18,
+          "details": "Email includes 25 links."
+        },
+        {
+          "rule": "ai_semantic:urgency_high",
+          "points": 8,
+          "details": "AI flagged urgent pressure language as high."
+        },
+        {
+          "rule": "ai_semantic:sensitive_data_request",
+          "points": 20,
+          "details": "AI detected password/card/OTP style data request."
+        },
+        {
+          "rule": "ai_semantic:login_or_action_request",
+          "points": 8,
+          "details": "AI detected push toward login or immediate user action."
+        },
+        {
+          "rule": "ai_semantic:social_engineering_high",
+          "points": 12,
+          "details": "AI flagged social engineering patterns as high."
+        },
+        {
+          "rule": "ai_semantic:brand_impersonation_suspected",
+          "points": 10,
+          "details": "AI found likely impersonation of known organization/brand."
+        }
+      ],
+      "senderVerifiedBrand": false,
+      "verifiedBrandName": null,
+      "senderListMatch": {
+        "listType": "block",
+        "kind": "domain",
+        "value": "blocked.example"
+      }
+    }
+  ]
+}
