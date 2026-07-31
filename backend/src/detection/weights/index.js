@@ -2,7 +2,7 @@
 // weights/index.js — registrul unic și verificat al greutăților de detecție.
 //
 // Orice cheie duplicată oprește importul, ca două funcționalități să nu poată
-// suprascrie în tăcere același semnal. Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// suprascrie în tăcere același semnal. Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { AI_WEIGHTS } from './ai.weights.js';

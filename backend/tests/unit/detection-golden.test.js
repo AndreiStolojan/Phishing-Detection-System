@@ -3,7 +3,7 @@
 //
 // Rulează motorul modular peste corpusul v7, cu AI determinist, și compară
 // rezultatul public de scorare cu baseline-ul înghețat înainte de refactor.
-// Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import assert from 'node:assert/strict';

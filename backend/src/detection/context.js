@@ -2,7 +2,7 @@
 // context.js — contextul read-only transmis providerilor de detecție.
 //
 // Păstrează dependențele unei scanări într-un singur obiect înghețat, fără
-// scrieri în baza de date. Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// scrieri în baza de date. Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const cloneAndFreezePlainValue = (value) => {

@@ -2,7 +2,7 @@
 // registry.js — registrul ordonat și izolarea erorilor providerilor.
 //
 // Orice provider poate eșua fără să oprească scanarea. Etichetele Prometheus
-// provin exclusiv din acest registru finit. Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// provin exclusiv din acest registru finit. Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as aiSemanticProvider from './providers/ai-semantic.provider.js';

@@ -2,7 +2,7 @@
 // detection-contracts.test.js — contracte de context, schemă și observabilitate.
 //
 // Blochează forma internă nouă fără a extinde răspunsul public al scanării.
-// Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import assert from 'node:assert/strict';

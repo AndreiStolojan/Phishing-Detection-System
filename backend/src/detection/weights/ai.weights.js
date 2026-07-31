@@ -2,7 +2,7 @@
 // ai.weights.js — greutățile semnalelor semantice locale.
 //
 // Numerele sunt mutate fără modificări din scoring.config.js. Detalii:
-// docs/EXPLICATIE_BACKEND.md §4.
+// docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const AI_WEIGHTS = Object.freeze({

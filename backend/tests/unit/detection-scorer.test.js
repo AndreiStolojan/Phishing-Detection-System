@@ -2,7 +2,7 @@
 // detection-scorer.test.js — ordinea și invariantele scorării centralizate.
 //
 // Nicio greutate nu vine din provider; scorerul aplică reduceri, plafoane și
-// praguri într-un singur loc. Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// praguri într-un singur loc. Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import assert from 'node:assert/strict';
@@ -126,6 +126,20 @@ test('scorer applies minimum context modifiers and omits zero-point evidence', (
             { rule: 'ai_semantic:social_engineering_high', points: 6 },
             { rule: 'ai_semantic:sensitive_data_request', points: 20 },
         ]
+    );
+});
+
+test('scorer normalizes structured provider details to the persisted string contract', () => {
+    const result = scoreSignals([
+        signal({
+            key: 'reply_to_mismatch',
+            details: { sender: 'example.com', replyTo: 'other.example' },
+        }),
+    ]);
+
+    assert.equal(
+        result.triggeredRules[0].details,
+        '{"sender":"example.com","replyTo":"other.example"}'
     );
 });
 

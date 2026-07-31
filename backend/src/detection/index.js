@@ -2,7 +2,7 @@
 // index.js — punctul unic de intrare în motorul modular de detecție.
 //
 // Rulează providerii, apoi aplică scorarea centralizată. Detalii:
-// docs/EXPLICATIE_BACKEND.md §4.
+// docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { runProviders } from './registry.js';
