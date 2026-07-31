@@ -30,6 +30,10 @@ import {
 } from '../config/google-oauth.js';
 import { JWT_SECRET, MAIL_TOKEN_ENCRYPTION_KEY } from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
+import {
+    buildUnavailableAuthResults,
+    evaluateEmailAuthentication,
+} from './email-auth/email-authentication.service.js';
 import { runSyncScanPipeline } from './scan.service.js';
 
 // Câte emailuri se aduc la o sincronizare, dacă userul nu a setat altă valoare.
@@ -43,6 +47,18 @@ const SYNC_ERRORS_MAX_ITEMS = 5;
 const SYNC_ERROR_MESSAGE_MAX_LENGTH = 180;
 // Algoritmul folosit pentru criptarea tokenilor Gmail la repaus (în baza de date).
 const MAIL_TOKEN_ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const EMAIL_AUTH_RAW_FETCH_TIMEOUT_MS = Math.min(
+    30_000,
+    Math.max(1_000, Number.parseInt(process.env.EMAIL_AUTH_RAW_FETCH_TIMEOUT_MS, 10) || 10_000)
+);
+const EMAIL_AUTH_MAX_RAW_BYTES = Math.min(
+    64 * 1024 * 1024,
+    Math.max(
+        1_024,
+        Number.parseInt(process.env.EMAIL_AUTH_MAX_RAW_BYTES, 10) || 32 * 1024 * 1024
+    )
+);
+const EMAIL_AUTH_MAX_RAW_BASE64_LENGTH = Math.ceil(EMAIL_AUTH_MAX_RAW_BYTES / 3) * 4;
 
 // Derivă cheia de criptare din MAIL_TOKEN_ENCRYPTION_KEY (variabilă de mediu).
 // Cheia e transformată cu SHA-256 ca să aibă mereu lungimea corectă pentru AES-256.
@@ -491,6 +507,7 @@ const requestGoogleJson = async ({
     fallbackMessage,
     errorCode,
     unreachableCode,
+    timeoutMs,
 }) => {
     let accessToken = getDecryptedMailToken(mailAccount.accessToken);
 
@@ -506,6 +523,7 @@ const requestGoogleJson = async ({
                     ...(body ? { 'Content-Type': 'application/json' } : {}),
                 },
                 ...(body ? { body: JSON.stringify(body) } : {}),
+                ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
             });
         } catch {
             throw createError(
@@ -707,6 +725,40 @@ const fetchGmailMessageDetails = async ({ mailAccount, messageId }) => {
         errorCode: 'GMAIL_MESSAGE_DETAILS_FAILED',
         unreachableCode: 'GMAIL_MESSAGE_DETAILS_UNREACHABLE',
     });
+};
+
+// Aduce bytes-ii RFC 822 exacți necesari pentru DKIM/ARC. Buffer-ul este folosit
+// doar în timpul autentificării și nu este atașat niciodată payload-ului MongoDB.
+export const fetchRawMessage = async ({
+    mailAccount,
+    messageId,
+    request = requestGoogleJson,
+}) => {
+    const query = new URLSearchParams({ format: 'raw' });
+    const url = `${GMAIL_MESSAGE_DETAILS_BASE_URL}/${encodeURIComponent(messageId)}?${query.toString()}`;
+    const payload = await request({
+        mailAccount,
+        url,
+        fallbackMessage: 'Failed to fetch raw Gmail message',
+        errorCode: 'GMAIL_RAW_MESSAGE_FAILED',
+        unreachableCode: 'GMAIL_RAW_MESSAGE_UNREACHABLE',
+        timeoutMs: EMAIL_AUTH_RAW_FETCH_TIMEOUT_MS,
+    });
+    const encoded = payload?.raw;
+
+    // Limita base64url este derivată din plafonul configurat pentru bytes decodați;
+    // verificarea înainte de decodare evită alocări necontrolate.
+    if (
+        typeof encoded !== 'string' ||
+        encoded.length === 0 ||
+        encoded.length > EMAIL_AUTH_MAX_RAW_BASE64_LENGTH ||
+        encoded.replace(/=+$/, '').length % 4 === 1 ||
+        !/^[A-Za-z0-9_-]+={0,2}$/.test(encoded)
+    ) {
+        throw new Error('Gmail returned an invalid raw message');
+    }
+
+    return Buffer.from(encoded, 'base64url');
 };
 
 // Cere adresa de email a contului Gmail conectat (din endpoint-ul de profil Gmail).
@@ -931,6 +983,33 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             });
 
             continue;
+        }
+
+        // Autentificarea este fail-open: orice problemă de rețea, DNS sau
+        // verificare produce un rezultat indisponibil, dar emailul este salvat
+        // și scanat în continuare pe baza celorlalte dovezi.
+        try {
+            if (Number(messageDetails.sizeEstimate) > EMAIL_AUTH_MAX_RAW_BYTES) {
+                const sizeError = new Error('Raw Gmail message exceeds the authentication limit');
+                sizeError.code = 'raw_message_too_large';
+                throw sizeError;
+            }
+            const rawMessage = await fetchRawMessage({ mailAccount, messageId });
+            emailPayload.authResults = await evaluateEmailAuthentication({
+                rawHeaders: emailPayload.rawHeaders,
+                rawMessage,
+                fromDomain: emailPayload.senderDomain,
+            });
+        } catch (error) {
+            emailPayload.authResults = buildUnavailableAuthResults(
+                error?.code || 'authentication_pipeline_failed'
+            );
+            console.warn('[gmail-sync] Email authentication unavailable', {
+                userId: String(mailAccount.userId),
+                mailAccountId: String(mailAccount._id),
+                messageId,
+                reason: emailPayload.authResults.failureReason,
+            });
         }
 
         const now = new Date();

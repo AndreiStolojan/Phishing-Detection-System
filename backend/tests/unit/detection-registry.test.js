@@ -2,7 +2,7 @@
 // detection-registry.test.js — contractul și izolarea providerilor de detecție.
 //
 // Providerii sunt executați în ordine, iar erorile lor nu întrerup scanarea.
-// Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import assert from 'node:assert/strict';
@@ -329,7 +329,7 @@ test('runDetection reports unavailable AI when a custom registry has no AI provi
     assert.equal(result.aiSignals.fallbackReason, 'ai_signal_unavailable');
 });
 
-test('a custom provider cannot expand production metric labels', async () => {
+test('custom registries can replace the production metrics recorder explicitly', async () => {
     const newProvider = provider({
         id: 'new-provider',
         analyze: () => ({ signals: [] }),

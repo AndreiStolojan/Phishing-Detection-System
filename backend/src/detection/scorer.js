@@ -2,7 +2,7 @@
 // scorer.js — aplică greutăți, modificatori, plafoane și praguri semnalelor.
 //
 // Providerii descriu doar dovezi; niciun punct nu este decis în provider.
-// Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -52,6 +52,23 @@ const compareSignals = (left, right) => {
     return (left.sequence ?? 0) - (right.sequence ?? 0);
 };
 
+const normalizeSignalDetails = (details) => {
+    if (details === undefined || details === null) {
+        return '';
+    }
+    if (typeof details === 'string') {
+        return details;
+    }
+
+    try {
+        return typeof details === 'object'
+            ? JSON.stringify(details)
+            : String(details);
+    } catch {
+        return '[unserializable details]';
+    }
+};
+
 export const scoreSignals = (signals = [], scanContext = {}) => {
     let ruleScore = 0;
     let rawAiScore = 0;
@@ -90,7 +107,7 @@ export const scoreSignals = (signals = [], scanContext = {}) => {
         triggeredRules.push({
             rule: signal.rule || signal.key,
             points: effectivePoints,
-            details: signal.details || '',
+            details: normalizeSignalDetails(signal.details),
         });
     }
 

@@ -2,7 +2,7 @@
 // detection-contracts.test.js — contracte de context, schemă și observabilitate.
 //
 // Blochează forma internă nouă fără a extinde răspunsul public al scanării.
-// Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import assert from 'node:assert/strict';
@@ -24,6 +24,7 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
     const email = { senderDomain: 'example.test' };
     const senderListContext = { senderAllowlisted: true };
     const brandContext = { senderVerifiedBrand: false };
+    const authResults = { status: 'ok', dmarc: { result: 'pass' } };
     const scanContext = { senderAllowlisted: true };
     const userSettings = { aiEnabled: true };
     const aiInput = { subject: 'Test' };
@@ -32,6 +33,7 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
         email,
         senderListContext,
         brandContext,
+        authResults,
         scanContext,
         userSettings,
         aiInput,
@@ -41,6 +43,8 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
     assert.ok(Object.isFrozen(context));
     assert.ok(Object.isFrozen(context.senderListContext));
     assert.ok(Object.isFrozen(context.brandContext));
+    assert.ok(Object.isFrozen(context.authResults));
+    assert.ok(Object.isFrozen(context.authResults.dmarc));
     assert.ok(Object.isFrozen(context.scanContext));
     assert.ok(Object.isFrozen(context.userSettings));
     assert.ok(Object.isFrozen(context.aiInput));
@@ -74,7 +78,7 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
     assert.deepEqual(nestedContext.scanContext.tags, ['trusted']);
 });
 
-test('Scan schema persists optional provider metadata and engine is v8', () => {
+test('Scan schema persists optional provider metadata and engine is v9', () => {
     const providerMeta = [
         {
             provider: 'link-analysis',
@@ -96,12 +100,13 @@ test('Scan schema persists optional provider metadata and engine is v8', () => {
     assert.equal(Scan.schema.path('providerMeta').instance, 'Mixed');
     assert.deepEqual(scan.providerMeta, providerMeta);
     assert.deepEqual(new Scan().providerMeta, []);
-    assert.equal(CURRENT_SCAN_ENGINE_VERSION, 'rules-ai-v8');
+    assert.equal(CURRENT_SCAN_ENGINE_VERSION, 'rules-ai-v9');
 });
 
 test('detection provider metrics accept only bounded provider and result labels', async () => {
     assert.deepEqual(DETECTION_PROVIDER_IDS, [
         'sender-list',
+        'email-auth',
         'reply-to',
         'link-analysis',
         'attachment-extension',

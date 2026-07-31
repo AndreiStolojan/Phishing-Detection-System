@@ -2,7 +2,7 @@
 // registry.js — registrul ordonat și izolarea erorilor providerilor.
 //
 // Orice provider poate eșua fără să oprească scanarea. Etichetele Prometheus
-// provin exclusiv din acest registru finit. Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// provin exclusiv din acest registru finit. Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as aiSemanticProvider from './providers/ai-semantic.provider.js';
@@ -10,6 +10,7 @@ import * as attachmentExtensionProvider from './providers/attachment-extension.p
 import * as linkAnalysisProvider from './providers/link-analysis.provider.js';
 import * as replyToProvider from './providers/reply-to.provider.js';
 import * as senderListProvider from './providers/sender-list.provider.js';
+import * as emailAuthProvider from './providers/email-auth.provider.js';
 import {
     AI_SIGNAL_WEIGHTS,
     RULE_WEIGHTS,
@@ -18,6 +19,7 @@ import { detectionProviderTotal } from '../monitoring/metrics.js';
 
 export const DEFAULT_PROVIDERS = Object.freeze([
     senderListProvider,
+    emailAuthProvider,
     replyToProvider,
     linkAnalysisProvider,
     attachmentExtensionProvider,

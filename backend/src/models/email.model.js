@@ -39,6 +39,79 @@ const providerActionErrorSchema = new mongoose.Schema(
     }
 );
 
+const AUTH_RESULT_VALUES = [
+    'pass',
+    'fail',
+    'softfail',
+    'neutral',
+    'none',
+    'temperror',
+    'permerror',
+];
+
+const authenticationMethodSchema = new mongoose.Schema(
+    {
+        result: { type: String, enum: AUTH_RESULT_VALUES, default: 'none' },
+        domain: { type: String, default: null, trim: true, lowercase: true },
+        source: {
+            type: String,
+            enum: ['gmail_header', 'local_verify', 'local_evaluate'],
+            required: true,
+        },
+    },
+    { _id: false }
+);
+
+const dkimSignatureSchema = new mongoose.Schema(
+    {
+        result: { type: String, enum: AUTH_RESULT_VALUES, default: 'none' },
+        domain: { type: String, default: null, trim: true, lowercase: true },
+        selector: { type: String, default: null, trim: true },
+        aligned: { type: Boolean, default: false },
+    },
+    { _id: false }
+);
+
+const emailAuthResultsSchema = new mongoose.Schema(
+    {
+        spf: { type: authenticationMethodSchema, default: null },
+        dkim: {
+            result: { type: String, enum: AUTH_RESULT_VALUES, default: 'none' },
+            domain: { type: String, default: null, trim: true, lowercase: true },
+            selector: { type: String, default: null, trim: true },
+            aligned: { type: Boolean, default: false },
+            source: {
+                type: String,
+                enum: ['local_verify', 'gmail_header'],
+                default: 'local_verify',
+            },
+            signatures: { type: [dkimSignatureSchema], default: [] },
+        },
+        dmarc: {
+            result: { type: String, enum: AUTH_RESULT_VALUES, default: 'none' },
+            policy: { type: String, enum: ['reject', 'quarantine', 'none'], default: null },
+            alignment: { type: String, enum: ['strict', 'relaxed', 'none'], default: 'none' },
+            source: {
+                type: String,
+                enum: ['local_evaluate'],
+                default: 'local_evaluate',
+            },
+        },
+        arc: {
+            result: { type: String, enum: AUTH_RESULT_VALUES, default: 'none' },
+            chainLength: { type: Number, min: 0, default: 0 },
+        },
+        evaluatedAt: { type: Date, default: null },
+        status: {
+            type: String,
+            enum: ['ok', 'partial', 'unavailable'],
+            default: 'unavailable',
+        },
+        failureReason: { type: String, default: null, trim: true, maxlength: 180 },
+    },
+    { _id: false }
+);
+
 const emailSchema = new mongoose.Schema(
     {
         // ── Legături către alte colecții ──────────────────────────────────
@@ -169,6 +242,13 @@ const emailSchema = new mongoose.Schema(
         attachmentExtensions: {
             type: [String],
             default: [],
+        },
+
+        // Rezultatele autentificării sunt derivate la sincronizare; MIME-ul brut
+        // folosit pentru DKIM/ARC este eliminat imediat și nu ajunge în MongoDB.
+        authResults: {
+            type: emailAuthResultsSchema,
+            default: null,
         },
 
         // ── Date despre sincronizare ──────────────────────────────────────

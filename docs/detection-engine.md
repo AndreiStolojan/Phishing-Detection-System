@@ -34,8 +34,8 @@ upserts the `Scan` record. Rule evaluation itself lives under
 | `scorer.js` | Looks up weights, applies modifiers and caps, builds reasons/triggered rules, and maps the verdict. |
 | `index.js` | Runs providers, scores their signals, and returns the detection result. |
 
-The built-in providers run in this order: `sender-list`, `reply-to`,
-`link-analysis`, `attachment-extension`, then `ai-semantic`. The order is
+The built-in providers run in this order: `sender-list`, `email-auth`,
+`reply-to`, `link-analysis`, `attachment-extension`, then `ai-semantic`. The order is
 observable because it preserves triggered-rule ordering.
 
 Signals also carry a global numeric `order` used by the scorer. This preserves
@@ -47,7 +47,7 @@ sequence and add a mixed-provider ordering test.
 ### Detection context
 
 `createDetectionContext()` freezes the context wrapper and its plain-object
-subcontexts. It supplies `email`, `senderListContext`, `brandContext`,
+subcontexts. It supplies `email`, `senderListContext`, `brandContext`, `authResults`,
 `scanContext`, `userSettings`, `aiInput`, and the injected `semanticAnalyzer`.
 The Mongoose email document is intentionally not deep-frozen, so providers must
 treat every value in the context as read-only. Providers must not write to the
@@ -87,7 +87,8 @@ invalid provider result produces no signals from that provider, records
 Successful or skipped providers are recorded too. Optional-provider failures
 log at debug level; required-provider failures log as errors. Each outcome
 increments `secureinbox_detection_provider_total{provider,result}`, where
-`result` is only `success`, `error`, or `skipped`.
+`provider` comes from the finite registry and `result` is limited to
+`success`, `error`, or `skipped`.
 
 The AI provider is optional. If it fails, `runDetection()` supplies the normal
 failed-AI fallback payload so explanation generation remains deterministic.
@@ -163,3 +164,30 @@ Existing synchronous helpers, `calculateRulesForEmail` and
 `scan.service.js`; they delegate to provider collectors and `scoreSignals`.
 They are not the live scan path. See `FOLLOWUPS.md` for intentionally preserved
 behavior that should not be changed as part of a behavior-preserving refactor.
+
+## Email authentication
+
+Gmail authentication uses a deliberately hybrid trust model:
+
+- SPF comes only from the single unambiguous `Authentication-Results` header
+  whose authentication service is `mx.google.com`. SPF cannot be repeated after
+  delivery because the original SMTP client IP is no longer trustworthy.
+- DKIM and ARC are verified locally over the exact `format=raw` RFC 822 bytes
+  with `mailauth`. Verification runs in a bounded worker and the raw message is
+  discarded immediately; only normalized outcomes are persisted.
+- DMARC is evaluated locally from trusted SPF and locally verified DKIM identities
+  against a cached `_dmarc` TXT policy. Organizational-domain matching uses the
+  Public Suffix List. Native Node TXT lookups do not expose TTLs, so positive and
+  negative policies use a conservative one-hour cache lifetime.
+
+Authentication is evaluated during Gmail synchronization, before detection.
+The `email-auth` provider performs no network or database work; it only converts
+the persisted outcome into point-free evidence. A valid ARC chain suppresses SPF
+and DKIM failure signals for forwarding, but does not turn DMARC into pass, grant
+verified-brand status, or suppress unrelated phishing evidence.
+
+A known brand receives score reductions only when its domain matches the brand
+configuration and aligned DMARC passes. A matching but unauthenticated claim
+receives no reduction. If Gmail, DNS, raw-message retrieval, or cryptographic
+verification is unavailable, authentication emits zero signals and never grants
+brand verification; the remaining detection providers still complete the scan.

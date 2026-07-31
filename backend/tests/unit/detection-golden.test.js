@@ -3,7 +3,7 @@
 //
 // Rulează motorul modular peste corpusul v7, cu AI determinist, și compară
 // rezultatul public de scorare cu baseline-ul înghețat înainte de refactor.
-// Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import assert from 'node:assert/strict';
@@ -52,6 +52,7 @@ const characterizeFixture = async (fixture) => {
     };
     const brandContext = verifySenderBrand({
         senderDomain: email.senderDomain,
+        authResults: email.authResults,
     });
     const scanContext = senderListContext.senderBlocklisted
         ? {
@@ -68,6 +69,7 @@ const characterizeFixture = async (fixture) => {
         email,
         senderListContext,
         brandContext,
+        authResults: email.authResults || {},
         scanContext,
         userSettings: { aiEnabled: fixture.ai.enabled },
         aiInput: { fixtureId: fixture.id },

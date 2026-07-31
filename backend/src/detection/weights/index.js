@@ -2,13 +2,14 @@
 // weights/index.js — registrul unic și verificat al greutăților de detecție.
 //
 // Orice cheie duplicată oprește importul, ca două funcționalități să nu poată
-// suprascrie în tăcere același semnal. Detalii: docs/EXPLICATIE_BACKEND.md §4.
+// suprascrie în tăcere același semnal. Detalii: docs/detection-engine.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { AI_WEIGHTS } from './ai.weights.js';
 import { ATTACHMENT_RULE_WEIGHTS } from './attachment.weights.js';
 import { LINK_RULE_WEIGHTS } from './link.weights.js';
 import { SENDER_RULE_WEIGHTS } from './sender.weights.js';
+import { EMAIL_AUTH_RULE_WEIGHTS } from './email-auth.weights.js';
 
 export const RESERVED_WEIGHT_KEYS = Object.freeze([
     'user_blocklist_match',
@@ -40,6 +41,7 @@ export const RULE_WEIGHTS = mergeWeightModules([
     LINK_RULE_WEIGHTS,
     ATTACHMENT_RULE_WEIGHTS,
     SENDER_RULE_WEIGHTS,
+    EMAIL_AUTH_RULE_WEIGHTS,
 ]);
 
 export const AI_SIGNAL_WEIGHTS = mergeWeightModules([AI_WEIGHTS]);
