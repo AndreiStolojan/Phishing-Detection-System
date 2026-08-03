@@ -40,6 +40,7 @@ test('RDAP caches IANA bootstrap and sends only a registrable domain to its regi
     assert.equal(requests[1].url, 'https://rdap.example.test/base/domain/example.com');
     assert.equal(requests[2].url, 'https://rdap.example.test/base/domain/another-example.com');
     assert.equal(requests[1].options.headers.Accept, 'application/rdap+json, application/json');
+    assert.equal(requests[1].options.redirect, 'error');
 });
 
 test('RDAP validates domain, bootstrap, and registry payloads fail-open', async () => {
@@ -72,4 +73,30 @@ test('RDAP normalizes only registrable public-looking domains', () => {
     assert.equal(normalizeRdapDomain('localhost'), null);
     assert.equal(normalizeRdapDomain('bad_domain.example'), null);
     assert.equal(normalizeRdapDomain('https://example.com'), null);
+});
+
+test('RDAP rejects private or local registry endpoints from bootstrap data', async () => {
+    let calls = 0;
+    const service = createRdapService({
+        fetch: async (url) => {
+            calls += 1;
+            if (String(url).includes('iana.org')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        services: [[
+                            ['com'],
+                            ['https://127.0.0.1/rdap/', 'https://registry.local/rdap/'],
+                        ]],
+                    }),
+                };
+            }
+            throw new Error('private registry must not be requested');
+        },
+    });
+
+    assert.deepEqual(await service.lookupDomain('example.com'), {
+        status: 'unavailable', registeredAt: null, reason: 'bootstrap_unavailable',
+    });
+    assert.equal(calls, 1);
 });

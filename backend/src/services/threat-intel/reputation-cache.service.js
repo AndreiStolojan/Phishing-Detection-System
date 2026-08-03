@@ -58,10 +58,6 @@ const sanitizeValue = (value = {}) => ({
         typeof value.targetHash === 'string' && /^[a-f0-9]{64}$/.test(value.targetHash)
             ? value.targetHash
             : null,
-    targetHost:
-        typeof value.targetHost === 'string' && value.targetHost.length <= 253
-            ? value.targetHost
-            : null,
     hopCount: Number.isInteger(value.hopCount)
         ? Math.min(Math.max(value.hopCount, 0), 5)
         : null,

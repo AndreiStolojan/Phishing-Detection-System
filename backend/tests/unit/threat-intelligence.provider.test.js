@@ -62,7 +62,10 @@ test('provider is fail-open and persists only bounded source counts', async () =
     const email = { links: ['https://private.example/path?recipient=secret'] };
     const skipped = await analyze({ email });
     assert.deepEqual(skipped, {
-        status: 'skipped', signals: [], meta: { sourceCounts: { web_risk: 0, urlhaus: 0, rdap: 0, redirect: 0 } },
+        status: 'skipped', signals: [], meta: {
+            sourceCounts: { web_risk: 0, urlhaus: 0, rdap: 0, redirect: 0 },
+            sourceStatuses: { web_risk: 'skipped', urlhaus: 'skipped', rdap: 'skipped', redirect: 'skipped' },
+        },
     });
 
     const evaluated = await analyze({
@@ -72,6 +75,7 @@ test('provider is fail-open and persists only bounded source counts', async () =
             return {
                 status: 'evaluated',
                 sourceCounts: { web_risk: 1, urlhaus: 3, rdap: -2, redirect: 9, attacker: 9 },
+                sourceStatuses: { web_risk: 'ok', urlhaus: 'unavailable', rdap: 'invalid', attacker: 'ok' },
                 knownMalicious: true,
                 rawUrl: 'https://must-not-be-persisted.example/secret',
                 rawDomain: 'must-not-be-persisted.example',
@@ -81,6 +85,7 @@ test('provider is fail-open and persists only bounded source counts', async () =
     assert.equal(evaluated.status, undefined);
     assert.deepEqual(evaluated.meta, {
         sourceCounts: { web_risk: 1, urlhaus: 3, rdap: 0, redirect: 9 },
+        sourceStatuses: { web_risk: 'ok', urlhaus: 'unavailable', rdap: 'skipped', redirect: 'skipped' },
     });
     assert.deepEqual(evaluated.signals.map(({ key }) => key), ['url_known_malicious']);
     assert.doesNotMatch(JSON.stringify(evaluated.meta), /private|secret|must-not/);
@@ -89,6 +94,33 @@ test('provider is fail-open and persists only bounded source counts', async () =
         threatIntelAnalyzer: async () => { throw new Error('private upstream failure'); },
     });
     assert.deepEqual(failed, {
-        status: 'error', signals: [], meta: { sourceCounts: { web_risk: 0, urlhaus: 0, rdap: 0, redirect: 0 } },
+        status: 'error', signals: [], meta: {
+            sourceCounts: { web_risk: 0, urlhaus: 0, rdap: 0, redirect: 0 },
+            sourceStatuses: { web_risk: 'skipped', urlhaus: 'skipped', rdap: 'skipped', redirect: 'skipped' },
+        },
+    });
+});
+
+test('a complete source outage is recorded as skipped with bounded statuses', async () => {
+    const result = await analyze({
+        threatIntelAnalyzer: async () => ({
+            status: 'evaluated',
+            sourceCounts: {},
+            sourceStatuses: {
+                web_risk: 'unavailable',
+                urlhaus: 'unavailable',
+                rdap: 'unavailable',
+                redirect: 'skipped',
+                attacker: 'ok',
+            },
+        }),
+    });
+
+    assert.equal(result.status, 'skipped');
+    assert.deepEqual(result.meta.sourceStatuses, {
+        web_risk: 'unavailable',
+        urlhaus: 'unavailable',
+        rdap: 'unavailable',
+        redirect: 'skipped',
     });
 });

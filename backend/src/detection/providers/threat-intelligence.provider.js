@@ -17,7 +17,19 @@ const sourceCounts = (value) => Object.fromEntries(
     SOURCE_NAMES.map((name) => [name, asBoundedCount(value?.[name])])
 );
 
-const emptyMeta = () => ({ sourceCounts: sourceCounts() });
+const sourceStatuses = (value) => Object.fromEntries(
+    SOURCE_NAMES.map((name) => [
+        name,
+        ['ok', 'unavailable', 'skipped'].includes(value?.[name])
+            ? value[name]
+            : 'skipped',
+    ])
+);
+
+const emptyMeta = () => ({
+    sourceCounts: sourceCounts(),
+    sourceStatuses: sourceStatuses(),
+});
 
 const SOURCE_LABELS = Object.freeze({
     web_risk: 'Google Web Risk',
@@ -96,7 +108,7 @@ export const collectThreatIntelligenceSignals = (result) => {
         signals.push(signal({
             key: 'redirect_chain_to_different_tld',
             reason: 'A redirect changes to a different registrable domain.',
-            details: 'At least one checked redirect left its original registrable domain.',
+            details: 'At least one checked redirect did not match the sender registrable domain.',
             order: 44,
         }));
     }
@@ -127,14 +139,26 @@ export const analyze = async (ctx = {}) => {
 
     try {
         const result = await ctx.threatIntelAnalyzer(ctx.email);
-        const normalizedMeta = { sourceCounts: sourceCounts(result?.sourceCounts) };
+        const normalizedMeta = {
+            sourceCounts: sourceCounts(result?.sourceCounts),
+            sourceStatuses: sourceStatuses(result?.sourceStatuses),
+        };
 
         if (!result || result.status !== 'evaluated') {
             return { status: 'skipped', signals: [], meta: normalizedMeta };
         }
 
+        const signals = collectThreatIntelligenceSignals(result);
+        const attemptedStatuses = Object.values(normalizedMeta.sourceStatuses)
+            .filter((status) => status !== 'skipped');
+        const completeOutage =
+            signals.length === 0 &&
+            attemptedStatuses.length > 0 &&
+            attemptedStatuses.every((status) => status === 'unavailable');
+
         return {
-            signals: collectThreatIntelligenceSignals(result),
+            ...(completeOutage ? { status: 'skipped' } : {}),
+            signals,
             meta: normalizedMeta,
         };
     } catch {

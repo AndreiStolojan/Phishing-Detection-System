@@ -449,3 +449,17 @@ test('enforces DNS, request and total timeout budgets without real network acces
         errorCode('SAFE_FETCH_TOTAL_TIMEOUT')
     );
 });
+
+test('external cancellation stops an in-flight resolution', async () => {
+    const controller = new AbortController();
+    const safeFetch = createSafeFetch({
+        dnsLookup: async () => new Promise(() => {}),
+        totalTimeoutMs: 100,
+    });
+    const pending = safeFetch('https://cancel.example/', {
+        signal: controller.signal,
+    });
+
+    controller.abort();
+    await assert.rejects(pending, errorCode('SAFE_FETCH_ABORTED'));
+});

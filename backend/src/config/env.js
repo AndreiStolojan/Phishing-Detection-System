@@ -109,7 +109,7 @@ export const WEB_RISK_API_KEY = process.env.WEB_RISK_API_KEY || '';
 export const URLHAUS_AUTH_KEY = process.env.URLHAUS_AUTH_KEY || '';
 // Services own range validation so bad optional values cannot prevent startup.
 export const THREAT_INTEL_MAX_URLS_PER_EMAIL =
-    process.env.THREAT_INTEL_MAX_URLS_PER_EMAIL || '20';
+    process.env.THREAT_INTEL_MAX_URLS_PER_EMAIL || '5';
 export const THREAT_INTEL_TIMEOUT_MS = process.env.THREAT_INTEL_TIMEOUT_MS || '10000';
 
 export const isTruthyEnvValue = (value) =>

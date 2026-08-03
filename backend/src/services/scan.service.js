@@ -73,6 +73,29 @@ import { createWebRiskService } from './threat-intel/web-risk.service.js';
 // rescanare (nu rescorăm retroactiv toată baza de date).
 export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v10';
 
+export const buildThreatIntelConfigFingerprint = ({
+    enabled,
+    webRiskConfigured,
+    urlhausConfigured,
+    maxUrls,
+}) => crypto
+    .createHash('sha256')
+    .update(JSON.stringify({
+        enabled: Boolean(enabled),
+        webRiskConfigured: Boolean(enabled && webRiskConfigured),
+        urlhausConfigured: Boolean(enabled && urlhausConfigured),
+        maxUrls: enabled ? String(maxUrls || '') : null,
+    }))
+    .digest('hex');
+
+export const CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT =
+    buildThreatIntelConfigFingerprint({
+        enabled: isThreatIntelEnabled(),
+        webRiskConfigured: Boolean(WEB_RISK_API_KEY),
+        urlhausConfigured: Boolean(URLHAUS_AUTH_KEY),
+        maxUrls: THREAT_INTEL_MAX_URLS_PER_EMAIL,
+    });
+
 const threatIntelAnalyzer = createThreatIntelligenceService({
     enabled: isThreatIntelEnabled(),
     webRisk: createWebRiskService({
@@ -274,6 +297,8 @@ export const isCurrentScanValidForCurrentAiSetting = ({
     currentScan,
     aiEnabled,
     authResultsFingerprint,
+    threatIntelConfigFingerprint = CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
+    threatIntelEnabled = isThreatIntelEnabled(),
 }) => {
     if (!currentScan || currentScan.engineVersion !== CURRENT_SCAN_ENGINE_VERSION) {
         return false;
@@ -281,6 +306,17 @@ export const isCurrentScanValidForCurrentAiSetting = ({
 
     if (currentScan.authResultsFingerprint !== authResultsFingerprint) {
         return false;
+    }
+
+    if (currentScan.threatIntelConfigFingerprint !== threatIntelConfigFingerprint) {
+        return false;
+    }
+
+    if (threatIntelEnabled) {
+        const threatIntelProvider = currentScan.providerMeta?.find(
+            ({ provider }) => provider === 'threat-intelligence'
+        );
+        if (threatIntelProvider?.status !== 'success') return false;
     }
 
     if (!aiEnabled) {
@@ -379,6 +415,7 @@ const upsertCurrentScanForEmail = async ({
             scanSource,
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
             authResultsFingerprint: buildAuthResultsFingerprint(email.authResults),
+            threatIntelConfigFingerprint: CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
             aiSignals,
             providerMeta,
             aiExplanation,
@@ -510,6 +547,8 @@ export const scanEmailWithRules = async ({
             currentScan,
             aiEnabled,
             authResultsFingerprint,
+            threatIntelConfigFingerprint: CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
+            threatIntelEnabled: isThreatIntelEnabled(),
         })
     ) {
         await cleanupDuplicateScans({

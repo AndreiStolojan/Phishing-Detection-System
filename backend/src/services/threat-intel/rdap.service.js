@@ -1,6 +1,9 @@
 import { domainToASCII } from 'node:url';
+import { isIP } from 'node:net';
 
 import { getDomain } from 'tldts';
+
+import { readBoundedJson } from './bounded-json.service.js';
 
 const IANA_DNS_BOOTSTRAP_URL = 'https://data.iana.org/rdap/dns.json';
 const DEFAULT_BOOTSTRAP_TTL_MS = 24 * 60 * 60 * 1000;
@@ -12,12 +15,37 @@ const unavailable = (reason) => ({
     reason,
 });
 
-const requestSignal = (timeoutMs) => {
+const requestSignal = (timeoutMs, externalSignal) => {
     const boundedTimeout = Math.min(
         Math.max(Number(timeoutMs) || 0, 1),
         MAX_TIMEOUT_MS
     );
-    return AbortSignal.timeout(boundedTimeout);
+    const timeoutSignal = AbortSignal.timeout(boundedTimeout);
+    return externalSignal
+        ? AbortSignal.any([externalSignal, timeoutSignal])
+        : timeoutSignal;
+};
+
+const isAllowedRegistryBaseUrl = (value) => {
+    try {
+        const url = new URL(value);
+        const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+
+        return (
+            url.protocol === 'https:' &&
+            !url.username &&
+            !url.password &&
+            (!url.port || url.port === '443') &&
+            isIP(hostname) === 0 &&
+            hostname.includes('.') &&
+            !hostname.endsWith('.local') &&
+            !hostname.endsWith('.localhost') &&
+            !hostname.endsWith('.internal') &&
+            !hostname.endsWith('.home.arpa')
+        );
+    } catch {
+        return false;
+    }
 };
 
 export const normalizeRdapDomain = (value) => {
@@ -41,13 +69,9 @@ const parseBootstrap = (body) => {
     for (const service of body.services) {
         const [tlds, urls] = Array.isArray(service) ? service : [];
         if (!Array.isArray(tlds) || !Array.isArray(urls)) continue;
-        const baseUrl = urls.find((value) => {
-            try {
-                return typeof value === 'string' && new URL(value).protocol === 'https:';
-            } catch {
-                return false;
-            }
-        });
+        const baseUrl = urls.find((value) =>
+            typeof value === 'string' && isAllowedRegistryBaseUrl(value)
+        );
         if (!baseUrl) continue;
 
         for (const tld of tlds) {
@@ -102,7 +126,7 @@ export const createRdapService = ({
     let bootstrap = null;
     let bootstrapExpiresAt = 0;
 
-    const loadBootstrap = async () => {
+    const loadBootstrap = async (signal) => {
         const currentTime = now().getTime();
         if (bootstrap && bootstrapExpiresAt > currentTime) return bootstrap;
         if (typeof fetchImpl !== 'function') return null;
@@ -112,7 +136,7 @@ export const createRdapService = ({
             response = await fetchImpl(bootstrapUrl, {
                 method: 'GET',
                 redirect: 'error',
-                signal: requestSignal(timeoutMs),
+                signal: requestSignal(timeoutMs, signal),
             });
         } catch {
             return null;
@@ -121,7 +145,7 @@ export const createRdapService = ({
 
         let body;
         try {
-            body = await response.json();
+            body = await readBoundedJson(response, { maxBytes: 512 * 1024 });
         } catch {
             return null;
         }
@@ -133,11 +157,11 @@ export const createRdapService = ({
         return bootstrap;
     };
 
-    const lookupDomain = async (domain) => {
+    const lookupDomain = async (domain, { signal } = {}) => {
         const normalizedDomain = normalizeRdapDomain(domain);
         if (!normalizedDomain) return unavailable('invalid_domain');
 
-        const endpoints = await loadBootstrap();
+        const endpoints = await loadBootstrap(signal);
         if (!endpoints) return unavailable('bootstrap_unavailable');
         const tld = normalizedDomain.split('.').at(-1);
         const endpoint = endpoints.get(tld);
@@ -149,7 +173,7 @@ export const createRdapService = ({
                 method: 'GET',
                 headers: { Accept: 'application/rdap+json, application/json' },
                 redirect: 'error',
-                signal: requestSignal(timeoutMs),
+                signal: requestSignal(timeoutMs, signal),
             });
         } catch (error) {
             return unavailable(error?.name === 'TimeoutError' ? 'timeout' : 'request_failed');
@@ -161,7 +185,7 @@ export const createRdapService = ({
 
         let body;
         try {
-            body = await response.json();
+            body = await readBoundedJson(response, { maxBytes: 256 * 1024 });
         } catch {
             return unavailable('invalid_response');
         }

@@ -31,6 +31,7 @@ test('Web Risk performs one validated lookup and returns only bounded threat dat
         expiresAt: '2026-08-03T12:00:00.000Z',
     });
     assert.equal(request.options.method, 'GET');
+    assert.equal(request.options.redirect, 'error');
     assert.equal(request.url.searchParams.get('uri'), 'https://example.test/path?private=value');
     assert.deepEqual(request.url.searchParams.getAll('threatTypes'), ['MALWARE', 'SOCIAL_ENGINEERING']);
 });
@@ -45,6 +46,9 @@ test('Web Risk is fail-open for missing configuration, invalid inputs, and inval
     });
 
     assert.deepEqual(await service.lookup('file:///etc/passwd'), {
+        status: 'unavailable', matches: [], reason: 'invalid_url',
+    });
+    assert.deepEqual(await service.lookup('https://user:secret@example.test/'), {
         status: 'unavailable', matches: [], reason: 'invalid_url',
     });
     assert.deepEqual(await service.lookup('https://example.test'), {

@@ -1,6 +1,7 @@
 import { URL } from 'node:url';
 
-import { normalizeHttpUrl } from './url-normalization.service.js';
+import { normalizeOutboundHttpUrl } from './url-normalization.service.js';
+import { readBoundedJson } from './bounded-json.service.js';
 
 const WEB_RISK_URL = 'https://webrisk.googleapis.com/v1/uris:search';
 const THREAT_TYPES = Object.freeze(['MALWARE', 'SOCIAL_ENGINEERING']);
@@ -12,12 +13,15 @@ const unavailable = (reason) => ({
     reason,
 });
 
-const requestSignal = (timeoutMs) => {
+const requestSignal = (timeoutMs, externalSignal) => {
     const boundedTimeout = Math.min(
         Math.max(Number(timeoutMs) || 0, 1),
         MAX_TIMEOUT_MS
     );
-    return AbortSignal.timeout(boundedTimeout);
+    const timeoutSignal = AbortSignal.timeout(boundedTimeout);
+    return externalSignal
+        ? AbortSignal.any([externalSignal, timeoutSignal])
+        : timeoutSignal;
 };
 
 const parseResponse = (body) => {
@@ -49,8 +53,8 @@ export const createWebRiskService = ({
 } = {}) => {
     const enabled = typeof apiKey === 'string' && apiKey.trim().length > 0;
 
-    const lookup = async (url) => {
-        const normalizedUrl = normalizeHttpUrl(url);
+    const lookup = async (url, { signal } = {}) => {
+        const normalizedUrl = normalizeOutboundHttpUrl(url);
         if (!normalizedUrl) return unavailable('invalid_url');
         if (!enabled) return unavailable('not_configured');
         if (typeof fetchImpl !== 'function') return unavailable('fetch_unavailable');
@@ -65,13 +69,14 @@ export const createWebRiskService = ({
         try {
             const response = await fetchImpl(requestUrl, {
                 method: 'GET',
-                signal: requestSignal(timeoutMs),
+                redirect: 'error',
+                signal: requestSignal(timeoutMs, signal),
             });
             if (!response?.ok) return unavailable('request_failed');
 
             let body;
             try {
-                body = await response.json();
+                body = await readBoundedJson(response, { maxBytes: 64 * 1024 });
             } catch {
                 return unavailable('invalid_response');
             }

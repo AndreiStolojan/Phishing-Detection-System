@@ -1,4 +1,5 @@
-import { normalizeHttpUrl } from './url-normalization.service.js';
+import { normalizeOutboundHttpUrl } from './url-normalization.service.js';
+import { readBoundedJson } from './bounded-json.service.js';
 
 const URLHAUS_URL = 'https://urlhaus-api.abuse.ch/v1/url/';
 const MAX_TIMEOUT_MS = 10_000;
@@ -9,12 +10,15 @@ const unavailable = (reason) => ({
     reason,
 });
 
-const requestSignal = (timeoutMs) => {
+const requestSignal = (timeoutMs, externalSignal) => {
     const boundedTimeout = Math.min(
         Math.max(Number(timeoutMs) || 0, 1),
         MAX_TIMEOUT_MS
     );
-    return AbortSignal.timeout(boundedTimeout);
+    const timeoutSignal = AbortSignal.timeout(boundedTimeout);
+    return externalSignal
+        ? AbortSignal.any([externalSignal, timeoutSignal])
+        : timeoutSignal;
 };
 
 const isUrlhausMatch = (body) =>
@@ -33,8 +37,8 @@ export const createUrlhausService = ({
 } = {}) => {
     const enabled = typeof authKey === 'string' && authKey.trim().length > 0;
 
-    const lookup = async (url) => {
-        const normalizedUrl = normalizeHttpUrl(url);
+    const lookup = async (url, { signal } = {}) => {
+        const normalizedUrl = normalizeOutboundHttpUrl(url);
         if (!normalizedUrl) return unavailable('invalid_url');
         if (!enabled) return unavailable('not_configured');
         if (typeof fetchImpl !== 'function') return unavailable('fetch_unavailable');
@@ -47,13 +51,14 @@ export const createUrlhausService = ({
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: new URLSearchParams({ url: normalizedUrl }).toString(),
-                signal: requestSignal(timeoutMs),
+                redirect: 'error',
+                signal: requestSignal(timeoutMs, signal),
             });
             if (!response?.ok) return unavailable('request_failed');
 
             let body;
             try {
-                body = await response.json();
+                body = await readBoundedJson(response, { maxBytes: 64 * 1024 });
             } catch {
                 return unavailable('invalid_response');
             }

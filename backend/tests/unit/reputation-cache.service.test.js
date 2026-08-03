@@ -61,4 +61,32 @@ test('URL reputation schema has a compound identity and absolute TTL index', () 
         keys.expiresAt === 1 && options.expireAfterSeconds === 0
     ));
     assert.equal(UrlReputation.schema.path('keyHash').options.unique, undefined);
+    assert.equal(UrlReputation.schema.path('targetHost'), undefined);
+});
+
+test('reputation cache writes the requested bounded absolute expiry', async () => {
+    let update;
+    const cache = createReputationCacheService({
+        now: () => NOW,
+        model: {
+            findOneAndUpdate(_filter, receivedUpdate) {
+                update = receivedUpdate;
+                return receivedUpdate.$set;
+            },
+        },
+    });
+
+    await cache.set({
+        source: 'urlhaus',
+        subjectType: 'url',
+        subject: 'https://example.test/',
+        value: { status: 'clean' },
+        ttlMs: 2 * 60 * 60 * 1000,
+    });
+
+    assert.equal(update.$set.fetchedAt.toISOString(), NOW.toISOString());
+    assert.equal(
+        update.$set.expiresAt.toISOString(),
+        '2026-08-03T14:00:00.000Z'
+    );
 });

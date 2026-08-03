@@ -44,7 +44,6 @@ const urlReputationSchema = new mongoose.Schema(
             default: null,
             match: /^(?:[a-f0-9]{64})?$/,
         },
-        targetHost: { type: String, default: null, maxlength: 253 },
         hopCount: { type: Number, default: null, min: 0, max: 5 },
         fetchedAt: { type: Date, required: true },
         expiresAt: { type: Date, required: true },

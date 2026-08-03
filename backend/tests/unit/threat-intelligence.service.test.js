@@ -221,3 +221,127 @@ test('disabled threat intelligence performs no work', async () => {
     });
     assert.equal(calls, 0);
 });
+
+test('correlated Web Risk categories do not double-score one source result', async () => {
+    const service = createThreatIntelligenceService({
+        enabled: true,
+        cache: createMemoryCache(),
+        webRisk: {
+            async lookup() {
+                return { status: 'ok', matches: ['MALWARE', 'SOCIAL_ENGINEERING'] };
+            },
+        },
+        urlhaus: { async lookup() { return { status: 'ok', match: false }; } },
+        rdap: { async lookupDomain() { return { status: 'not_found', registeredAt: null }; } },
+    });
+
+    const result = await service.analyze({ links: ['https://example.com/'] });
+    assert.equal(result.knownPhishing, true);
+    assert.equal(result.knownMalicious, false);
+    assert.deepEqual(result.phishingSources, ['web_risk']);
+    assert.deepEqual(result.maliciousSources, []);
+});
+
+test('canonical equivalents share one in-flight lookup across concurrent scans', async () => {
+    const calls = { webRisk: 0, urlhaus: 0, rdap: 0 };
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 5));
+    const service = createThreatIntelligenceService({
+        enabled: true,
+        cache: createMemoryCache(),
+        webRisk: {
+            async lookup() {
+                calls.webRisk += 1;
+                await pause();
+                return { status: 'ok', matches: [] };
+            },
+        },
+        urlhaus: {
+            async lookup() {
+                calls.urlhaus += 1;
+                await pause();
+                return { status: 'ok', match: false };
+            },
+        },
+        rdap: {
+            async lookupDomain() {
+                calls.rdap += 1;
+                await pause();
+                return { status: 'not_found', registeredAt: null };
+            },
+        },
+    });
+
+    await Promise.all([
+        service.analyze({ links: ['https://EXAMPLE.com:443/a/../offer?utm_source=one#top'] }),
+        service.analyze({ links: ['https://example.com/offer?fbclid=two'] }),
+    ]);
+
+    assert.deepEqual(calls, { webRisk: 1, urlhaus: 1, rdap: 1 });
+});
+
+test('redirect target comparison uses the sender registrable domain', async () => {
+    const service = createThreatIntelligenceService({
+        enabled: true,
+        cache: createMemoryCache(),
+        rdap: { async lookupDomain() { return { status: 'not_found', registeredAt: null }; } },
+        async resolveRedirect() {
+            return {
+                finalUrl: 'https://accounts.sender.com/login',
+                statusCode: 200,
+                redirects: ['https://accounts.sender.com/login'],
+            };
+        },
+    });
+
+    const sameSender = await service.analyze({
+        senderDomain: 'mail.sender.com',
+        links: ['https://bit.ly/account'],
+    });
+    assert.equal(sameSender.differentRegistrableRedirectTargetCount, 0);
+
+    const differentSender = await service.analyze({
+        senderDomain: 'other.com',
+        links: ['https://bit.ly/account'],
+    });
+    assert.equal(differentSender.differentRegistrableRedirectTargetCount, 1);
+});
+
+test('a timed-out single-flight waiter does not cancel a later scan', async () => {
+    const cache = createMemoryCache();
+    let webRiskCalls = 0;
+    const service = createThreatIntelligenceService({
+        enabled: true,
+        cache,
+        timeoutMs: 50,
+        webRisk: {
+            lookup(_url, { signal }) {
+                webRiskCalls += 1;
+                return new Promise((resolve, reject) => {
+                    const timeoutId = setTimeout(
+                        () => resolve({ status: 'ok', matches: [] }),
+                        60
+                    );
+                    signal.addEventListener('abort', () => {
+                        clearTimeout(timeoutId);
+                        reject(signal.reason);
+                    }, { once: true });
+                });
+            },
+        },
+        urlhaus: { async lookup() { return { status: 'ok', match: false }; } },
+        rdap: { async lookupDomain() { return { status: 'not_found', registeredAt: null }; } },
+    });
+    const email = { links: ['https://example.com/'] };
+    const firstPromise = service.analyze(email);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const secondPromise = service.analyze(email);
+    const [first, second] = await Promise.all([firstPromise, secondPromise]);
+
+    assert.equal(webRiskCalls, 1);
+    assert.equal(first.sourceStatuses.web_risk, 'unavailable');
+    assert.equal(second.sourceStatuses.web_risk, 'ok');
+    assert.equal(
+        cache.values.get('web_risk:https://example.com/').status,
+        'clean'
+    );
+});

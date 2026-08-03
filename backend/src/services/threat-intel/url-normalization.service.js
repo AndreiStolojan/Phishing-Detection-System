@@ -112,6 +112,16 @@ export const normalizeHttpUrl = (rawValue) => {
 // fragments or campaign identifiers would defeat deduplication.
 export const getNormalizedUrlHashInput = (rawValue) => normalizeHttpUrl(rawValue);
 
+// Credentials are useful lexical evidence, but must never be disclosed to an
+// external reputation service as part of a URL.
+export const normalizeOutboundHttpUrl = (rawValue) => {
+    const normalized = normalizeHttpUrl(rawValue);
+    if (!normalized) return null;
+
+    const url = new URL(normalized);
+    return url.username || url.password ? null : normalized;
+};
+
 export const normalizeComparableDomain = (hostname) =>
     typeof hostname === 'string'
         ? hostname.toLowerCase().replace(/^www\./, '')

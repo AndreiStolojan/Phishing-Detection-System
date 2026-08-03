@@ -26,6 +26,6 @@ test('threat intelligence is disabled by default and its source keys stay option
     assert.equal(isThreatIntelEnabled(), false);
     assert.equal(WEB_RISK_API_KEY, '');
     assert.equal(URLHAUS_AUTH_KEY, '');
-    assert.equal(THREAT_INTEL_MAX_URLS_PER_EMAIL, '20');
+    assert.equal(THREAT_INTEL_MAX_URLS_PER_EMAIL, '5');
     assert.equal(THREAT_INTEL_TIMEOUT_MS, '10000');
 });

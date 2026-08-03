@@ -24,6 +24,7 @@ test('URLhaus sends its Community API form request and returns a bounded match',
     });
     assert.equal(request.url, 'https://urlhaus-api.abuse.ch/v1/url/');
     assert.equal(request.options.method, 'POST');
+    assert.equal(request.options.redirect, 'error');
     assert.equal(request.options.headers['Auth-Key'], 'community-key');
     assert.equal(request.options.headers['Content-Type'], 'application/x-www-form-urlencoded');
     assert.equal(request.options.body, 'url=https%3A%2F%2Fmalware.test%2Fprivate');
@@ -56,4 +57,17 @@ test('URLhaus URL normalization rejects non-web and oversized values', () => {
     assert.equal(normalizeHttpUrl('ftp://example.test'), null);
     assert.equal(normalizeHttpUrl('https://example.test'), 'https://example.test/');
     assert.equal(normalizeHttpUrl('x'.repeat(8_193)), null);
+});
+
+test('URLhaus never sends URL credentials to its API', async () => {
+    let calls = 0;
+    const service = createUrlhausService({
+        authKey: 'key',
+        fetch: async () => { calls += 1; },
+    });
+
+    assert.deepEqual(await service.lookup('https://user:secret@example.test/'), {
+        status: 'unavailable', match: false, reason: 'invalid_url',
+    });
+    assert.equal(calls, 0);
 });

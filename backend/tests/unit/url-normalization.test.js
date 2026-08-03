@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
     getNormalizedUrlHashInput,
     normalizeHttpUrl,
+    normalizeOutboundHttpUrl,
 } from '../../src/services/threat-intel/url-normalization.service.js';
 import { analyzeEmailLinks } from '../../src/services/link-analysis.service.js';
 
@@ -25,6 +26,11 @@ test('accepts only http(s) candidates and gives equivalent URLs one hash input',
     assert.equal(normalizeHttpUrl('javascript:alert(1)'), null);
     assert.equal(normalizeHttpUrl('ftp://example.com/file'), null);
     assert.equal(normalizeHttpUrl('data:text/html,hello'), null);
+    assert.equal(
+        normalizeHttpUrl('https://user:secret@example.com/login'),
+        'https://user:secret@example.com/login'
+    );
+    assert.equal(normalizeOutboundHttpUrl('https://user:secret@example.com/login'), null);
 
     assert.equal(
         getNormalizedUrlHashInput('https://EXAMPLE.com:443/a/../offer?utm_campaign=mail#top'),

@@ -174,6 +174,11 @@ const scanSchema = new mongoose.Schema(
             default: null,
             trim: true,
         },
+        threatIntelConfigFingerprint: {
+            type: String,
+            default: null,
+            trim: true,
+        },
         // Rezultatul fiecărui provider (success/error/skipped), păstrat pentru
         // observabilitate fără a schimba forma răspunsului public al API-ului.
         providerMeta: {

@@ -131,16 +131,29 @@ const assertPeerAddress = (actualAddress, expectedAddress) => {
     }
 };
 
-const timeoutPromise = (promise, timeoutMs, code, onTimeout) => {
+const timeoutPromise = (promise, timeoutMs, code, onCancel, signal) => {
     let timeoutId;
+    let abortHandler;
     const timeout = new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
-            onTimeout?.();
+            onCancel?.();
             reject(safeFetchError(code, `Operation exceeded ${timeoutMs}ms`));
         }, timeoutMs);
     });
+    const aborted = new Promise((_, reject) => {
+        if (!signal) return;
+        abortHandler = () => {
+            onCancel?.();
+            reject(safeFetchError('SAFE_FETCH_ABORTED', 'Safe fetch was cancelled'));
+        };
+        if (signal.aborted) abortHandler();
+        else signal.addEventListener('abort', abortHandler, { once: true });
+    });
 
-    return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+    return Promise.race([promise, timeout, aborted]).finally(() => {
+        clearTimeout(timeoutId);
+        if (abortHandler) signal?.removeEventListener('abort', abortHandler);
+    });
 };
 
 const defaultRequestAdapter = ({ protocol, options, expectedAddress }) =>
@@ -324,7 +337,7 @@ export const createSafeFetch = ({
         MAX_TOTAL_TIMEOUT_MS
     );
 
-    const resolveAddress = async (url, deadline) => {
+    const resolveAddress = async (url, deadline, signal) => {
         const hostname = stripIpv6Brackets(url.hostname);
         const literalFamily = isIP(hostname);
         if (literalFamily !== 0) {
@@ -341,7 +354,9 @@ export const createSafeFetch = ({
             answers = await timeoutPromise(
                 Promise.resolve(dnsLookup(hostname, { all: true, order: 'verbatim' })),
                 Math.min(dnsBudget, remainingMs),
-                'SAFE_FETCH_DNS_TIMEOUT'
+                'SAFE_FETCH_DNS_TIMEOUT',
+                undefined,
+                signal
             );
         } catch (error) {
             if (String(error?.code || '').startsWith('SAFE_FETCH_')) {
@@ -358,14 +373,14 @@ export const createSafeFetch = ({
         return validated[0];
     };
 
-    return async (rawUrl) => {
+    return async (rawUrl, { signal } = {}) => {
         const deadline = Date.now() + totalBudget;
         let currentUrl = normalizedUrl(rawUrl);
         const seenUrls = new Set([currentUrl.toString()]);
         const redirects = [];
 
         while (true) {
-            const pinnedAddress = await resolveAddress(currentUrl, deadline);
+            const pinnedAddress = await resolveAddress(currentUrl, deadline, signal);
             const remainingMs = deadline - Date.now();
             if (remainingMs <= 0) {
                 throw safeFetchError('SAFE_FETCH_TOTAL_TIMEOUT', 'Safe fetch deadline expired');
@@ -386,7 +401,8 @@ export const createSafeFetch = ({
                     remainingMs <= requestBudget
                         ? 'SAFE_FETCH_TOTAL_TIMEOUT'
                         : 'SAFE_FETCH_REQUEST_TIMEOUT',
-                    () => controller.abort()
+                    () => controller.abort(),
+                    signal
                 );
             } catch (error) {
                 if (String(error?.code || '').startsWith('SAFE_FETCH_')) {

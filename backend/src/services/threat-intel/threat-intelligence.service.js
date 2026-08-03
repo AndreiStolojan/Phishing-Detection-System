@@ -11,6 +11,7 @@ import {
 import {
     normalizeComparableDomain,
     normalizeHttpUrl,
+    normalizeOutboundHttpUrl,
 } from './url-normalization.service.js';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -37,17 +38,47 @@ const timeoutError = () => {
     return error;
 };
 
-const withinDeadline = (operation, deadline) => {
+const withinDeadline = (operation, deadline, onTimeout) => {
     const remainingMs = deadline - Date.now();
-    if (remainingMs <= 0) return Promise.reject(timeoutError());
+    if (remainingMs <= 0) {
+        onTimeout?.();
+        return Promise.reject(timeoutError());
+    }
 
     let timeoutId;
     const timeout = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(timeoutError()), remainingMs);
+        timeoutId = setTimeout(() => {
+            onTimeout?.();
+            reject(timeoutError());
+        }, remainingMs);
     });
 
     return Promise.race([Promise.resolve().then(operation), timeout])
         .finally(() => clearTimeout(timeoutId));
+};
+
+const createConcurrencyGate = (limit) => {
+    let active = 0;
+    const queue = [];
+
+    const drain = () => {
+        while (active < limit && queue.length > 0) {
+            const { operation, resolve, reject } = queue.shift();
+            active += 1;
+            Promise.resolve()
+                .then(operation)
+                .then(resolve, reject)
+                .finally(() => {
+                    active -= 1;
+                    drain();
+                });
+        }
+    };
+
+    return (operation) => new Promise((resolve, reject) => {
+        queue.push({ operation, resolve, reject });
+        drain();
+    });
 };
 
 const emptySourceCounts = () => Object.fromEntries(
@@ -117,7 +148,7 @@ const uniqueSelectedUrls = ({ email, maxUrls }) => {
         ...(Array.isArray(email?.links) ? email.links : []),
         ...analysis.links,
     ]) {
-        const normalized = normalizeHttpUrl(candidate);
+        const normalized = normalizeOutboundHttpUrl(candidate);
         if (!normalized || seen.has(normalized)) continue;
 
         seen.add(normalized);
@@ -144,17 +175,52 @@ export const createThreatIntelligenceService = ({
     resolveRedirect,
     cache,
     now = () => new Date(),
-    maxUrls = 20,
+    maxUrls = 5,
     timeoutMs = 10_000,
     concurrency = 2,
+    outboundConcurrency = 4,
 } = {}) => {
     if (!cache || typeof cache.get !== 'function' || typeof cache.set !== 'function') {
         throw new TypeError('Threat intelligence requires a reputation cache');
     }
 
-    const urlLimit = boundedInteger(maxUrls, 20, MAX_URLS);
+    const urlLimit = boundedInteger(maxUrls, 5, MAX_URLS);
     const scanTimeoutMs = boundedInteger(timeoutMs, 10_000, MAX_TIMEOUT_MS);
     const lookupConcurrency = boundedInteger(concurrency, 2, 4);
+    const runOutbound = createConcurrencyGate(
+        boundedInteger(outboundConcurrency, 4, 8)
+    );
+    const inFlight = new Map();
+
+    const singleFlight = async ({ source, subject, deadline, operation }) => {
+        const key = `${source}:${hashReputationSubject(subject)}`;
+        let entry = inFlight.get(key);
+        if (!entry) {
+            const controller = new AbortController();
+            entry = {
+                controller,
+                settled: false,
+                waiters: 0,
+                promise: null,
+            };
+            entry.promise = runOutbound(() => operation(controller.signal))
+                .finally(() => {
+                    entry.settled = true;
+                    if (inFlight.get(key) === entry) inFlight.delete(key);
+                });
+            inFlight.set(key, entry);
+        }
+
+        entry.waiters += 1;
+        try {
+            return await withinDeadline(() => entry.promise, deadline);
+        } finally {
+            entry.waiters -= 1;
+            if (!entry.settled && entry.waiters === 0) {
+                entry.controller.abort(timeoutError());
+            }
+        }
+    };
 
     const analyze = async (email = {}) => {
         if (!enabled) {
@@ -182,9 +248,19 @@ export const createThreatIntelligenceService = ({
 
             let result;
             try {
-                result = await withinDeadline(() => webRisk.lookup(url), deadline);
-            } catch {
-                result = unavailableResult({ matches: [] });
+                result = await singleFlight({
+                    source: 'web_risk',
+                    subject: url,
+                    deadline,
+                    operation: (signal) => webRisk.lookup(url, { signal }),
+                });
+            } catch (error) {
+                result = unavailableResult({
+                    matches: [],
+                    reason: error?.code === 'THREAT_INTEL_TIMEOUT'
+                        ? 'scan_timeout'
+                        : 'request_failed',
+                });
             }
             if (!result || typeof result !== 'object') {
                 result = unavailableResult({ matches: [] });
@@ -203,7 +279,7 @@ export const createThreatIntelligenceService = ({
                         ? ttlFromWebRiskExpiry(result.expiresAt, now())
                         : CLEAN_TTL_MS,
                 });
-            } else if (result.reason !== 'not_configured') {
+            } else if (!['not_configured', 'scan_timeout'].includes(result.reason)) {
                 await safeCacheSet(cache, {
                     source: 'web_risk',
                     subjectType: 'url',
@@ -226,9 +302,19 @@ export const createThreatIntelligenceService = ({
 
             let result;
             try {
-                result = await withinDeadline(() => urlhaus.lookup(url), deadline);
-            } catch {
-                result = unavailableResult({ match: false });
+                result = await singleFlight({
+                    source: 'urlhaus',
+                    subject: url,
+                    deadline,
+                    operation: (signal) => urlhaus.lookup(url, { signal }),
+                });
+            } catch (error) {
+                result = unavailableResult({
+                    match: false,
+                    reason: error?.code === 'THREAT_INTEL_TIMEOUT'
+                        ? 'scan_timeout'
+                        : 'request_failed',
+                });
             }
             if (!result || typeof result !== 'object') {
                 result = unavailableResult({ match: false });
@@ -241,7 +327,7 @@ export const createThreatIntelligenceService = ({
                     value: { status: result.match ? 'malicious' : 'clean' },
                     ttlMs: result.match ? MALICIOUS_TTL_MS : CLEAN_TTL_MS,
                 });
-            } else if (result.reason !== 'not_configured') {
+            } else if (!['not_configured', 'scan_timeout'].includes(result.reason)) {
                 await safeCacheSet(cache, {
                     source: 'urlhaus',
                     subjectType: 'url',
@@ -281,9 +367,12 @@ export const createThreatIntelligenceService = ({
         const phishingSources = new Set();
         for (const { webRiskResult, urlhausResult } of urlResults) {
             const matches = webRiskResult.matches || [];
-            if (matches.includes('MALWARE')) maliciousSources.add('web_risk');
+            const webRiskPhishing = matches.includes('SOCIAL_ENGINEERING');
+            if (matches.includes('MALWARE') && !webRiskPhishing) {
+                maliciousSources.add('web_risk');
+            }
             if (urlhausResult.match === true) maliciousSources.add('urlhaus');
-            if (matches.includes('SOCIAL_ENGINEERING')) phishingSources.add('web_risk');
+            if (webRiskPhishing) phishingSources.add('web_risk');
             knownMalicious ||= maliciousSources.size > 0;
             knownPhishing ||= phishingSources.size > 0;
         }
@@ -312,9 +401,19 @@ export const createThreatIntelligenceService = ({
 
             let result;
             try {
-                result = await withinDeadline(() => rdap.lookupDomain(domain), deadline);
-            } catch {
-                result = unavailableResult({ registeredAt: null });
+                result = await singleFlight({
+                    source: 'rdap',
+                    subject: domain,
+                    deadline,
+                    operation: (signal) => rdap.lookupDomain(domain, { signal }),
+                });
+            } catch (error) {
+                result = unavailableResult({
+                    registeredAt: null,
+                    reason: error?.code === 'THREAT_INTEL_TIMEOUT'
+                        ? 'scan_timeout'
+                        : 'request_failed',
+                });
             }
             if (!result || typeof result !== 'object') {
                 result = unavailableResult({ registeredAt: null });
@@ -330,7 +429,7 @@ export const createThreatIntelligenceService = ({
                     },
                     ttlMs: result.status === 'ok' ? DOMAIN_TTL_MS : CLEAN_TTL_MS,
                 });
-            } else {
+            } else if (result.reason !== 'scan_timeout') {
                 await safeCacheSet(cache, {
                     source: 'rdap',
                     subjectType: 'domain',
@@ -364,6 +463,9 @@ export const createThreatIntelligenceService = ({
         }
 
         const senderDomain = registrableDomain(email?.senderDomain || '');
+        const senderDomainHash = senderDomain
+            ? hashReputationSubject(senderDomain)
+            : null;
         const shortenedUrls = selection.urls.filter((url) => {
             try {
                 return isKnownShortenerDomain(new URL(url).hostname);
@@ -381,17 +483,26 @@ export const createThreatIntelligenceService = ({
                 cacheHitCount += 1;
                 return {
                     status: cached.status,
-                    finalHost: cached.targetHost || null,
+                    targetDomainHash: cached.targetHash || null,
                     hopCount: cached.hopCount || 0,
                 };
             }
             if (typeof resolveRedirect !== 'function') return unavailableResult({ hopCount: 0 });
 
             try {
-                const result = await withinDeadline(() => resolveRedirect(url), deadline);
+                const result = await singleFlight({
+                    source: 'redirect',
+                    subject: url,
+                    deadline,
+                    operation: (signal) => resolveRedirect(url, { signal }),
+                });
                 const finalUrl = normalizeHttpUrl(result.finalUrl);
                 const finalHost = finalUrl
                     ? normalizeComparableDomain(new URL(finalUrl).hostname)
+                    : null;
+                const targetDomain = finalHost ? registrableDomain(finalHost) : null;
+                const targetDomainHash = targetDomain
+                    ? hashReputationSubject(targetDomain)
                     : null;
                 const hopCount = Array.isArray(result.redirects) ? result.redirects.length : 0;
                 if (!finalUrl || !finalHost) return unavailableResult({ hopCount });
@@ -402,26 +513,27 @@ export const createThreatIntelligenceService = ({
                     subject: url,
                     value: {
                         status: 'resolved',
-                        targetHash: hashReputationSubject(finalUrl),
-                        targetHost: finalHost,
+                        targetHash: targetDomainHash,
                         hopCount,
                     },
                     ttlMs: CLEAN_TTL_MS,
                 });
-                return { status: 'resolved', finalHost, hopCount };
+                return { status: 'resolved', targetDomainHash, hopCount };
             } catch (error) {
                 const hopCount = Number.isInteger(error?.hopCount) ? error.hopCount : 0;
                 const isPrivate = error?.code === 'SAFE_FETCH_ADDRESS_BLOCKED';
-                await safeCacheSet(cache, {
-                    source: 'redirect',
-                    subjectType: 'url',
-                    subject: url,
-                    value: {
-                        status: isPrivate ? 'blocked' : 'unavailable',
-                        hopCount,
-                    },
-                    ttlMs: isPrivate ? MALICIOUS_TTL_MS : ERROR_TTL_MS,
-                });
+                if (error?.code !== 'THREAT_INTEL_TIMEOUT') {
+                    await safeCacheSet(cache, {
+                        source: 'redirect',
+                        subjectType: 'url',
+                        subject: url,
+                        value: {
+                            status: isPrivate ? 'blocked' : 'unavailable',
+                            hopCount,
+                        },
+                        ttlMs: isPrivate ? MALICIOUS_TTL_MS : ERROR_TTL_MS,
+                    });
+                }
                 return { status: isPrivate ? 'blocked' : 'unavailable', hopCount };
             }
         };
@@ -438,10 +550,11 @@ export const createThreatIntelligenceService = ({
             if (result.status === 'blocked') redirectToPrivateCount += 1;
             if (result.hopCount > 3) excessiveRedirectChainCount += 1;
 
-            const targetDomain = result.finalHost
-                ? registrableDomain(result.finalHost)
-                : null;
-            if (senderDomain && targetDomain && senderDomain !== targetDomain) {
+            if (
+                senderDomainHash &&
+                result.targetDomainHash &&
+                senderDomainHash !== result.targetDomainHash
+            ) {
                 differentRegistrableRedirectTargetCount += 1;
             }
         }
