@@ -72,6 +72,53 @@
       "targets": [
         {"expr": "sum by (provider, result) (increase(secureinbox_detection_provider_total[1h]))", "refId": "A"}
       ]
+    },
+    {
+      "id": 9,
+      "title": "Gmail sync outcomes (1h)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (mode, result) (increase(secureinbox_gmail_sync_total[1h]))", "refId": "A"}
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Gmail ingestion and history gaps (1h)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "type": "timeseries",
+      "targets": [
+        {"expr": "increase(secureinbox_gmail_messages_ingested_total[1h])", "legendFormat": "ingested", "refId": "A"},
+        {"expr": "increase(secureinbox_gmail_history_gap_total[1h])", "legendFormat": "history gaps", "refId": "B"}
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Gmail push notifications (1h)",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 32},
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (result) (increase(secureinbox_gmail_push_notifications_total[1h]))", "refId": "A"}
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Gmail watch renewals (1h)",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 32},
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (result) (increase(secureinbox_gmail_watch_renewals_total[1h]))", "refId": "A"}
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Gmail push-to-scan latency p95",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 32},
+      "type": "timeseries",
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(secureinbox_gmail_push_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "A"}
+      ]
     }
   ],
   "schemaVersion": 41,
