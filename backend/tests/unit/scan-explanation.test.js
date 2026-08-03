@@ -45,6 +45,14 @@ test('each triggered rule maps to its exact phrase', () => {
         ['suspicious_link_pattern:ip_address_link', 'the email contains suspicious link patterns'],
         ['too_many_links_high', 'the email has an unusually high number of links'],
         ['too_many_links_medium', 'the email has an unusually high number of links'],
+        [
+            'threat_intelligence:url_known_malicious',
+            'Google Web Risk or URLhaus identified a known malicious link',
+        ],
+        [
+            'threat_intelligence:url_known_phishing_campaign',
+            'Google Web Risk identified a known phishing link',
+        ],
     ];
 
     for (const [rule, phrase] of cases) {

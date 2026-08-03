@@ -39,6 +39,7 @@ export const createDetectionContext = ({
     userSettings = {},
     aiInput = {},
     semanticAnalyzer,
+    threatIntelAnalyzer,
 }) =>
     Object.freeze({
         // Documentele Mongoose nu sunt înghețate în profunzime: internalele lor
@@ -52,4 +53,5 @@ export const createDetectionContext = ({
         userSettings: freezePlainObject(userSettings),
         aiInput: freezePlainObject(aiInput),
         semanticAnalyzer,
+        threatIntelAnalyzer,
     });

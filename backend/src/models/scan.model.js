@@ -168,7 +168,7 @@ const scanSchema = new mongoose.Schema(
             trim: true,
         },
         // Amprenta dovezilor de autentificare folosite la scorare. Dacă Gmail,
-        // DKIM/ARC sau DMARC se schimbă la sync, scanarea v9 este refăcută.
+        // DKIM/ARC sau DMARC se schimbă la sync, scanarea curentă este refăcută.
         authResultsFingerprint: {
             type: String,
             default: null,

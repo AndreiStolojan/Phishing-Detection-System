@@ -29,6 +29,22 @@ const RULE_PHRASES = {
     high_risk_attachment_extension: 'the email contains a high-risk attachment',
     archive_attachment_extension:
         'the email contains a compressed archive attachment',
+    'threat_intelligence:url_known_malicious':
+        'Google Web Risk or URLhaus identified a known malicious link',
+    'threat_intelligence:url_known_phishing_campaign':
+        'Google Web Risk identified a known phishing link',
+    'threat_intelligence:domain_registered_days_ago_lt_7':
+        'a linked domain was registered less than seven days ago',
+    'threat_intelligence:domain_registered_days_ago_lt_30':
+        'a linked domain was registered less than thirty days ago',
+    'threat_intelligence:link_text_href_mismatch':
+        'a displayed link address differs from its real destination',
+    'threat_intelligence:redirect_chain_to_different_tld':
+        'a shortened link redirects away from the sender domain',
+    'threat_intelligence:excessive_redirect_chain':
+        'a shortened link uses an unusually long redirect chain',
+    'threat_intelligence:redirect_to_private_address':
+        'a redirect attempted to reach a private network address',
 };
 
 // Transformă un id de regulă (ex: "ip_address_link", "too_many_links_high") într-o

@@ -27,7 +27,15 @@ import {
 import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 import { verifySenderBrand } from './brand-verification.service.js';
 import { getSenderListContextForEmail } from './sender-list.service.js';
-import { isAiSemanticGloballyEnabled, SCAN_CONCURRENCY } from '../config/env.js';
+import {
+    isAiSemanticGloballyEnabled,
+    isThreatIntelEnabled,
+    SCAN_CONCURRENCY,
+    THREAT_INTEL_MAX_URLS_PER_EMAIL,
+    THREAT_INTEL_TIMEOUT_MS,
+    URLHAUS_AUTH_KEY,
+    WEB_RISK_API_KEY,
+} from '../config/env.js';
 import { createDetectionContext } from '../detection/context.js';
 import { runDetection } from '../detection/index.js';
 import {
@@ -49,11 +57,38 @@ import {
     mapScoreToVerdict,
     scoreSignals,
 } from '../detection/scorer.js';
+import { createRdapService } from './threat-intel/rdap.service.js';
+import {
+    createReputationCacheService,
+} from './threat-intel/reputation-cache.service.js';
+import { createSafeFetch } from './threat-intel/safe-fetch.service.js';
+import {
+    createThreatIntelligenceService,
+} from './threat-intel/threat-intelligence.service.js';
+import { createUrlhausService } from './threat-intel/urlhaus.service.js';
+import { createWebRiskService } from './threat-intel/web-risk.service.js';
 
-// Versiunea motorului. Urcată v8 -> v9 pentru autentificarea emailului.
+// Versiunea motorului. Urcată v9 -> v10 pentru threat intelligence.
 // Scanările vechi își păstrează scorul anterior până la o
 // rescanare (nu rescorăm retroactiv toată baza de date).
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v9';
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v10';
+
+const threatIntelAnalyzer = createThreatIntelligenceService({
+    enabled: isThreatIntelEnabled(),
+    webRisk: createWebRiskService({
+        apiKey: WEB_RISK_API_KEY,
+        timeoutMs: THREAT_INTEL_TIMEOUT_MS,
+    }),
+    urlhaus: createUrlhausService({
+        authKey: URLHAUS_AUTH_KEY,
+        timeoutMs: THREAT_INTEL_TIMEOUT_MS,
+    }),
+    rdap: createRdapService({ timeoutMs: THREAT_INTEL_TIMEOUT_MS }),
+    resolveRedirect: createSafeFetch({ totalTimeoutMs: THREAT_INTEL_TIMEOUT_MS }),
+    cache: createReputationCacheService(),
+    maxUrls: THREAT_INTEL_MAX_URLS_PER_EMAIL,
+    timeoutMs: THREAT_INTEL_TIMEOUT_MS,
+}).analyze;
 
 const DEFAULT_SCAN_CONCURRENCY = 4;
 const MAX_SCAN_CONCURRENCY = 10;
@@ -499,6 +534,7 @@ export const scanEmailWithRules = async ({
         userSettings: { aiEnabled },
         aiInput,
         semanticAnalyzer: analyzeEmailSemanticsWithOllama,
+        threatIntelAnalyzer,
     });
     const detectionResult = await runDetection(detectionContext);
     const aiSignals = detectionResult.aiSignals;

@@ -33,7 +33,7 @@ test('auth fingerprints ignore timestamps but change with scoring evidence', () 
     assert.notEqual(first, unavailable);
 });
 
-test('a v9 scan is stale whenever the persisted authentication outcome changes', () => {
+test('a current scan is stale whenever the persisted authentication outcome changes', () => {
     const oldFingerprint = buildAuthResultsFingerprint({ status: 'unavailable' });
     const newFingerprint = buildAuthResultsFingerprint(passedAuth);
     const currentScan = {

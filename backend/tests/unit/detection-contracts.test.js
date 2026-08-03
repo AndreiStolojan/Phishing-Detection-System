@@ -29,6 +29,7 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
     const userSettings = { aiEnabled: true };
     const aiInput = { subject: 'Test' };
     const semanticAnalyzer = async () => ({ status: 'evaluated' });
+    const threatIntelAnalyzer = async () => ({ status: 'evaluated' });
     const context = createDetectionContext({
         email,
         senderListContext,
@@ -38,6 +39,7 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
         userSettings,
         aiInput,
         semanticAnalyzer,
+        threatIntelAnalyzer,
     });
 
     assert.ok(Object.isFrozen(context));
@@ -50,6 +52,7 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
     assert.ok(Object.isFrozen(context.aiInput));
     assert.equal(context.email, email);
     assert.equal(context.semanticAnalyzer, semanticAnalyzer);
+    assert.equal(context.threatIntelAnalyzer, threatIntelAnalyzer);
     assert.throws(() => {
         context.userSettings.aiEnabled = false;
     }, TypeError);
@@ -78,7 +81,7 @@ test('detection context and its plain-object inputs are frozen snapshots', () =>
     assert.deepEqual(nestedContext.scanContext.tags, ['trusted']);
 });
 
-test('Scan schema persists optional provider metadata and engine is v9', () => {
+test('Scan schema persists optional provider metadata and engine is v10', () => {
     const providerMeta = [
         {
             provider: 'link-analysis',
@@ -100,7 +103,7 @@ test('Scan schema persists optional provider metadata and engine is v9', () => {
     assert.equal(Scan.schema.path('providerMeta').instance, 'Mixed');
     assert.deepEqual(scan.providerMeta, providerMeta);
     assert.deepEqual(new Scan().providerMeta, []);
-    assert.equal(CURRENT_SCAN_ENGINE_VERSION, 'rules-ai-v9');
+    assert.equal(CURRENT_SCAN_ENGINE_VERSION, 'rules-ai-v10');
 });
 
 test('detection provider metrics accept only bounded provider and result labels', async () => {
@@ -109,6 +112,7 @@ test('detection provider metrics accept only bounded provider and result labels'
         'email-auth',
         'reply-to',
         'link-analysis',
+        'threat-intelligence',
         'attachment-extension',
         'ai-semantic',
     ]);
