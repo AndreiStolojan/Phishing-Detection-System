@@ -53,8 +53,10 @@ export const createGmailSyncLockService = ({
             },
             {
                 $set: {
-                    'syncLock.lockedAt': lockedAt,
-                    'syncLock.lockedBy': lockedBy,
+                    syncLock: {
+                        lockedAt,
+                        lockedBy,
+                    },
                 },
             },
             { returnDocument: 'after' }
