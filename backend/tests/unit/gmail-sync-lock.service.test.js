@@ -52,8 +52,10 @@ test('acquire atomically claims an unlocked or stale account for two minutes', a
             },
             update: {
                 $set: {
-                    'syncLock.lockedAt': CURRENT_TIME,
-                    'syncLock.lockedBy': 'worker-1',
+                    syncLock: {
+                        lockedAt: CURRENT_TIME,
+                        lockedBy: 'worker-1',
+                    },
                 },
             },
             options: { returnDocument: 'after' },

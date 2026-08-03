@@ -19,6 +19,7 @@ import Scan from '../models/scan.model.js';
 import MailAccount from '../models/mail-account.model.js';
 import SenderListEntry from '../models/sender-list.model.js';
 import { toPublicUser } from './auth.service.js';
+import { stopGmailWatchForAccount } from './mail-account.service.js';
 
 // Listă cu toți userii (folosită de rute de admin) — fiecare e trecut prin
 // toPublicUser ca să nu se scurgă date sensibile (ex. passwordHash).
@@ -112,6 +113,19 @@ export const deleteCurrentUser = async (authenticatedUserId) => {
         error.statusCode = 404;
         throw error;
     }
+
+    const mailAccounts = await MailAccount.find({ userId: user._id });
+    const stopResults = await Promise.allSettled(
+        mailAccounts.map((mailAccount) => stopGmailWatchForAccount({ mailAccount }))
+    );
+    stopResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+            console.warn('[gmail-watch] Failed to stop Watch before account deletion', {
+                mailAccountId: String(mailAccounts[index]._id),
+                error: result.reason?.message,
+            });
+        }
+    });
 
     // Cascadă: toate colecțiile care țin date legate de acest user.
     // Promise.all rulează cele 4 ștergeri în paralel (mai rapid decât pe rând).

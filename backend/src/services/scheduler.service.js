@@ -27,6 +27,7 @@ import { sendDailyDigestEmail } from '../../extras/notifications/send-email.js';
 import User from '../models/user.model.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
+import { renewExpiringGmailWatches } from './gmail-watch-renewal.service.js';
 
 // Citește SYNC_INTERVAL_MINUTES din env și îl validează: trebuie să fie un
 // număr întreg între 1 și 60. Dacă valoarea e invalidă/lipsă, folosim 15
@@ -169,7 +170,8 @@ export const startSchedulers = () => {
 
     // Job 1: auto-sync — la fiecare `syncIntervalMinutes` minute, sincronizează
     // toate conturile Gmail active și scanează emailurile noi.
-    cron.schedule(syncCron, async () => {
+    const tasks = [];
+    tasks.push(cron.schedule(syncCron, async () => {
         console.log(`[auto-sync] Cron triggered (every ${syncIntervalMinutes} min)`);
         try {
             const { totalErrors } = await runAutoSyncForAllUsers();
@@ -178,12 +180,12 @@ export const startSchedulers = () => {
             recordScheduledTask({ task: 'auto_sync', result: 'failure' });
             console.error('[auto-sync] Unhandled error in cron job', error.message);
         }
-    });
+    }));
 
     // Job 2: digest zilnic — rulează din oră în oră ("0 * * * *" = la minutul 0
     // al fiecărei ore) și trimite rezumatul userilor a căror oră de digest
     // coincide cu ora curentă (UTC).
-    cron.schedule('0 * * * *', async () => {
+    tasks.push(cron.schedule('0 * * * *', async () => {
         const currentHour = new Date().getUTCHours();
         console.log(`[daily-digest] Cron triggered (hour ${currentHour} UTC)`);
         try {
@@ -193,8 +195,23 @@ export const startSchedulers = () => {
             recordScheduledTask({ task: 'daily_digest', result: 'failure' });
             console.error('[daily-digest] Unhandled error in cron job', error.message);
         }
-    });
+    }));
+
+    tasks.push(cron.schedule('0 */6 * * *', async () => {
+        try {
+            const { failed } = await renewExpiringGmailWatches();
+            recordScheduledTask({
+                task: 'gmail_watch_renewal',
+                result: failed > 0 ? 'failure' : 'success',
+            });
+        } catch (error) {
+            recordScheduledTask({ task: 'gmail_watch_renewal', result: 'failure' });
+            console.error('[gmail-watch] Unhandled renewal error', error.message);
+        }
+    }));
 
     console.log(`[scheduler] Auto-sync scheduled: every ${syncIntervalMinutes} minute(s)`);
     console.log('[scheduler] Daily digest scheduled: hourly, per-user digest hour (UTC)');
+    console.log('[scheduler] Gmail Watch renewal scheduled: every 6 hours');
+    return { stop: () => tasks.forEach((task) => task.stop()) };
 };

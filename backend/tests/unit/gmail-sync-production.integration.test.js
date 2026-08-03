@@ -45,10 +45,7 @@ test('production sync adapter anchors, advances history, recovers a history gap,
             if (account._id !== filter._id || account.userId !== filter.userId || account.syncLock) {
                 return null;
             }
-            account.syncLock = {
-                lockedAt: update.$set['syncLock.lockedAt'],
-                lockedBy: update.$set['syncLock.lockedBy'],
-            };
+            account.syncLock = update.$set.syncLock;
             return account;
         }
 
