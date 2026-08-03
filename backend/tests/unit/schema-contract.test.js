@@ -25,6 +25,7 @@ test('Scan schema persists engineVersion for current-scan validation', () => {
     });
 
     assert.equal(Scan.schema.path('engineVersion').instance, 'String');
+    assert.equal(Scan.schema.path('authResultsFingerprint').instance, 'String');
     assert.equal(scan.engineVersion, CURRENT_SCAN_ENGINE_VERSION);
 });
 
@@ -32,4 +33,10 @@ test('Email schema keeps raw body fields separate from detail contract fields', 
     assert.equal(Email.schema.path('textBody').instance, 'String');
     assert.equal(Email.schema.path('htmlBody').instance, 'String');
     assert.equal(Email.schema.path('syncSource').instance, 'String');
+    assert.ok(Email.schema.path('authResults'));
+    assert.equal(Email.schema.path('authResults.status').instance, 'String');
+    assert.deepEqual(
+        Email.schema.path('authResults.status').options.enum,
+        ['ok', 'partial', 'unavailable']
+    );
 });

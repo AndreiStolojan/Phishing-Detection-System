@@ -219,6 +219,7 @@ function characterizeFixture({
     };
     const brandContext = verifySenderBrand({
         senderDomain: email.senderDomain,
+        authResults: email.authResults,
     });
     const scanContext = listContext.senderBlocklisted
         ? {

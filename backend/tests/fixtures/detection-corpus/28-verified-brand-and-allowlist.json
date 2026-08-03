@@ -6,7 +6,11 @@
     "attachmentExtensions": [
       "zip"
     ],
-    "linkCount": 10
+    "linkCount": 10,
+    "authResults": {
+      "status": "ok",
+      "dmarc": { "result": "pass", "alignment": "strict", "policy": "reject" }
+    }
   },
   "listContext": {
     "senderAllowlisted": true,

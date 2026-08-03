@@ -2,7 +2,11 @@
   "id": "blocklist-suppresses-brand",
   "email": {
     "senderDomain": "paypal.com",
-    "linkCount": 10
+    "linkCount": 10,
+    "authResults": {
+      "status": "ok",
+      "dmarc": { "result": "pass", "alignment": "strict", "policy": "reject" }
+    }
   },
   "listContext": {
     "senderAllowlisted": false,

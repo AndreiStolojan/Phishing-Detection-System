@@ -1,0 +1,150 @@
+[
+  {
+    "name": "SPF pass with envelope-from address",
+    "values": ["mx.google.com; spf=pass (google.com: domain of alerts@example.com designates 192.0.2.1 as permitted sender) smtp.mailfrom=alerts@example.com"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "pass", "domain": "example.com" } }
+  },
+  {
+    "name": "SPF hard fail",
+    "values": ["mx.google.com; spf=fail (google.com: domain of bounce@example.net does not designate 192.0.2.2) smtp.mailfrom=bounce@example.net"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "fail", "domain": "example.net" } }
+  },
+  {
+    "name": "SPF softfail",
+    "values": ["mx.google.com; spf=softfail (google.com: transitioning domain) smtp.mailfrom=mailer.example.org"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "softfail", "domain": "mailer.example.org" } }
+  },
+  {
+    "name": "SPF neutral with HELO fallback",
+    "values": ["mx.google.com; spf=neutral smtp.helo=relay.example.org"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "neutral", "domain": "relay.example.org" } }
+  },
+  {
+    "name": "SPF none without an identity",
+    "values": ["mx.google.com; spf=none (google.com: sender does not designate permitted hosts)"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "none", "domain": null } }
+  },
+  {
+    "name": "SPF temporary error",
+    "values": ["mx.google.com; spf=temperror (google.com: temporary DNS error) smtp.mailfrom=example.com"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "temperror", "domain": "example.com" } }
+  },
+  {
+    "name": "SPF permanent error",
+    "values": ["mx.google.com; spf=permerror (google.com: invalid record) smtp.mailfrom=example.com"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "permerror", "domain": "example.com" } }
+  },
+  {
+    "name": "DKIM pass using Gmail header.i property",
+    "values": ["mx.google.com; dkim=pass header.i=@news.example.com header.s=mail header.b=abc123"],
+    "expected": { "authservId": "mx.google.com", "dkim": { "result": "pass", "domain": "news.example.com" } }
+  },
+  {
+    "name": "DKIM fail using header.d property",
+    "values": ["mx.google.com; dkim=fail (bad signature) header.d=example.net header.s=s1"],
+    "expected": { "authservId": "mx.google.com", "dkim": { "result": "fail", "domain": "example.net" } }
+  },
+  {
+    "name": "DMARC pass",
+    "values": ["mx.google.com; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=Example.COM"],
+    "expected": { "authservId": "mx.google.com", "dmarc": { "result": "pass", "domain": "example.com" } }
+  },
+  {
+    "name": "CompAuth fail",
+    "values": ["mx.google.com; compauth=fail reason=001 header.from=example.com"],
+    "expected": { "authservId": "mx.google.com", "compauth": { "result": "fail", "domain": "example.com" } }
+  },
+  {
+    "name": "combined Gmail result header",
+    "values": ["mx.google.com; dkim=pass header.i=@example.com header.s=s1; spf=pass smtp.mailfrom=bounce.example.com; dmarc=pass header.from=example.com; compauth=pass reason=100 header.from=example.com"],
+    "expected": {
+      "authservId": "mx.google.com",
+      "spf": { "result": "pass", "domain": "bounce.example.com" },
+      "dkim": { "result": "pass", "domain": "example.com" },
+      "dmarc": { "result": "pass", "domain": "example.com" },
+      "compauth": { "result": "pass", "domain": "example.com" }
+    }
+  },
+  {
+    "name": "folded Gmail header",
+    "values": ["mx.google.com;\r\n       dkim=pass header.i=@example.com;\r\n       spf=pass smtp.mailfrom=example.com;\r\n       dmarc=pass header.from=example.com"],
+    "expected": {
+      "authservId": "mx.google.com",
+      "spf": { "result": "pass", "domain": "example.com" },
+      "dkim": { "result": "pass", "domain": "example.com" },
+      "dmarc": { "result": "pass", "domain": "example.com" }
+    }
+  },
+  {
+    "name": "nested comments containing semicolons",
+    "values": ["mx.google.com (Google boundary); spf=pass (outer; nested (detail; here)) smtp.mailfrom=example.com; dmarc=pass header.from=example.com"],
+    "expected": {
+      "authservId": "mx.google.com",
+      "spf": { "result": "pass", "domain": "example.com" },
+      "dmarc": { "result": "pass", "domain": "example.com" }
+    }
+  },
+  {
+    "name": "attacker header ignored when one Gmail header exists",
+    "values": [
+      "evil.example; spf=pass smtp.mailfrom=attacker.example; dmarc=pass header.from=attacker.example",
+      "mx.google.com; spf=fail smtp.mailfrom=attacker.example; dmarc=fail header.from=attacker.example"
+    ],
+    "expected": {
+      "authservId": "mx.google.com",
+      "spf": { "result": "fail", "domain": "attacker.example" },
+      "dmarc": { "result": "fail", "domain": "attacker.example" }
+    }
+  },
+  {
+    "name": "attacker-only header is not trusted",
+    "values": ["mail.attacker.example; spf=pass smtp.mailfrom=example.com"],
+    "expected": { "authservId": null }
+  },
+  {
+    "name": "Gmail lookalike authserv-id is not trusted",
+    "values": ["mx.google.com.attacker.example; spf=pass smtp.mailfrom=example.com"],
+    "expected": { "authservId": null }
+  },
+  {
+    "name": "two exact Gmail claims are ambiguous and rejected",
+    "values": [
+      "mx.google.com; spf=pass smtp.mailfrom=example.com",
+      "mx.google.com; spf=fail smtp.mailfrom=example.com"
+    ],
+    "expected": { "authservId": null }
+  },
+  {
+    "name": "case-insensitive authserv and result tokens",
+    "values": ["MX.GOOGLE.COM; SPF=PASS smtp.mailfrom=EXAMPLE.COM.; DMARC=PASS header.from=EXAMPLE.COM"],
+    "expected": {
+      "authservId": "mx.google.com",
+      "spf": { "result": "pass", "domain": "example.com" },
+      "dmarc": { "result": "pass", "domain": "example.com" }
+    }
+  },
+  {
+    "name": "RFC authserv numeric version",
+    "values": ["mx.google.com 1; spf=pass smtp.mailfrom=example.com"],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "pass", "domain": "example.com" } }
+  },
+  {
+    "name": "quoted envelope identity",
+    "values": ["mx.google.com; spf=pass smtp.mailfrom=\"Sender@Sub.Example.COM\""],
+    "expected": { "authservId": "mx.google.com", "spf": { "result": "pass", "domain": "sub.example.com" } }
+  },
+  {
+    "name": "unknown result is not allowed into the bounded result enum",
+    "values": ["mx.google.com; spf=bestguesspass smtp.mailfrom=example.com; dmarc=pass header.from=example.com"],
+    "expected": { "authservId": "mx.google.com", "dmarc": { "result": "pass", "domain": "example.com" } }
+  },
+  {
+    "name": "invalid associated domain is discarded",
+    "values": ["mx.google.com; spf=pass smtp.mailfrom=bad_domain.example; dmarc=fail header.from=example.com"],
+    "expected": {
+      "authservId": "mx.google.com",
+      "spf": { "result": "pass", "domain": null },
+      "dmarc": { "result": "fail", "domain": "example.com" }
+    }
+  }
+]

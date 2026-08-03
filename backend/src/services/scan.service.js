@@ -11,6 +11,7 @@
 // scoring.config.js dau verdictul. Detalii: docs/EXPLICATIE_BACKEND.md §4.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import crypto from 'node:crypto';
 import mongoose from 'mongoose'; // utilitar pentru a valida id-urile MongoDB
 
 import createError from '../common/errors/create-error.js';
@@ -49,10 +50,10 @@ import {
     scoreSignals,
 } from '../detection/scorer.js';
 
-// Versiunea motorului. Urcată v7 -> v8 pentru arhitectura modulară de provideri.
-// Scanările vechi își păstrează scorul v7 până la o
+// Versiunea motorului. Urcată v8 -> v9 pentru autentificarea emailului.
+// Scanările vechi își păstrează scorul anterior până la o
 // rescanare (nu rescorăm retroactiv toată baza de date).
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v8';
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v9';
 
 const DEFAULT_SCAN_CONCURRENCY = 4;
 const MAX_SCAN_CONCURRENCY = 10;
@@ -195,8 +196,55 @@ const buildFallbackExplanationResult = ({
     },
 });
 
-const isCurrentScanValidForCurrentAiSetting = ({ currentScan, aiEnabled }) => {
+export const buildAuthResultsFingerprint = (authResults) => {
+    const dkimSignatures = Array.isArray(authResults?.dkim?.signatures)
+        ? authResults.dkim.signatures.map(({ result, domain, selector, aligned }) => ({
+              result: result || 'none',
+              domain: domain || null,
+              selector: selector || null,
+              aligned: Boolean(aligned),
+          }))
+        : [];
+    const normalized = {
+        status: authResults?.status || 'unavailable',
+        spf: {
+            result: authResults?.spf?.result || 'none',
+            domain: authResults?.spf?.domain || null,
+        },
+        dkim: {
+            result: authResults?.dkim?.result || 'none',
+            domain: authResults?.dkim?.domain || null,
+            selector: authResults?.dkim?.selector || null,
+            aligned: Boolean(authResults?.dkim?.aligned),
+            signatures: dkimSignatures,
+        },
+        dmarc: {
+            result: authResults?.dmarc?.result || 'none',
+            policy: authResults?.dmarc?.policy || null,
+            alignment: authResults?.dmarc?.alignment || 'none',
+        },
+        arc: {
+            result: authResults?.arc?.result || 'none',
+            chainLength: Number(authResults?.arc?.chainLength) || 0,
+        },
+    };
+
+    return crypto
+        .createHash('sha256')
+        .update(JSON.stringify(normalized))
+        .digest('hex');
+};
+
+export const isCurrentScanValidForCurrentAiSetting = ({
+    currentScan,
+    aiEnabled,
+    authResultsFingerprint,
+}) => {
     if (!currentScan || currentScan.engineVersion !== CURRENT_SCAN_ENGINE_VERSION) {
+        return false;
+    }
+
+    if (currentScan.authResultsFingerprint !== authResultsFingerprint) {
         return false;
     }
 
@@ -295,6 +343,7 @@ const upsertCurrentScanForEmail = async ({
             senderListMatch: result.senderListMatch,
             scanSource,
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
+            authResultsFingerprint: buildAuthResultsFingerprint(email.authResults),
             aiSignals,
             providerMeta,
             aiExplanation,
@@ -406,7 +455,10 @@ export const scanEmailWithRules = async ({
         senderDomain: email.senderDomain,
     });
     // Context: vine emailul chiar de pe domeniul oficial al unui brand cunoscut?
-    const brandContext = verifySenderBrand({ senderDomain: email.senderDomain });
+    const brandContext = verifySenderBrand({
+        senderDomain: email.senderDomain,
+        authResults: email.authResults,
+    });
     // Un expeditor blocat nu apare niciodată ca "brand verificat": blocarea userului
     // învinge, și niciun strat de reducere nu se aplică peste regula dură de blocare.
     const scanContext = listContext.senderBlocklisted
@@ -415,10 +467,15 @@ export const scanEmailWithRules = async ({
     const aiInput = buildAiAnalysisInput(email, scanContext);
     const aiEnabled = await getUserAiEnabled(userId);
     const currentScan = await getCurrentScanForEmail({ userId, emailId: email._id });
+    const authResultsFingerprint = buildAuthResultsFingerprint(email.authResults);
 
     if (
         skipIfCurrentEngineExists &&
-        isCurrentScanValidForCurrentAiSetting({ currentScan, aiEnabled })
+        isCurrentScanValidForCurrentAiSetting({
+            currentScan,
+            aiEnabled,
+            authResultsFingerprint,
+        })
     ) {
         await cleanupDuplicateScans({
             userId,
@@ -437,6 +494,7 @@ export const scanEmailWithRules = async ({
         email,
         senderListContext: listContext,
         brandContext,
+        authResults: email.authResults || {},
         scanContext,
         userSettings: { aiEnabled },
         aiInput,

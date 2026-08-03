@@ -52,6 +52,7 @@ const characterizeFixture = async (fixture) => {
     };
     const brandContext = verifySenderBrand({
         senderDomain: email.senderDomain,
+        authResults: email.authResults,
     });
     const scanContext = senderListContext.senderBlocklisted
         ? {
@@ -68,6 +69,7 @@ const characterizeFixture = async (fixture) => {
         email,
         senderListContext,
         brandContext,
+        authResults: email.authResults || {},
         scanContext,
         userSettings: { aiEnabled: fixture.ai.enabled },
         aiInput: { fixtureId: fixture.id },
