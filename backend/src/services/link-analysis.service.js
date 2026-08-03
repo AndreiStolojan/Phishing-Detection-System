@@ -20,6 +20,12 @@
 // scor din scan.service.js "citesc" aceste câmpuri. Detalii: docs/EXPLICATIE_BACKEND.md §5.3.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import {
+    normalizeComparableDomain,
+    normalizeHttpUrl,
+    toRedactedUrlMetadata,
+} from './threat-intel/url-normalization.service.js';
+
 // Domenii cunoscute de servicii de "shortener" (scurtare de linkuri).
 const SHORTENER_DOMAINS = new Set([
     'bit.ly',
@@ -34,56 +40,209 @@ const SHORTENER_DOMAINS = new Set([
     'shorturl.at',
 ]);
 
-// Aduce domeniul la o formă unică: litere mici + fără prefixul "www."
-// (ex: "WWW.Example.com" -> "example.com"), ca să nu tratăm același domeniu
-// ca fiind diferit doar din cauza scrierii.
-const normalizeDomain = (hostname) => hostname.toLowerCase().replace(/^www\./, '');
-
-// Verifică dacă un text "candidat" e un link valid și îl aduce la o formă cu
-// schemă (http/https). Linkurile care nu par a fi URL-uri sunt ignorate (null).
-const normalizeLinkCandidate = (rawValue) => {
-    const trimmedValue = rawValue.trim();
-
-    if (!trimmedValue) {
-        return null;
-    }
-
-    if (trimmedValue.startsWith('http://') || trimmedValue.startsWith('https://')) {
-        return trimmedValue;
-    }
-
-    if (trimmedValue.startsWith('www.')) {
-        return `https://${trimmedValue}`;
-    }
-
-    return null;
-};
-
 // Caută linkuri în corpul de tip text simplu (plain text), folosind o expresie
 // regulată care prinde fie "http(s)://...", fie "www....".
 const extractTextLinks = (content) => {
     const urlPattern = /\b((?:https?:\/\/|www\.)[^\s<>"'`]+)\b/gi;
     const matches = content.match(urlPattern) || [];
 
-    return matches.map(normalizeLinkCandidate).filter(Boolean);
+    return matches.map(normalizeHttpUrl).filter(Boolean);
 };
 
-// Caută linkuri în corpul HTML, extrăgând valoarea atributului href="..." din
-// fiecare tag (ex: <a href="https://exemplu.com">).
-const extractHtmlLinks = (htmlContent) => {
-    const hrefPattern = /href\s*=\s*["']([^"']+)["']/gi;
-    const collectedLinks = [];
-    let match;
+const MAX_HTML_ANALYSIS_CHARS = 200_000;
+const MAX_HTML_ANCHORS = 200;
+const MAX_HTML_TAG_CHARS = 4_096;
+const MAX_ANCHOR_MISMATCHES = 25;
 
-    while ((match = hrefPattern.exec(htmlContent)) !== null) {
-        const normalizedLink = normalizeLinkCandidate(match[1]);
+const HTML_ENTITY_VALUES = Object.freeze({
+    amp: '&',
+    apos: "'",
+    gt: '>',
+    lt: '<',
+    nbsp: ' ',
+    quot: '"',
+});
 
-        if (normalizedLink) {
-            collectedLinks.push(normalizedLink);
+const decodeHtmlEntities = (value) => value.replace(
+    /&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi,
+    (entity, decimal, hexadecimal, named) => {
+        if (named) {
+            return HTML_ENTITY_VALUES[named.toLowerCase()] || entity;
+        }
+
+        const codePoint = Number.parseInt(
+            hexadecimal || decimal,
+            hexadecimal ? 16 : 10
+        );
+
+        if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+            return entity;
+        }
+
+        try {
+            return String.fromCodePoint(codePoint);
+        } catch {
+            return entity;
+        }
+    }
+);
+
+// Reads one tag without a backtracking expression, respecting quoted attribute
+// values where `>` is legal. The work is capped so a hostile HTML body cannot
+// consume unbounded CPU here.
+const readHtmlTag = (html, startIndex) => {
+    let quote = null;
+    const stopIndex = Math.min(html.length, startIndex + MAX_HTML_TAG_CHARS);
+
+    for (let index = startIndex + 1; index < stopIndex; index += 1) {
+        const character = html[index];
+
+        if (quote) {
+            if (character === quote) {
+                quote = null;
+            }
+            continue;
+        }
+
+        if (character === '"' || character === "'") {
+            quote = character;
+        } else if (character === '>') {
+            return {
+                content: html.slice(startIndex + 1, index),
+                nextIndex: index + 1,
+            };
         }
     }
 
-    return collectedLinks;
+    return null;
+};
+
+const getHrefFromAnchorTag = (tagContent) => {
+    const hrefMatch = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i.exec(tagContent);
+
+    return hrefMatch
+        ? decodeHtmlEntities(hrefMatch[1] ?? hrefMatch[2] ?? hrefMatch[3])
+        : null;
+};
+
+const normalizeVisibleAnchorUrl = (anchorText) => {
+    const visibleText = decodeHtmlEntities(anchorText)
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!visibleText) {
+        return null;
+    }
+
+    const directUrl = normalizeHttpUrl(visibleText);
+    if (directUrl) {
+        return directUrl;
+    }
+
+    // A domain rendered without a scheme is common in email copy. Treat only a
+    // complete domain/path token as URL-like; prose such as "visit example.com"
+    // must not create an anchor mismatch signal.
+    if (/^(?:[\p{L}\p{N}-]+\.)+[\p{L}\p{N}-]+(?::\d+)?(?:[/][^\s]*)?$/iu.test(visibleText)) {
+        return normalizeHttpUrl(`https://${visibleText}`);
+    }
+
+    return null;
+};
+
+const toAnchorMismatch = ({ href, anchorText }) => {
+    const visibleUrl = normalizeVisibleAnchorUrl(anchorText);
+
+    if (!visibleUrl) {
+        return null;
+    }
+
+    const hrefMetadata = toRedactedUrlMetadata(href);
+    const visibleMetadata = toRedactedUrlMetadata(visibleUrl);
+
+    if (
+        !hrefMetadata ||
+        !visibleMetadata ||
+        hrefMetadata.domain === visibleMetadata.domain
+    ) {
+        return null;
+    }
+
+    return {
+        href: hrefMetadata,
+        displayed: visibleMetadata,
+        anchorTextLength: anchorText.trim().length,
+    };
+};
+
+// Extracts only real `<a>` elements, not every string that happens to contain
+// `href=`. The scanner deliberately has no DOM side effects and is bounded by
+// both input size and anchor count.
+const extractHtmlAnchors = (htmlContent) => {
+    const html = String(htmlContent || '').slice(0, MAX_HTML_ANALYSIS_CHARS);
+    const links = [];
+    const anchorMismatches = [];
+    let openAnchor = null;
+    let anchorCount = 0;
+    let index = 0;
+
+    const closeAnchor = () => {
+        if (!openAnchor) {
+            return;
+        }
+
+        const mismatch = toAnchorMismatch(openAnchor);
+        if (mismatch && anchorMismatches.length < MAX_ANCHOR_MISMATCHES) {
+            anchorMismatches.push(mismatch);
+        }
+        openAnchor = null;
+    };
+
+    while (index < html.length && anchorCount < MAX_HTML_ANCHORS) {
+        const tagStart = html.indexOf('<', index);
+
+        if (tagStart === -1) {
+            if (openAnchor) {
+                openAnchor.anchorText += html.slice(index);
+            }
+            break;
+        }
+
+        if (openAnchor && tagStart > index) {
+            openAnchor.anchorText += html.slice(index, tagStart);
+        }
+
+        const tag = readHtmlTag(html, tagStart);
+        if (!tag) {
+            break;
+        }
+
+        const tagName = tag.content.match(/^\s*(\/?)\s*([a-z][a-z0-9:-]*)\b/i);
+        if (tagName) {
+            const [, closingSlash, name] = tagName;
+            const isAnchor = name.toLowerCase() === 'a';
+
+            if (isAnchor && closingSlash) {
+                closeAnchor();
+            } else if (isAnchor) {
+                // Nested anchors are invalid HTML, but closing the previous
+                // one makes the result deterministic instead of swallowing it.
+                closeAnchor();
+                anchorCount += 1;
+                const href = normalizeHttpUrl(getHrefFromAnchorTag(tag.content));
+
+                if (href) {
+                    links.push(href);
+                    openAnchor = { href, anchorText: '' };
+                }
+            }
+        }
+
+        index = tag.nextIndex;
+    }
+
+    closeAnchor();
+
+    return { links, anchorMismatches };
 };
 
 // Verifică dacă hostname-ul e o adresă IPv4 (ex: "192.168.1.1") în loc de un
@@ -94,7 +253,7 @@ const isIpAddressHost = (hostname) => /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
 // toate linkurile găsite, domeniile lor și lista tiparelor suspecte detectate.
 export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
     const linksFromText = extractTextLinks(textBody);
-    const linksFromHtml = extractHtmlLinks(htmlBody);
+    const { links: linksFromHtml, anchorMismatches } = extractHtmlAnchors(htmlBody);
     const rawLinks = [...linksFromText, ...linksFromHtml];
 
     const normalizedLinks = [];
@@ -104,16 +263,13 @@ export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
     let hasShortenedUrl = false;
 
     for (const rawLink of rawLinks) {
-        let parsedUrl;
+        const normalizedUrl = normalizeHttpUrl(rawLink);
 
-        try {
-            // new URL(...) aruncă eroare dacă linkul e malformat — îl ignorăm.
-            parsedUrl = new URL(rawLink);
-        } catch {
+        if (!normalizedUrl) {
             continue;
         }
 
-        const normalizedUrl = parsedUrl.toString();
+        const parsedUrl = new URL(normalizedUrl);
 
         // Eliminăm duplicatele (același link apărut de mai multe ori în email).
         if (seenLinks.has(normalizedUrl)) {
@@ -123,7 +279,7 @@ export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
         seenLinks.add(normalizedUrl);
         normalizedLinks.push(normalizedUrl);
 
-        const normalizedDomain = normalizeDomain(parsedUrl.hostname);
+        const normalizedDomain = normalizeComparableDomain(parsedUrl.hostname);
         normalizedDomains.push(normalizedDomain);
 
         // Verificăm fiecare tipar suspect pe rând. Un link poate avea mai multe
@@ -157,5 +313,6 @@ export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
         linkCount: normalizedLinks.length,
         hasShortenedUrl,
         suspiciousLinkPatterns: [...new Set(suspiciousLinkPatterns)],
+        anchorMismatches,
     };
 };
