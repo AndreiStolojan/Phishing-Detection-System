@@ -26,10 +26,17 @@ import {
     GMAIL_MESSAGE_DETAILS_BASE_URL,
     GMAIL_MESSAGES_LIST_URL,
     GMAIL_PROFILE_URL,
+    GMAIL_STOP_URL,
+    GMAIL_WATCH_URL,
     GOOGLE_OAUTH_TOKEN_URL,
     refreshTokenPayload,
 } from '../config/google-oauth.js';
-import { JWT_SECRET, MAIL_TOKEN_ENCRYPTION_KEY } from '../config/env.js';
+import {
+    GMAIL_PUBSUB_TOPIC,
+    JWT_SECRET,
+    MAIL_TOKEN_ENCRYPTION_KEY,
+    isGmailPushConfigured,
+} from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
 import {
     buildUnavailableAuthResults,
@@ -47,6 +54,7 @@ import {
     recordGmailMessagesIngested,
     recordGmailSync,
 } from '../monitoring/metrics.js';
+import { createGmailWatchService } from './gmail-watch.service.js';
 
 // Câte emailuri se aduc la o sincronizare, dacă userul nu a setat altă valoare.
 const SYNC_MAX_RESULTS_DEFAULT = 10;
@@ -881,6 +889,21 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
         }
     );
 
+    // Push is an optional acceleration of the normal polling path. A Pub/Sub
+    // setup problem must not reject an otherwise valid Gmail OAuth connection.
+    // The Watch history id is kept apart from T3's lastHistoryId by the Watch
+    // service, so this cannot make the synchronizer skip older messages.
+    if (isGmailPushConfigured()) {
+        try {
+            await ensureGmailWatchForAccount({ mailAccount });
+        } catch (error) {
+            console.warn('[gmail-watch] Failed to register Watch after Gmail connect', {
+                mailAccountId: String(mailAccount._id),
+                error: error.message,
+            });
+        }
+    }
+
     return toPublicMailAccount(mailAccount);
 };
 
@@ -893,6 +916,7 @@ const requestGmailSyncResource = async ({
     labelId,
     startHistoryId,
     historyTypes = [],
+    topicName,
 }) => {
     if (type === 'profile') {
         return requestGoogleJson({
@@ -931,8 +955,57 @@ const requestGmailSyncResource = async ({
         });
     }
 
+    if (type === 'watch') {
+        return requestGoogleJson({
+            mailAccount,
+            url: GMAIL_WATCH_URL,
+            method: 'POST',
+            body: {
+                topicName,
+                labelIds: ['INBOX'],
+                labelFilterBehavior: 'include',
+            },
+            fallbackMessage: 'Failed to register Gmail Watch',
+            errorCode: 'GMAIL_WATCH_FAILED',
+            unreachableCode: 'GMAIL_WATCH_UNREACHABLE',
+            timeoutMs: 10_000,
+        });
+    }
+
+    if (type === 'stop') {
+        return requestGoogleJson({
+            mailAccount,
+            url: GMAIL_STOP_URL,
+            method: 'POST',
+            body: {},
+            fallbackMessage: 'Failed to stop Gmail Watch',
+            errorCode: 'GMAIL_WATCH_STOP_FAILED',
+            unreachableCode: 'GMAIL_WATCH_STOP_UNREACHABLE',
+            timeoutMs: 10_000,
+        });
+    }
+
     throw new TypeError(`Unknown Gmail sync request type: ${type}`);
 };
+
+// The Watch service receives only OAuth-aware request callbacks. It does not
+// import this module, so Gmail lifecycle support cannot create a circular
+// dependency with the connection and sync service.
+const gmailWatchService = createGmailWatchService({
+    model: MailAccount,
+    enabled: isGmailPushConfigured(),
+    topicName: GMAIL_PUBSUB_TOPIC,
+    requestWatch: ({ mailAccount, topicName }) =>
+        requestGmailSyncResource({ type: 'watch', mailAccount, topicName }),
+    requestStop: ({ mailAccount }) =>
+        requestGmailSyncResource({ type: 'stop', mailAccount }),
+});
+
+export const ensureGmailWatchForAccount = ({ mailAccount }) =>
+    gmailWatchService.ensure({ mailAccount });
+
+export const stopGmailWatchForAccount = ({ mailAccount }) =>
+    gmailWatchService.stop({ mailAccount });
 
 const findExistingGmailMessageIds = async ({ mailAccount, messageIds }) => {
     if (messageIds.length === 0) return [];
@@ -1385,6 +1458,18 @@ export const disconnectMailAccountForUser = async ({ userId, mailAccountId }) =>
 
     if (!mailAccount) {
         throw createError('Mail account not found', 404, [], 'MAIL_ACCOUNT_NOT_FOUND');
+    }
+
+    // Stop is best-effort: a revoked OAuth grant may prevent Gmail from
+    // accepting it, but local token deletion must still complete. Gmail notes
+    // that delivery can continue for a few minutes even after a successful stop.
+    try {
+        await stopGmailWatchForAccount({ mailAccount });
+    } catch (error) {
+        console.warn('[gmail-watch] Failed to stop Watch before disconnect', {
+            mailAccountId: String(mailAccount._id),
+            error: error.message,
+        });
     }
 
     await MailAccount.deleteOne({ _id: mailAccount._id });

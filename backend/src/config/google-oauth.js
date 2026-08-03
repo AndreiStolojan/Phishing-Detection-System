@@ -12,6 +12,8 @@ export const GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me
 export const GMAIL_MESSAGES_LIST_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
 export const GMAIL_MESSAGE_DETAILS_BASE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
 export const GMAIL_HISTORY_LIST_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/history';
+export const GMAIL_WATCH_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/watch';
+export const GMAIL_STOP_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/stop';
 
 export const googleOAuthConfig = {
     clientId: GOOGLE_CLIENT_ID,

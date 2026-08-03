@@ -32,6 +32,15 @@ test('MailAccount schema persists incremental-sync cursor, recovery, and advisor
     assert.equal(syncLock.instance, 'Embedded');
     assert.equal(MailAccount.schema.path('syncLock.lockedAt').instance, 'Date');
     assert.equal(MailAccount.schema.path('syncLock.lockedBy').instance, 'String');
+
+    assert.equal(MailAccount.schema.path('watchExpiration').instance, 'Date');
+    assert.equal(MailAccount.schema.path('watchRegisteredAt').instance, 'Date');
+    assert.equal(MailAccount.schema.path('watchHistoryId').instance, 'String');
+    assert.equal(MailAccount.schema.path('watchStatus').instance, 'String');
+    assert.deepEqual(MailAccount.schema.path('watchStatus').options.enum, [
+        'active', 'expired', 'failed', 'disabled',
+    ]);
+    assert.equal(MailAccount.schema.path('watchFailureCount').instance, 'Number');
 });
 
 test('normalizeSyncMaxResults accepts integer values in the allowed range', () => {
