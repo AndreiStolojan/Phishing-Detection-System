@@ -19,8 +19,7 @@ export const getGoogleConnectUrl = () => apiClient.get('/mail-accounts/google/st
 export const syncMailAccount = (mailAccountId) =>
   apiClient.post(`/mail-accounts/${mailAccountId}/sync`);
 
-// Schimbă numărul maxim de emailuri aduse la o sincronizare (syncMaxResults)
-// pentru contul respectiv.
+// Schimbă dimensiunea paginii folosite la backfill.
 export const updateMailAccountSettings = (mailAccountId, syncMaxResults) =>
   apiClient.patch(`/mail-accounts/${mailAccountId}/settings`, { syncMaxResults });
 

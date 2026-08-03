@@ -19,6 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
+    backfillGmailEmailsForUser,
     connectGoogleMailAccount,
     disconnectMailAccountForUser,
     getGoogleConnectUrl,
@@ -154,15 +155,36 @@ export const syncMailAccount = async (req, res, next) => {
         // Apelul e "fire-and-forget" (.catch fără await): nu blocăm răspunsul
         // către frontend cât timp se trimite alerta — userul vede rezultatul
         // sincronizării imediat, iar alerta se trimite în fundal.
-        const user = await User.findById(req.user._id).select('email name settings').lean();
-        sendPhishingAlertForNewEmails({ userId: req.user._id, user, syncResult }).catch(
-            (err) => console.error('[manual-sync] Failed to send phishing alert', err.message)
-        );
+        if (!syncResult.skipped) {
+            const user = await User.findById(req.user._id).select('email name settings').lean();
+            sendPhishingAlertForNewEmails({ userId: req.user._id, user, syncResult }).catch(
+                (err) => console.error('[manual-sync] Failed to send phishing alert', err.message)
+            );
+        }
 
         res.status(200).json({
             success: true,
-            message: 'Mail account synced successfully',
+            message: syncResult.skipped
+                ? 'Mail account sync is already running'
+                : 'Mail account synced successfully',
             data: syncResult,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const backfillMailAccount = async (req, res, next) => {
+    try {
+        const result = await backfillGmailEmailsForUser({
+            userId: req.user._id,
+            mailAccountId: req.params.id,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: result.skipped ? 'Mail account sync is already running' : 'Backfill started',
+            data: result,
         });
     } catch (error) {
         next(error);

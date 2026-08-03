@@ -49,6 +49,48 @@ export const detectionProviderTotal = new Counter({
   registers: [metricsRegistry],
 });
 
+export const gmailSyncTotal = new Counter({
+  name: 'secureinbox_gmail_sync_total',
+  help: 'Gmail sync executions grouped by mode and bounded result.',
+  labelNames: ['mode', 'result'],
+  registers: [metricsRegistry],
+});
+
+export const gmailMessagesIngestedTotal = new Counter({
+  name: 'secureinbox_gmail_messages_ingested_total',
+  help: 'New Gmail messages persisted by synchronization.',
+  registers: [metricsRegistry],
+});
+
+export const gmailHistoryGapTotal = new Counter({
+  name: 'secureinbox_gmail_history_gap_total',
+  help: 'Expired Gmail history cursors requiring a bounded resync.',
+  registers: [metricsRegistry],
+});
+
+export const recordGmailSync = ({ mode, result }) => {
+  if (!['backfill', 'incremental', 'resync'].includes(mode)) {
+    throw new Error(`Unknown Gmail sync mode metric label: ${mode}`);
+  }
+  if (!['success', 'failure', 'skipped'].includes(result)) {
+    throw new Error(`Unknown Gmail sync result metric label: ${result}`);
+  }
+  gmailSyncTotal.inc({ mode, result });
+};
+
+export const recordGmailMessagesIngested = (count) => {
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error('Gmail ingested message count must be a non-negative integer');
+  }
+  if (count > 0) {
+    gmailMessagesIngestedTotal.inc(count);
+  }
+};
+
+export const recordGmailHistoryGap = () => {
+  gmailHistoryGapTotal.inc();
+};
+
 export const recordScheduledTask = ({ task, result }) => {
   if (!['auto_sync', 'daily_digest'].includes(task)) {
     throw new Error(`Unknown scheduled task metric label: ${task}`);

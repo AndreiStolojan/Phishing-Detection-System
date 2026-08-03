@@ -300,6 +300,7 @@ const parseEmailListQuery = (query = {}) => {
 const buildEmailListBaseMatch = ({ userId, q, mailAccountId, range }) => {
     const match = {
         userId: new mongoose.Types.ObjectId(String(userId)),
+        inboxState: { $ne: 'removed' },
     };
 
     if (mailAccountId) {
@@ -690,7 +691,13 @@ export const getTrendForUser = async ({ userId, days = 30, from, to } = {}) => {
         : { $gte: since };
 
     const results = await Email.aggregate([
-        { $match: { userId: userObjectId, receivedAt: receivedAtMatch } },
+        {
+            $match: {
+                userId: userObjectId,
+                inboxState: { $ne: 'removed' },
+                receivedAt: receivedAtMatch,
+            },
+        },
         ...buildLatestScanLookupStages(),
         ...buildEmailStateStages(),
         {
@@ -753,7 +760,13 @@ export const getTopRiskySendersForUser = async ({ userId, days = 30, limit = 5, 
         : { $gte: since };
 
     const results = await Email.aggregate([
-        { $match: { userId: userObjectId, receivedAt: receivedAtMatch } },
+        {
+            $match: {
+                userId: userObjectId,
+                inboxState: { $ne: 'removed' },
+                receivedAt: receivedAtMatch,
+            },
+        },
         ...buildLatestScanLookupStages(),
         ...buildEmailStateStages(),
         {
@@ -815,7 +828,7 @@ export const getTopRiskySendersForUser = async ({ userId, days = 30, limit = 5, 
 export const getRiskBucketCountsForUser = async ({ userId, days, from, to } = {}) => {
     const userObjectId = new mongoose.Types.ObjectId(String(userId));
 
-    const match = { userId: userObjectId };
+    const match = { userId: userObjectId, inboxState: { $ne: 'removed' } };
     const range = parseDateRangeQuery({ from, to });
     const windowDays = Number.parseInt(days, 10);
 

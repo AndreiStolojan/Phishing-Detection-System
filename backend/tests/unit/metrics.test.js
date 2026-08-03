@@ -5,6 +5,9 @@ import { readFile } from 'node:fs/promises';
 import {
   metricsHandler,
   metricsRegistry,
+  recordGmailHistoryGap,
+  recordGmailMessagesIngested,
+  recordGmailSync,
   recordScheduledTask,
 } from '../../src/monitoring/metrics.js';
 import { observeHttpRequests } from '../../src/monitoring/metrics.middleware.js';
@@ -67,7 +70,7 @@ test('metrics endpoint returns Prometheus text without application data', async 
 
   assert.match(response.headers['Content-Type'], /text\/plain/);
   assert.match(response.body, /secureinbox_http_requests_total/);
-  assert.doesNotMatch(response.body, /@|gmail|token/i);
+  assert.doesNotMatch(response.body, /@|token/i);
 });
 
 test('scheduled task metrics use bounded task and result labels', async () => {
@@ -81,6 +84,24 @@ test('scheduled task metrics use bounded task and result labels', async () => {
   assert.doesNotMatch(output, /application_operations|http_requests_in_flight/);
   assert.throws(() => recordScheduledTask({ task: 'anything_else', result: 'success' }));
   assert.throws(() => recordScheduledTask({ task: 'auto_sync', result: 'maybe' }));
+});
+
+test('Gmail sync metrics expose only bounded labels and no mailbox data', async () => {
+  recordGmailSync({ mode: 'backfill', result: 'success' });
+  recordGmailSync({ mode: 'incremental', result: 'failure' });
+  recordGmailSync({ mode: 'resync', result: 'success' });
+  recordGmailMessagesIngested(3);
+  recordGmailHistoryGap();
+
+  const output = await metricsRegistry.metrics();
+  assert.match(output, /secureinbox_gmail_sync_total\{mode="backfill",result="success"\} 1/);
+  assert.match(output, /secureinbox_gmail_sync_total\{mode="incremental",result="failure"\} 1/);
+  assert.match(output, /secureinbox_gmail_sync_total\{mode="resync",result="success"\} 1/);
+  assert.match(output, /secureinbox_gmail_messages_ingested_total 3/);
+  assert.match(output, /secureinbox_gmail_history_gap_total 1/);
+  assert.throws(() => recordGmailSync({ mode: 'manual', result: 'success' }));
+  assert.throws(() => recordGmailSync({ mode: 'backfill', result: 'pending' }));
+  assert.throws(() => recordGmailMessagesIngested(-1));
 });
 
 test('every custom metric is shown in the operational dashboard', async () => {
