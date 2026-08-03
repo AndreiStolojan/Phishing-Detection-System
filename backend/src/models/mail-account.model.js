@@ -73,6 +73,37 @@ const mailAccountSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        lastHistoryId: {
+            type: String,
+            default: null,
+        },
+        lastFullSyncAt: {
+            type: Date,
+            default: null,
+        },
+        syncState: {
+            type: String,
+            enum: ['never_synced', 'backfilling', 'incremental', 'resync_required'],
+            default: 'never_synced',
+        },
+        backfillPageToken: {
+            type: String,
+            default: null,
+        },
+        backfillCompletedAt: {
+            type: Date,
+            default: null,
+        },
+        syncLock: {
+            type: new mongoose.Schema(
+                {
+                    lockedAt: { type: Date, required: true },
+                    lockedBy: { type: String, required: true },
+                },
+                { _id: false }
+            ),
+            default: null,
+        },
         syncMaxResults: {
             type: Number,
             default: 10,

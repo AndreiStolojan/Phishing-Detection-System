@@ -260,8 +260,19 @@ const emailSchema = new mongoose.Schema(
         // sincronizare manuală ulterioară.
         syncSource: {
             type: String,
-            enum: ['gmail_initial_sync', 'gmail_manual_sync'],
+            enum: [
+                'gmail_initial_sync',
+                'gmail_manual_sync',
+                'gmail_backfill',
+                'gmail_incremental',
+                'gmail_resync',
+            ],
             default: null,
+        },
+        inboxState: {
+            type: String,
+            enum: ['present', 'removed'],
+            default: 'present',
         },
 
         // ── Verdictul manual al userului (review) ─────────────────────────
@@ -333,6 +344,7 @@ emailSchema.index({ userId: 1, providerMessageId: 1 }, { unique: true });
 // Index pentru listarea emailurilor unui user, sortate descrescător după
 // data primirii (cele mai noi primele) — exact ce afișează inboxul.
 emailSchema.index({ userId: 1, receivedAt: -1 });
+emailSchema.index({ userId: 1, inboxState: 1, receivedAt: -1 });
 
 const Email = mongoose.model('Email', emailSchema);
 

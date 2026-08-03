@@ -22,6 +22,7 @@ import {
     assertGoogleOAuthConfig,
     buildGoogleOAuthUrl,
     exchangeCodePayload,
+    GMAIL_HISTORY_LIST_URL,
     GMAIL_MESSAGE_DETAILS_BASE_URL,
     GMAIL_MESSAGES_LIST_URL,
     GMAIL_PROFILE_URL,
@@ -35,6 +36,17 @@ import {
     evaluateEmailAuthentication,
 } from './email-auth/email-authentication.service.js';
 import { runSyncScanPipeline } from './scan.service.js';
+import { createGmailSyncStateMachine } from './gmail-sync-state-machine.service.js';
+import {
+    acquireGmailSyncLock,
+    releaseGmailSyncLock,
+    renewGmailSyncLock,
+} from './gmail-sync-lock.service.js';
+import {
+    recordGmailHistoryGap,
+    recordGmailMessagesIngested,
+    recordGmailSync,
+} from '../monitoring/metrics.js';
 
 // Câte emailuri se aduc la o sincronizare, dacă userul nu a setat altă valoare.
 const SYNC_MAX_RESULTS_DEFAULT = 10;
@@ -59,6 +71,14 @@ const EMAIL_AUTH_MAX_RAW_BYTES = Math.min(
     )
 );
 const EMAIL_AUTH_MAX_RAW_BASE64_LENGTH = Math.ceil(EMAIL_AUTH_MAX_RAW_BYTES / 3) * 4;
+const GMAIL_BACKFILL_MAX_MESSAGES = Math.max(
+    1,
+    Number.parseInt(process.env.GMAIL_BACKFILL_MAX_MESSAGES, 10) || 500
+);
+const GMAIL_BACKFILL_MAX_DURATION_MS = Math.max(
+    1_000,
+    Number.parseInt(process.env.GMAIL_BACKFILL_MAX_DURATION_MS, 10) || 90_000
+);
 
 // Derivă cheia de criptare din MAIL_TOKEN_ENCRYPTION_KEY (variabilă de mediu).
 // Cheia e transformată cu SHA-256 ca să aibă mereu lungimea corectă pentru AES-256.
@@ -168,11 +188,15 @@ const toPublicMailAccount = (mailAccount) => ({
     syncMaxResults: mailAccount.syncMaxResults ?? SYNC_MAX_RESULTS_DEFAULT,
     tokenExpiryDate: mailAccount.tokenExpiryDate,
     lastSyncedAt: mailAccount.lastSyncedAt,
+    lastHistoryId: mailAccount.lastHistoryId,
+    lastFullSyncAt: mailAccount.lastFullSyncAt,
+    syncState: mailAccount.syncState,
+    backfillCompletedAt: mailAccount.backfillCompletedAt,
     createdAt: mailAccount.createdAt,
     updatedAt: mailAccount.updatedAt,
 });
 
-// Validează și normalizează valoarea syncMaxResults (câte emailuri se aduc la sync).
+// Validează și normalizează dimensiunea unei pagini de backfill.
 // Acceptă number sau string numeric (din formular), respinge orice altceva sau
 // valori în afara intervalului SYNC_MAX_RESULTS_MIN..SYNC_MAX_RESULTS_MAX.
 export const normalizeSyncMaxResults = (value) => {
@@ -564,30 +588,6 @@ const requestGoogleJson = async ({
     );
 };
 
-// Cere lista de mesaje din INBOX (ids), limitată la syncMaxResults. Gmail returnează
-// doar id-uri scurte aici — detaliile complete (subiect, corp etc.) se aduc separat,
-// per mesaj, în fetchGmailMessageDetails.
-const fetchGmailMessagesList = async (mailAccount) => {
-    const syncMaxResults = normalizeSyncMaxResults(mailAccount.syncMaxResults);
-    const query = new URLSearchParams({
-        maxResults: String(syncMaxResults),
-    });
-
-    query.append('labelIds', 'INBOX');
-
-    const url = `${GMAIL_MESSAGES_LIST_URL}?${query.toString()}`;
-
-    const payload = await requestGoogleJson({
-        mailAccount,
-        url,
-        fallbackMessage: 'Failed to fetch Gmail messages list',
-        errorCode: 'GMAIL_MESSAGES_LIST_FAILED',
-        unreachableCode: 'GMAIL_MESSAGES_LIST_UNREACHABLE',
-    });
-
-    return payload.messages || [];
-};
-
 // Endpoint pentru ecranul de setări: actualizează câte emailuri se aduc la o
 // sincronizare (syncMaxResults), pentru un cont de mail al userului curent.
 export const updateMailAccountSettingsForUser = async ({
@@ -844,6 +844,17 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
         userId: decodedState.userId,
         provider: 'gmail',
     });
+    if (
+        existingMailAccount?.accountEmail &&
+        existingMailAccount.accountEmail !== accountEmail.toLowerCase()
+    ) {
+        throw createError(
+            'A different Gmail account is already connected',
+            409,
+            ['Disconnect the current Gmail account before connecting another one.'],
+            'GMAIL_ACCOUNT_SWITCH_REQUIRES_DISCONNECT'
+        );
+    }
 
     const mailAccount = await MailAccount.findOneAndUpdate(
         {
@@ -873,6 +884,121 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
     return toPublicMailAccount(mailAccount);
 };
 
+const requestGmailSyncResource = async ({
+    type,
+    mailAccount,
+    pageToken,
+    maxResults,
+    labelIds = [],
+    labelId,
+    startHistoryId,
+    historyTypes = [],
+}) => {
+    if (type === 'profile') {
+        return requestGoogleJson({
+            mailAccount,
+            url: GMAIL_PROFILE_URL,
+            fallbackMessage: 'Failed to fetch Gmail profile',
+            errorCode: 'GMAIL_PROFILE_FAILED',
+            unreachableCode: 'GMAIL_PROFILE_UNREACHABLE',
+        });
+    }
+
+    if (type === 'messages.list') {
+        const query = new URLSearchParams({ maxResults: String(maxResults) });
+        for (const value of labelIds) query.append('labelIds', value);
+        if (pageToken) query.set('pageToken', pageToken);
+        return requestGoogleJson({
+            mailAccount,
+            url: `${GMAIL_MESSAGES_LIST_URL}?${query.toString()}`,
+            fallbackMessage: 'Failed to fetch Gmail messages list',
+            errorCode: 'GMAIL_MESSAGES_LIST_FAILED',
+            unreachableCode: 'GMAIL_MESSAGES_LIST_UNREACHABLE',
+        });
+    }
+
+    if (type === 'history.list') {
+        const query = new URLSearchParams({ startHistoryId: String(startHistoryId) });
+        if (pageToken) query.set('pageToken', pageToken);
+        if (labelId) query.set('labelId', labelId);
+        for (const value of historyTypes) query.append('historyTypes', value);
+        return requestGoogleJson({
+            mailAccount,
+            url: `${GMAIL_HISTORY_LIST_URL}?${query.toString()}`,
+            fallbackMessage: 'Failed to fetch Gmail history',
+            errorCode: 'GMAIL_HISTORY_LIST_FAILED',
+            unreachableCode: 'GMAIL_HISTORY_LIST_UNREACHABLE',
+        });
+    }
+
+    throw new TypeError(`Unknown Gmail sync request type: ${type}`);
+};
+
+const findExistingGmailMessageIds = async ({ mailAccount, messageIds }) => {
+    if (messageIds.length === 0) return [];
+    const emails = await Email.find({
+        userId: mailAccount.userId,
+        mailAccountId: mailAccount._id,
+        providerMessageId: { $in: messageIds },
+    })
+        .select('providerMessageId')
+        .lean();
+    return emails.map((email) => email.providerMessageId);
+};
+
+const scanExistingGmailMessages = async ({ mailAccount, messageIds }) => {
+    if (messageIds.length === 0) return { scanSummary: emptyScanSummary(), persisted: true };
+    const emails = await Email.find({
+        userId: mailAccount.userId,
+        mailAccountId: mailAccount._id,
+        providerMessageId: { $in: messageIds },
+    })
+        .select('_id')
+        .lean();
+    const scanSummary = await runSyncScanPipeline({
+        userId: mailAccount.userId,
+        updatedEmailIds: emails.map((email) => email._id),
+    });
+    return { scanSummary, persisted: scanSummary.failedCount === 0 };
+};
+
+const setGmailInboxStates = async ({ mailAccount, presentIds, removedIds }) => {
+    const baseFilter = {
+        userId: mailAccount.userId,
+        mailAccountId: mailAccount._id,
+    };
+    if (presentIds.length > 0) {
+        await Email.updateMany(
+            { ...baseFilter, providerMessageId: { $in: presentIds } },
+            { $set: { inboxState: 'present' } }
+        );
+    }
+    if (removedIds.length > 0) {
+        await Email.updateMany(
+            { ...baseFilter, providerMessageId: { $in: removedIds } },
+            { $set: { inboxState: 'removed' } }
+        );
+    }
+};
+
+const updateGmailSyncAccount = async ({ mailAccount, lockOwner, patch }) => {
+    const persistedPatch = Object.hasOwn(patch, 'lastSyncedAt')
+        ? { ...patch, status: 'active' }
+        : patch;
+    const filter = {
+        _id: mailAccount._id,
+        'syncLock.lockedBy': lockOwner,
+    };
+    if (Object.hasOwn(persistedPatch, 'lastHistoryId')) {
+        filter.lastHistoryId = mailAccount.lastHistoryId ?? null;
+    }
+    return MailAccount.findOneAndUpdate(
+        filter,
+        { $set: persistedPatch },
+        { returnDocument: 'after', runValidators: true }
+    );
+};
+
 // FUNCȚIA PRINCIPALĂ DE SINCRONIZARE — apelată manual (buton "Sync") sau automat
 // (auto-sync.service.js, la fiecare SYNC_INTERVAL_MINUTES). Pașii:
 // 1. Verifică că contul există, e Gmail și are token de acces.
@@ -885,39 +1011,8 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
 //
 // Erorile per-mesaj sunt prinse și contorizate (syncErrors), NU aruncate — un singur
 // email cu probleme nu trebuie să oprească sincronizarea întregii liste.
-export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
-    const mailAccount = await MailAccount.findOne({
-        _id: mailAccountId,
-        userId,
-    });
-
-    if (!mailAccount) {
-        throw createError('Mail account not found', 404, [], 'MAIL_ACCOUNT_NOT_FOUND');
-    }
-
-    if (mailAccount.provider !== 'gmail') {
-        throw createError(
-            'Sync is currently available only for Gmail accounts',
-            400,
-            [],
-            'MAIL_PROVIDER_NOT_SUPPORTED'
-        );
-    }
-
-    if (!mailAccount.accessToken) {
-        throw createError(
-            'Google access token is missing for this account',
-            400,
-            ['Reconnect your Gmail account and retry the sync.'],
-            'GOOGLE_ACCESS_TOKEN_MISSING'
-        );
-    }
-
-    const gmailMessages = await fetchGmailMessagesList(mailAccount);
-    // Dacă e prima sincronizare a acestui cont (lastSyncedAt nu există încă), marcăm
-    // sursa ca "initial_sync" — util pentru loguri și pentru orice logică ulterioară
-    // care tratează diferit prima sincronizare.
-    const syncSource = mailAccount.lastSyncedAt ? 'gmail_manual_sync' : 'gmail_initial_sync';
+const processGmailMessageIds = async ({ mailAccount, messageIds, syncSource, heartbeat }) => {
+    const gmailMessages = messageIds.map((id) => ({ id }));
 
     let insertedCount = 0;
     let updatedCount = 0;
@@ -926,11 +1021,13 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     const updatedEmailIds = [];
     const syncErrors = [];
     let omittedSyncErrorsCount = 0;
+    let processingIncomplete = false;
 
     // Procesăm fiecare mesaj din listă, pas cu pas. Orice eroare la un mesaj e
     // prinsă local (try/catch), contorizată în syncErrors, iar bucla continuă cu
     // următorul mesaj — un email "stricat" nu blochează restul sincronizării.
     for (const gmailMessage of gmailMessages) {
+        if (heartbeat) await heartbeat();
         if (!gmailMessage.id) {
             skippedCount += 1;
             continue;
@@ -1030,6 +1127,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
                 {
                     $set: {
                         ...emailPayload,
+                        inboxState: 'present',
                         updatedAt: now,
                     },
                     $setOnInsert: {
@@ -1063,6 +1161,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             syncErrors,
         });
         omittedSyncErrorsCount += omitted;
+        if (!upsertedEmailId) processingIncomplete = true;
 
         // upsertedCount === 1 înseamnă că documentul a fost CREAT (inserare nouă);
         // altfel, documentul exista deja și a fost actualizat.
@@ -1095,18 +1194,6 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
 
     const syncedAt = new Date();
 
-    // Marchează contul ca sincronizat acum și activ (status 'active' — confirmă că
-    // accesul Gmail funcționează).
-    await MailAccount.updateOne(
-        { _id: mailAccount._id },
-        {
-            $set: {
-                lastSyncedAt: syncedAt,
-                status: 'active',
-            },
-        }
-    );
-
     // Pas 4: scanează emailurile noi/actualizate (din scan.service.js). Emailurile pe
     // care userul le-a marcat deja manual sunt sărite acolo — nu le suprascriem decizia.
     const scanSummary = await runSyncScanPipeline({
@@ -1128,8 +1215,164 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         scanSummary,
         syncedAt,
         insertedEmailIds,
+        persisted:
+            skippedCount === 0 &&
+            !processingIncomplete &&
+            scanSummary.failedCount === 0,
     };
 };
+
+const emptyScanSummary = () => ({
+    insertedCandidatesCount: 0,
+    updatedCandidatesCount: 0,
+    scannedCount: 0,
+    scannedInsertedCount: 0,
+    scannedUpdatedCount: 0,
+    skippedCount: 0,
+    skippedAlreadyCurrentCount: 0,
+    skippedReviewedCount: 0,
+    failedCount: 0,
+});
+
+const runGmailSyncForUser = async ({ userId, mailAccountId, forceBackfill = false }) => {
+    const lock = await acquireGmailSyncLock({ userId, mailAccountId });
+    if (lock.skipped) {
+        const account = await MailAccount.findOne({ _id: mailAccountId, userId })
+            .select('syncState')
+            .lean();
+        const mode = account?.syncState === 'backfilling'
+            ? 'backfill'
+            : account?.syncState === 'resync_required'
+                ? 'resync'
+                : 'incremental';
+        recordGmailSync({ mode, result: 'skipped' });
+        return {
+            ...lock,
+            fetchedCount: 0,
+            insertedCount: 0,
+            updatedCount: 0,
+            skippedCount: 0,
+            syncErrors: [],
+            insertedEmailIds: [],
+            scanSummary: emptyScanSummary(),
+        };
+    }
+
+    const { mailAccount, lockedBy } = lock;
+    let heartbeatError = null;
+    const maintainLock = async () => {
+        if (heartbeatError) throw heartbeatError;
+        await renewGmailSyncLock({ mailAccountId: mailAccount._id, lockedBy });
+    };
+    const heartbeatTimer = setInterval(() => {
+        maintainLock().catch((error) => {
+            heartbeatError ??= error;
+        });
+    }, 30_000);
+    heartbeatTimer.unref?.();
+    try {
+        if (mailAccount.provider !== 'gmail') {
+            throw createError(
+                'Sync is currently available only for Gmail accounts',
+                400,
+                [],
+                'MAIL_PROVIDER_NOT_SUPPORTED'
+            );
+        }
+        if (!mailAccount.accessToken) {
+            throw createError(
+                'Google access token is missing for this account',
+                400,
+                ['Reconnect your Gmail account and retry the sync.'],
+                'GOOGLE_ACCESS_TOKEN_MISSING'
+            );
+        }
+
+        const legacyAccount = Boolean(await MailAccount.exists({
+            _id: mailAccount._id,
+            syncState: { $exists: false },
+        }));
+        const insertedEmailIds = [];
+        const scanSummary = emptyScanSummary();
+        const collectScanSummary = (summary) => {
+            for (const key of Object.keys(scanSummary)) {
+                scanSummary[key] += Number(summary?.[key]) || 0;
+            }
+        };
+        const processAndCollect = async (input) => {
+            const result = await processGmailMessageIds({
+                ...input,
+                heartbeat: maintainLock,
+            });
+            insertedEmailIds.push(...result.insertedEmailIds);
+            collectScanSummary(result.scanSummary);
+            return result;
+        };
+        const processExistingAndCollect = async (input) => {
+            const result = await scanExistingGmailMessages(input);
+            collectScanSummary(result.scanSummary);
+            return result;
+        };
+        const machine = createGmailSyncStateMachine({
+            request: requestGmailSyncResource,
+            processMessageIds: processAndCollect,
+            processExistingMessageIds: processExistingAndCollect,
+            findExistingMessages: findExistingGmailMessageIds,
+            setInboxStates: setGmailInboxStates,
+            updateAccount: updateGmailSyncAccount,
+            heartbeat: maintainLock,
+            metrics: {
+                recordSync: recordGmailSync,
+                incrementMessagesIngested: recordGmailMessagesIngested,
+                incrementHistoryGap: recordGmailHistoryGap,
+            },
+            caps: {
+                backfillMaxMessages: GMAIL_BACKFILL_MAX_MESSAGES,
+                backfillMaxDurationMs: GMAIL_BACKFILL_MAX_DURATION_MS,
+            },
+        });
+        const result = await machine.run({
+            mailAccount,
+            lockOwner: lockedBy,
+            legacyAccount,
+            forceBackfill,
+        });
+        if (result.failed) {
+            throw createError(
+                'Gmail sync could not safely advance its cursor',
+                502,
+                ['Retry the sync after the reported message errors are resolved.'],
+                'GMAIL_SYNC_INCOMPLETE'
+            );
+        }
+        return {
+            mailAccountId: mailAccount._id,
+            accountEmail: mailAccount.accountEmail,
+            provider: 'gmail',
+            syncSource: `gmail_${result.mode}`,
+            ...result,
+            insertedEmailIds,
+            scanSummary,
+            syncedAt: new Date(),
+        };
+    } finally {
+        clearInterval(heartbeatTimer);
+        try {
+            await releaseGmailSyncLock({ mailAccountId, lockedBy });
+        } catch (error) {
+            console.warn('[gmail-sync] Failed to release sync lock', {
+                mailAccountId: String(mailAccountId),
+                error: error.message,
+            });
+        }
+    }
+};
+
+export const syncGmailEmailsForUser = ({ userId, mailAccountId }) =>
+    runGmailSyncForUser({ userId, mailAccountId });
+
+export const backfillGmailEmailsForUser = ({ userId, mailAccountId }) =>
+    runGmailSyncForUser({ userId, mailAccountId, forceBackfill: true });
 
 // Deconectează contul de mail: șterge documentul MailAccount (inclusiv tokenii
 // criptați salvați pe el). Emailurile deja sincronizate rămân în baza de date — doar

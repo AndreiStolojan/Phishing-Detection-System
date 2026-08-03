@@ -11,6 +11,7 @@ export const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profile';
 export const GMAIL_MESSAGES_LIST_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
 export const GMAIL_MESSAGE_DETAILS_BASE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
+export const GMAIL_HISTORY_LIST_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/history';
 
 export const googleOAuthConfig = {
     clientId: GOOGLE_CLIENT_ID,
