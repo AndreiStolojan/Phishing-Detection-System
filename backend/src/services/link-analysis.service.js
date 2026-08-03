@@ -40,6 +40,9 @@ const SHORTENER_DOMAINS = new Set([
     'shorturl.at',
 ]);
 
+export const isKnownShortenerDomain = (hostname) =>
+    SHORTENER_DOMAINS.has(normalizeComparableDomain(hostname));
+
 // Caută linkuri în corpul de tip text simplu (plain text), folosind o expresie
 // regulată care prinde fie "http(s)://...", fie "www....".
 const extractTextLinks = (content) => {
@@ -284,7 +287,7 @@ export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
 
         // Verificăm fiecare tipar suspect pe rând. Un link poate avea mai multe
         // tipare suspecte simultan (ex: link scurtat ȘI foarte lung).
-        if (SHORTENER_DOMAINS.has(normalizedDomain)) {
+        if (isKnownShortenerDomain(normalizedDomain)) {
             hasShortenedUrl = true;
             suspiciousLinkPatterns.push('shortened_url');
         }
