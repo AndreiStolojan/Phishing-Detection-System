@@ -5,6 +5,7 @@
 
 const TRACKING_PARAMETER_NAMES = new Set(['fbclid', 'gclid']);
 const UNRESERVED_CHARACTER = /^[A-Za-z0-9\-._~]$/;
+const MAX_URL_CHARS = 8_192;
 
 const decodeUnreservedPercentEncoding = (value) =>
     value.replace(/%([0-9a-f]{2})/gi, (encoded, hex) => {
@@ -63,7 +64,7 @@ const toHttpUrlCandidate = (rawValue) => {
 
     const trimmedValue = rawValue.trim();
 
-    if (!trimmedValue) {
+    if (!trimmedValue || trimmedValue.length > MAX_URL_CHARS) {
         return null;
     }
 
