@@ -3,6 +3,8 @@ import http from 'node:http';
 import https from 'node:https';
 import { BlockList, isIP, SocketAddress } from 'node:net';
 
+import { readBoundedJson } from './bounded-json.service.js';
+
 const DEFAULT_MAX_REDIRECTS = 5;
 const DEFAULT_MAX_DNS_ADDRESSES = 16;
 const DEFAULT_DNS_TIMEOUT_MS = 2_000;
@@ -11,6 +13,8 @@ const DEFAULT_TOTAL_TIMEOUT_MS = 10_000;
 const MAX_DNS_TIMEOUT_MS = 5_000;
 const MAX_REQUEST_TIMEOUT_MS = 5_000;
 const MAX_TOTAL_TIMEOUT_MS = 15_000;
+const DEFAULT_MAX_JSON_RESPONSE_BYTES = 256 * 1024;
+const MAX_JSON_RESPONSE_BYTES = 1024 * 1024;
 const MAX_URL_LENGTH = 8_192;
 const MAX_HEADER_SIZE = 16 * 1_024;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
@@ -266,14 +270,19 @@ const makePinnedLookup = ({ hostname, address, family }) =>
         });
     };
 
-const requestOptionsFor = (url, pinnedAddress, signal) => {
+const requestOptionsFor = (
+    url,
+    pinnedAddress,
+    signal,
+    { method = 'HEAD', accept = '*/*' } = {}
+) => {
     const hostname = stripIpv6Brackets(url.hostname);
     const hostnameFamily = isIP(hostname);
     const options = {
         hostname,
         port: url.protocol === 'https:' ? 443 : 80,
         path: `${url.pathname}${url.search}`,
-        method: 'HEAD',
+        method,
         family: pinnedAddress.family,
         autoSelectFamily: false,
         agent: false,
@@ -286,7 +295,7 @@ const requestOptionsFor = (url, pinnedAddress, signal) => {
         }),
         headers: {
             Host: url.host,
-            Accept: '*/*',
+            Accept: accept,
             Connection: 'close',
             'User-Agent': 'SecureInbox-ThreatIntel/1',
         },
@@ -301,6 +310,127 @@ const requestOptionsFor = (url, pinnedAddress, signal) => {
 
     return options;
 };
+
+const createAddressResolver = ({ dnsLookup, addressLimit, dnsBudget }) =>
+    async (url, deadline, signal) => {
+        const hostname = stripIpv6Brackets(url.hostname);
+        const literalFamily = isIP(hostname);
+        if (literalFamily !== 0) {
+            return assertPublicAddress(hostname, literalFamily);
+        }
+
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+            throw safeFetchError('SAFE_FETCH_TOTAL_TIMEOUT', 'Safe fetch deadline expired');
+        }
+
+        let answers;
+        try {
+            answers = await timeoutPromise(
+                Promise.resolve(dnsLookup(hostname, { all: true, order: 'verbatim' })),
+                Math.min(dnsBudget, remainingMs),
+                'SAFE_FETCH_DNS_TIMEOUT',
+                undefined,
+                signal
+            );
+        } catch (error) {
+            if (String(error?.code || '').startsWith('SAFE_FETCH_')) {
+                throw error;
+            }
+            throw safeFetchError('SAFE_FETCH_DNS_FAILED', `DNS lookup failed for ${hostname}`, error);
+        }
+
+        if (!Array.isArray(answers) || answers.length === 0 || answers.length > addressLimit) {
+            throw safeFetchError('SAFE_FETCH_DNS_INVALID', `DNS returned an invalid answer set for ${hostname}`);
+        }
+
+        const validated = answers.map(({ address, family }) => assertPublicAddress(address, family));
+        return validated[0];
+    };
+
+const defaultJsonRequestAdapter = ({ protocol, options, expectedAddress, maxBytes }) =>
+    new Promise((resolve, reject) => {
+        const request = protocol === 'https:' ? https.request : http.request;
+        let settled = false;
+        const finish = (callback, value) => {
+            if (!settled) {
+                settled = true;
+                callback(value);
+            }
+        };
+        const req = request(options, (response) => {
+            try {
+                assertPeerAddress(response.socket?.remoteAddress, expectedAddress);
+            } catch (error) {
+                response.destroy();
+                finish(reject, error);
+                return;
+            }
+
+            const remoteAddress = response.socket?.remoteAddress;
+            const declaredLength = Number.parseInt(String(response.headers?.['content-length'] || ''), 10);
+            if (Number.isSafeInteger(declaredLength) && declaredLength > maxBytes) {
+                const error = safeFetchError(
+                    'SAFE_FETCH_RESPONSE_TOO_LARGE',
+                    'JSON response exceeds its size limit'
+                );
+                response.destroy(error);
+                finish(reject, error);
+                return;
+            }
+
+            const chunks = [];
+            let byteLength = 0;
+            response.on('data', (chunk) => {
+                if (!(chunk instanceof Uint8Array)) {
+                    const error = safeFetchError('SAFE_FETCH_RESPONSE_INVALID', 'JSON response body is invalid');
+                    response.destroy(error);
+                    finish(reject, error);
+                    return;
+                }
+
+                byteLength += chunk.byteLength;
+                if (byteLength > maxBytes) {
+                    const error = safeFetchError(
+                        'SAFE_FETCH_RESPONSE_TOO_LARGE',
+                        'JSON response exceeds its size limit'
+                    );
+                    response.destroy(error);
+                    finish(reject, error);
+                    return;
+                }
+                chunks.push(chunk);
+            });
+            response.once('error', (error) => finish(reject, error));
+            response.once('end', () => {
+                const bytes = Buffer.concat(chunks);
+                finish(resolve, {
+                    statusCode: response.statusCode,
+                    headers: response.headers,
+                    remoteAddress,
+                    body: new ReadableStream({
+                        start(controller) {
+                            controller.enqueue(bytes);
+                            controller.close();
+                        },
+                    }),
+                });
+            });
+        });
+
+        req.once('socket', (socket) => {
+            const connectEvent = protocol === 'https:' ? 'secureConnect' : 'connect';
+            socket.once(connectEvent, () => {
+                try {
+                    assertPeerAddress(socket.remoteAddress, expectedAddress);
+                } catch (error) {
+                    req.destroy(error);
+                }
+            });
+        });
+        req.once('error', (error) => finish(reject, error));
+        req.end();
+    });
 
 export const createSafeFetch = ({
     dnsLookup = systemLookup,
@@ -336,42 +466,11 @@ export const createSafeFetch = ({
         DEFAULT_TOTAL_TIMEOUT_MS,
         MAX_TOTAL_TIMEOUT_MS
     );
-
-    const resolveAddress = async (url, deadline, signal) => {
-        const hostname = stripIpv6Brackets(url.hostname);
-        const literalFamily = isIP(hostname);
-        if (literalFamily !== 0) {
-            return assertPublicAddress(hostname, literalFamily);
-        }
-
-        const remainingMs = deadline - Date.now();
-        if (remainingMs <= 0) {
-            throw safeFetchError('SAFE_FETCH_TOTAL_TIMEOUT', 'Safe fetch deadline expired');
-        }
-
-        let answers;
-        try {
-            answers = await timeoutPromise(
-                Promise.resolve(dnsLookup(hostname, { all: true, order: 'verbatim' })),
-                Math.min(dnsBudget, remainingMs),
-                'SAFE_FETCH_DNS_TIMEOUT',
-                undefined,
-                signal
-            );
-        } catch (error) {
-            if (String(error?.code || '').startsWith('SAFE_FETCH_')) {
-                throw error;
-            }
-            throw safeFetchError('SAFE_FETCH_DNS_FAILED', `DNS lookup failed for ${hostname}`, error);
-        }
-
-        if (!Array.isArray(answers) || answers.length === 0 || answers.length > addressLimit) {
-            throw safeFetchError('SAFE_FETCH_DNS_INVALID', `DNS returned an invalid answer set for ${hostname}`);
-        }
-
-        const validated = answers.map(({ address, family }) => assertPublicAddress(address, family));
-        return validated[0];
-    };
+    const resolveAddress = createAddressResolver({
+        dnsLookup,
+        addressLimit,
+        dnsBudget,
+    });
 
     return async (rawUrl, { signal } = {}) => {
         const deadline = Date.now() + totalBudget;
@@ -449,6 +548,129 @@ export const createSafeFetch = ({
             redirects.push(canonicalNextUrl);
             currentUrl = nextUrl;
         }
+    };
+};
+
+// HTTPS JSON GET with the same DNS validation and peer pinning as safeFetch.
+// It intentionally does not follow redirects: callers retain authority over
+// every destination and only receive a bounded, parsed JSON object.
+export const createSafeJsonGet = ({
+    dnsLookup = systemLookup,
+    requestAdapter = defaultJsonRequestAdapter,
+    maxDnsAddresses = DEFAULT_MAX_DNS_ADDRESSES,
+    dnsTimeoutMs = DEFAULT_DNS_TIMEOUT_MS,
+    requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS,
+    maxResponseBytes = DEFAULT_MAX_JSON_RESPONSE_BYTES,
+} = {}) => {
+    const addressLimit = boundedPositiveInteger(
+        maxDnsAddresses,
+        DEFAULT_MAX_DNS_ADDRESSES,
+        DEFAULT_MAX_DNS_ADDRESSES
+    );
+    const dnsBudget = boundedPositiveInteger(
+        dnsTimeoutMs,
+        DEFAULT_DNS_TIMEOUT_MS,
+        MAX_DNS_TIMEOUT_MS
+    );
+    const requestBudget = boundedPositiveInteger(
+        requestTimeoutMs,
+        DEFAULT_REQUEST_TIMEOUT_MS,
+        MAX_REQUEST_TIMEOUT_MS
+    );
+    const totalBudget = boundedPositiveInteger(
+        totalTimeoutMs,
+        DEFAULT_TOTAL_TIMEOUT_MS,
+        MAX_TOTAL_TIMEOUT_MS
+    );
+    const defaultResponseLimit = boundedPositiveInteger(
+        maxResponseBytes,
+        DEFAULT_MAX_JSON_RESPONSE_BYTES,
+        MAX_JSON_RESPONSE_BYTES
+    );
+    const resolveAddress = createAddressResolver({
+        dnsLookup,
+        addressLimit,
+        dnsBudget,
+    });
+
+    return async (rawUrl, { signal, maxBytes = defaultResponseLimit } = {}) => {
+        const url = normalizedUrl(rawUrl);
+        if (url.protocol !== 'https:') {
+            throw safeFetchError('SAFE_FETCH_PROTOCOL_BLOCKED', 'Only HTTPS JSON endpoints are allowed');
+        }
+        const responseLimit = boundedPositiveInteger(
+            maxBytes,
+            defaultResponseLimit,
+            MAX_JSON_RESPONSE_BYTES
+        );
+        const deadline = Date.now() + totalBudget;
+        const pinnedAddress = await resolveAddress(url, deadline, signal);
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+            throw safeFetchError('SAFE_FETCH_TOTAL_TIMEOUT', 'Safe fetch deadline expired');
+        }
+
+        const controller = new AbortController();
+        let response;
+        try {
+            response = await timeoutPromise(
+                Promise.resolve(
+                    requestAdapter({
+                        protocol: url.protocol,
+                        options: requestOptionsFor(url, pinnedAddress, controller.signal, {
+                            method: 'GET',
+                            accept: 'application/rdap+json, application/json',
+                        }),
+                        expectedAddress: pinnedAddress.address,
+                        maxBytes: responseLimit,
+                    })
+                ),
+                Math.min(requestBudget, remainingMs),
+                remainingMs <= requestBudget
+                    ? 'SAFE_FETCH_TOTAL_TIMEOUT'
+                    : 'SAFE_FETCH_REQUEST_TIMEOUT',
+                () => controller.abort(),
+                signal
+            );
+        } catch (error) {
+            if (String(error?.code || '').startsWith('SAFE_FETCH_')) {
+                throw error;
+            }
+            throw safeFetchError('SAFE_FETCH_REQUEST_FAILED', `GET request failed for ${url}`, error);
+        }
+
+        assertPeerAddress(response?.remoteAddress, pinnedAddress.address);
+        const status = Number(response?.statusCode);
+        if (!Number.isInteger(status) || status < 100 || status > 599) {
+            throw safeFetchError('SAFE_FETCH_RESPONSE_INVALID', 'GET response has an invalid status code');
+        }
+        if (status < 200 || status > 299) {
+            return { ok: false, status, body: null };
+        }
+
+        const bodyDeadlineMs = deadline - Date.now();
+        if (bodyDeadlineMs <= 0) {
+            throw safeFetchError('SAFE_FETCH_TOTAL_TIMEOUT', 'Safe fetch deadline expired');
+        }
+
+        let body;
+        try {
+            body = await timeoutPromise(
+                readBoundedJson(response, { maxBytes: responseLimit }),
+                bodyDeadlineMs,
+                'SAFE_FETCH_TOTAL_TIMEOUT',
+                () => controller.abort(),
+                signal
+            );
+        } catch (error) {
+            if (String(error?.code || '').startsWith('SAFE_FETCH_')) {
+                throw error;
+            }
+            throw safeFetchError('SAFE_FETCH_RESPONSE_INVALID', 'JSON response is invalid', error);
+        }
+
+        return { ok: true, status, body };
     };
 };
 

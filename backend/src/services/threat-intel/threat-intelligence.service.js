@@ -531,7 +531,9 @@ export const createThreatIntelligenceService = ({
                             status: isPrivate ? 'blocked' : 'unavailable',
                             hopCount,
                         },
-                        ttlMs: isPrivate ? MALICIOUS_TTL_MS : ERROR_TTL_MS,
+                        // A blocked private address is a safe-fetch policy
+                        // violation, not proof that the short URL is malicious.
+                        ttlMs: ERROR_TTL_MS,
                     });
                 }
                 return { status: isPrivate ? 'blocked' : 'unavailable', hopCount };

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createSafeFetch } from '../../src/services/threat-intel/safe-fetch.service.js';
+import {
+    createSafeFetch,
+    createSafeJsonGet,
+} from '../../src/services/threat-intel/safe-fetch.service.js';
 
 const PUBLIC_V4 = '8.8.8.8';
 const SECOND_PUBLIC_V4 = '1.1.1.1';
@@ -22,6 +25,14 @@ const response = ({
 });
 
 const publicDns = async () => [{ address: PUBLIC_V4, family: 4 }];
+
+const streamedJsonResponse = (body, { status = 200, headers = {} } = {}) => Object.assign(
+    new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json', ...headers },
+    }),
+    { statusCode: status, remoteAddress: PUBLIC_V4 }
+);
 
 const errorCode = (code) => (error) => {
     assert.equal(error.code, code);
@@ -200,6 +211,77 @@ test('pins DNS once while preserving HEAD, Host, SNI and TLS verification', asyn
         redirects: [],
     });
     assert.equal(dnsCount, 1);
+});
+
+test('safe JSON GET pins the public DNS result and accepts only bounded stream-backed JSON', async () => {
+    let dnsCount = 0;
+    const safeJsonGet = createSafeJsonGet({
+        dnsLookup: async (hostname, options) => {
+            dnsCount += 1;
+            assert.equal(hostname, 'rdap.example');
+            assert.deepEqual(options, { all: true, order: 'verbatim' });
+            return [{ address: PUBLIC_V4, family: 4 }];
+        },
+        requestAdapter: async ({ protocol, options, expectedAddress, maxBytes }) => {
+            assert.equal(protocol, 'https:');
+            assert.equal(options.method, 'GET');
+            assert.equal(options.path, '/domain/example.com');
+            assert.equal(options.headers.Accept, 'application/rdap+json, application/json');
+            assert.equal(options.servername, 'rdap.example');
+            assert.equal(expectedAddress, PUBLIC_V4);
+            assert.equal(maxBytes, 512);
+
+            const pinned = await new Promise((resolve, reject) => {
+                options.lookup(options.hostname, { all: false }, (error, address, family) => {
+                    if (error) reject(error);
+                    else resolve({ address, family });
+                });
+            });
+            assert.deepEqual(pinned, { address: PUBLIC_V4, family: 4 });
+            return streamedJsonResponse({ objectClassName: 'domain' });
+        },
+    });
+
+    assert.deepEqual(
+        await safeJsonGet('https://rdap.example/domain/example.com', { maxBytes: 512 }),
+        { ok: true, status: 200, body: { objectClassName: 'domain' } }
+    );
+    assert.equal(dnsCount, 1);
+});
+
+test('safe JSON GET rejects a rebinding DNS answer set before transport', async () => {
+    let requestCount = 0;
+    const safeJsonGet = createSafeJsonGet({
+        dnsLookup: async () => [
+            { address: PUBLIC_V4, family: 4 },
+            { address: '127.0.0.1', family: 4 },
+        ],
+        requestAdapter: async () => {
+            requestCount += 1;
+            return streamedJsonResponse({});
+        },
+    });
+
+    await assert.rejects(
+        safeJsonGet('https://rdap.example/domain/example.com'),
+        errorCode('SAFE_FETCH_ADDRESS_BLOCKED')
+    );
+    assert.equal(requestCount, 0);
+});
+
+test('safe JSON GET applies its byte limit while reading the response stream', async () => {
+    const safeJsonGet = createSafeJsonGet({
+        dnsLookup: publicDns,
+        requestAdapter: async () => streamedJsonResponse({
+            objectClassName: 'domain',
+            padding: 'x'.repeat(32),
+        }),
+    });
+
+    await assert.rejects(
+        safeJsonGet('https://rdap.example/domain/example.com', { maxBytes: 32 }),
+        errorCode('SAFE_FETCH_RESPONSE_INVALID')
+    );
 });
 
 test('omits SNI for a public HTTPS IP literal and preserves the bracketed IPv6 Host', async () => {

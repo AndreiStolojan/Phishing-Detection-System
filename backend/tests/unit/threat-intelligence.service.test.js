@@ -207,6 +207,27 @@ test('turns private redirect attempts and long chains into bounded evidence', as
     assert.equal(result.sourceStatuses.redirect, 'ok');
 });
 
+test('caches private redirect blocks only for the short error TTL', async () => {
+    const writes = [];
+    const privateError = new Error('private address');
+    privateError.code = 'SAFE_FETCH_ADDRESS_BLOCKED';
+    const service = createThreatIntelligenceService({
+        enabled: true,
+        cache: {
+            async get() { return null; },
+            async set(input) { writes.push(input); },
+        },
+        rdap: { async lookupDomain() { return { status: 'not_found', registeredAt: null }; } },
+        async resolveRedirect() { throw privateError; },
+    });
+
+    await service.analyze({ links: ['https://bit.ly/private'] });
+
+    const redirectWrite = writes.find(({ source }) => source === 'redirect');
+    assert.equal(redirectWrite.value.status, 'blocked');
+    assert.equal(redirectWrite.ttlMs, 5 * 60 * 1000);
+});
+
 test('disabled threat intelligence performs no work', async () => {
     let calls = 0;
     const service = createThreatIntelligenceService({

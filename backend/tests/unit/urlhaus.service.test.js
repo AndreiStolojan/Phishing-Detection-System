@@ -4,18 +4,21 @@ import test from 'node:test';
 import { createUrlhausService } from '../../src/services/threat-intel/urlhaus.service.js';
 import { normalizeHttpUrl } from '../../src/services/threat-intel/url-normalization.service.js';
 
+const jsonResponse = (body) => new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+});
+
 test('URLhaus sends its Community API form request and returns a bounded match', async () => {
     let request;
     const service = createUrlhausService({
         authKey: 'community-key',
         fetch: async (url, options) => {
             request = { url, options };
-            return {
-                ok: true,
-                async json() {
-                    return { query_status: 'ok', url: 'https://malware.test/private' };
-                },
-            };
+            return jsonResponse({
+                query_status: 'ok',
+                url: 'https://malware.test/private',
+            });
         },
     });
 
@@ -33,7 +36,7 @@ test('URLhaus sends its Community API form request and returns a bounded match',
 test('URLhaus returns no match, or a fail-open bounded error', async () => {
     const noMatch = createUrlhausService({
         authKey: 'key',
-        fetch: async () => ({ ok: true, json: async () => ({ query_status: 'no_results' }) }),
+        fetch: async () => jsonResponse({ query_status: 'no_results' }),
     });
     assert.deepEqual(await noMatch.lookup('https://example.test'), {
         status: 'ok', match: false,
@@ -41,7 +44,7 @@ test('URLhaus returns no match, or a fail-open bounded error', async () => {
 
     const invalidResponse = createUrlhausService({
         authKey: 'key',
-        fetch: async () => ({ ok: true, json: async () => ({ query_status: 'ok' }) }),
+        fetch: async () => jsonResponse({ query_status: 'ok' }),
     });
     assert.deepEqual(await invalidResponse.lookup('https://example.test'), {
         status: 'unavailable', match: false, reason: 'invalid_response',

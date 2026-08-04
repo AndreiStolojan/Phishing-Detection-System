@@ -4,23 +4,23 @@ import test from 'node:test';
 import { createWebRiskService } from '../../src/services/threat-intel/web-risk.service.js';
 import { normalizeHttpUrl } from '../../src/services/threat-intel/url-normalization.service.js';
 
+const jsonResponse = (body) => new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+});
+
 test('Web Risk performs one validated lookup and returns only bounded threat data', async () => {
     let request;
     const service = createWebRiskService({
         apiKey: 'test-key',
         fetch: async (url, options) => {
             request = { url: new URL(url), options };
-            return {
-                ok: true,
-                async json() {
-                    return {
-                        threat: {
-                            threatTypes: ['MALWARE', 'UNKNOWN', 'MALWARE'],
-                            expireTime: '2026-08-03T12:00:00Z',
-                        },
-                    };
+            return jsonResponse({
+                threat: {
+                    threatTypes: ['MALWARE', 'UNKNOWN', 'MALWARE'],
+                    expireTime: '2026-08-03T12:00:00Z',
                 },
-            };
+            });
         },
     });
 
@@ -41,7 +41,7 @@ test('Web Risk is fail-open for missing configuration, invalid inputs, and inval
     const service = createWebRiskService({
         fetch: async () => {
             calls += 1;
-            return { ok: true, json: async () => ({}) };
+            return jsonResponse({});
         },
     });
 
@@ -58,7 +58,7 @@ test('Web Risk is fail-open for missing configuration, invalid inputs, and inval
 
     const invalidBody = createWebRiskService({
         apiKey: 'key',
-        fetch: async () => ({ ok: true, json: async () => null }),
+        fetch: async () => jsonResponse(null),
     });
     assert.deepEqual(await invalidBody.lookup('https://example.test'), {
         status: 'unavailable', matches: [], reason: 'invalid_response',
@@ -66,7 +66,7 @@ test('Web Risk is fail-open for missing configuration, invalid inputs, and inval
 
     const malformedThreat = createWebRiskService({
         apiKey: 'key',
-        fetch: async () => ({ ok: true, json: async () => ({ threat: { threatTypes: 'MALWARE' } }) }),
+        fetch: async () => jsonResponse({ threat: { threatTypes: 'MALWARE' } }),
     });
     assert.deepEqual(await malformedThreat.lookup('https://example.test'), {
         status: 'unavailable', matches: [], reason: 'invalid_response',

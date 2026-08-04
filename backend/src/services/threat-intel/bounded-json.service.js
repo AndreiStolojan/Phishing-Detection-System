@@ -30,10 +30,7 @@ export const readBoundedJson = async (
 
     const reader = response?.body?.getReader?.();
     if (!reader) {
-        if (typeof response?.json !== 'function') {
-            throw responseError('Threat intelligence response has no readable body');
-        }
-        return response.json();
+        throw responseError('Threat intelligence response has no bounded readable body');
     }
 
     const chunks = [];

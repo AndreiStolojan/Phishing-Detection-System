@@ -3,28 +3,17 @@ import { isIP } from 'node:net';
 
 import { getDomain } from 'tldts';
 
-import { readBoundedJson } from './bounded-json.service.js';
+import { createSafeJsonGet } from './safe-fetch.service.js';
 
 const IANA_DNS_BOOTSTRAP_URL = 'https://data.iana.org/rdap/dns.json';
 const DEFAULT_BOOTSTRAP_TTL_MS = 24 * 60 * 60 * 1000;
-const MAX_TIMEOUT_MS = 10_000;
+const DEFAULT_BOOTSTRAP_NEGATIVE_TTL_MS = 30_000;
 
 const unavailable = (reason) => ({
     status: 'unavailable',
     registeredAt: null,
     reason,
 });
-
-const requestSignal = (timeoutMs, externalSignal) => {
-    const boundedTimeout = Math.min(
-        Math.max(Number(timeoutMs) || 0, 1),
-        MAX_TIMEOUT_MS
-    );
-    const timeoutSignal = AbortSignal.timeout(boundedTimeout);
-    return externalSignal
-        ? AbortSignal.any([externalSignal, timeoutSignal])
-        : timeoutSignal;
-};
 
 const isAllowedRegistryBaseUrl = (value) => {
     try {
@@ -113,48 +102,87 @@ const toDomainUrl = (baseUrl, domain) => {
 // IANA's small bootstrap registry is cached in-process. Only a registrable
 // domain is sent to the selected authoritative RDAP registry, never a URL path.
 export const createRdapService = ({
-    fetch: fetchImpl = globalThis.fetch,
     now = () => new Date(),
     bootstrapUrl = IANA_DNS_BOOTSTRAP_URL,
     bootstrapTtlMs = DEFAULT_BOOTSTRAP_TTL_MS,
+    bootstrapNegativeTtlMs = DEFAULT_BOOTSTRAP_NEGATIVE_TTL_MS,
     timeoutMs = 5_000,
+    safeJsonGet: safeJsonGetImpl,
 } = {}) => {
     const ttlMs = Math.min(
         Math.max(Number(bootstrapTtlMs) || DEFAULT_BOOTSTRAP_TTL_MS, 60_000),
         7 * DEFAULT_BOOTSTRAP_TTL_MS
     );
+    const negativeTtlMs = Math.min(
+        Math.max(Number(bootstrapNegativeTtlMs) || DEFAULT_BOOTSTRAP_NEGATIVE_TTL_MS, 1_000),
+        5 * 60 * 1000
+    );
+    const safeJsonGet = typeof safeJsonGetImpl === 'function'
+        ? safeJsonGetImpl
+        : createSafeJsonGet({
+            dnsTimeoutMs: timeoutMs,
+            requestTimeoutMs: timeoutMs,
+            totalTimeoutMs: timeoutMs,
+        });
     let bootstrap = null;
     let bootstrapExpiresAt = 0;
+    let bootstrapUnavailableUntil = 0;
+    let bootstrapInFlight = null;
+
+    const waitForBootstrap = (promise, signal) => {
+        if (!signal) return promise;
+        if (signal.aborted) return Promise.resolve(null);
+
+        return new Promise((resolve) => {
+            let settled = false;
+            const finish = (value) => {
+                if (!settled) {
+                    settled = true;
+                    signal.removeEventListener('abort', onAbort);
+                    resolve(value);
+                }
+            };
+            const onAbort = () => finish(null);
+
+            signal.addEventListener('abort', onAbort, { once: true });
+            if (signal.aborted) onAbort();
+            promise.then(finish, () => finish(null));
+        });
+    };
 
     const loadBootstrap = async (signal) => {
         const currentTime = now().getTime();
         if (bootstrap && bootstrapExpiresAt > currentTime) return bootstrap;
-        if (typeof fetchImpl !== 'function') return null;
+        if (bootstrapUnavailableUntil > currentTime || signal?.aborted) return null;
 
-        let response;
-        try {
-            response = await fetchImpl(bootstrapUrl, {
-                method: 'GET',
-                redirect: 'error',
-                signal: requestSignal(timeoutMs, signal),
+        if (!bootstrapInFlight) {
+            // The bootstrap request has its own deadline. A cancelled scan only
+            // stops waiting; it cannot cancel this shared refresh for others.
+            bootstrapInFlight = (async () => {
+                try {
+                    const response = await safeJsonGet(bootstrapUrl, {
+                        maxBytes: 512 * 1024,
+                    });
+                    const parsed = response?.ok ? parseBootstrap(response.body) : null;
+                    if (!parsed) {
+                        bootstrapUnavailableUntil = now().getTime() + negativeTtlMs;
+                        return null;
+                    }
+
+                    bootstrap = parsed;
+                    bootstrapExpiresAt = now().getTime() + ttlMs;
+                    bootstrapUnavailableUntil = 0;
+                    return bootstrap;
+                } catch {
+                    bootstrapUnavailableUntil = now().getTime() + negativeTtlMs;
+                    return null;
+                }
+            })().finally(() => {
+                bootstrapInFlight = null;
             });
-        } catch {
-            return null;
         }
-        if (!response?.ok) return null;
 
-        let body;
-        try {
-            body = await readBoundedJson(response, { maxBytes: 512 * 1024 });
-        } catch {
-            return null;
-        }
-        const parsed = parseBootstrap(body);
-        if (!parsed) return null;
-
-        bootstrap = parsed;
-        bootstrapExpiresAt = currentTime + ttlMs;
-        return bootstrap;
+        return waitForBootstrap(bootstrapInFlight, signal);
     };
 
     const lookupDomain = async (domain, { signal } = {}) => {
@@ -169,26 +197,27 @@ export const createRdapService = ({
 
         let response;
         try {
-            response = await fetchImpl(toDomainUrl(endpoint, normalizedDomain), {
-                method: 'GET',
-                headers: { Accept: 'application/rdap+json, application/json' },
-                redirect: 'error',
-                signal: requestSignal(timeoutMs, signal),
+            response = await safeJsonGet(toDomainUrl(endpoint, normalizedDomain).toString(), {
+                signal,
+                maxBytes: 256 * 1024,
             });
         } catch (error) {
-            return unavailable(error?.name === 'TimeoutError' ? 'timeout' : 'request_failed');
+            return unavailable(
+                error?.code === 'SAFE_FETCH_RESPONSE_INVALID' ||
+                error?.code === 'SAFE_FETCH_RESPONSE_TOO_LARGE'
+                    ? 'invalid_response'
+                    : error?.code === 'SAFE_FETCH_TOTAL_TIMEOUT' ||
+                    error?.code === 'SAFE_FETCH_REQUEST_TIMEOUT'
+                        ? 'timeout'
+                        : 'request_failed'
+            );
         }
         if (response?.status === 404) {
             return { status: 'not_found', registeredAt: null };
         }
         if (!response?.ok) return unavailable('request_failed');
 
-        let body;
-        try {
-            body = await readBoundedJson(response, { maxBytes: 256 * 1024 });
-        } catch {
-            return unavailable('invalid_response');
-        }
+        const body = response.body;
         if (!body || typeof body !== 'object' || Array.isArray(body) || body.objectClassName !== 'domain') {
             return unavailable('invalid_response');
         }

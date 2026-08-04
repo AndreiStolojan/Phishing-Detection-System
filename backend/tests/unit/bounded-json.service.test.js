@@ -23,3 +23,20 @@ test('reads a small JSON stream and rejects declared or streamed oversized bodie
         { code: 'THREAT_INTEL_RESPONSE_INVALID' }
     );
 });
+
+test('fails closed when a response cannot be read with a byte limit', async () => {
+    let jsonCalled = false;
+
+    await assert.rejects(
+        readBoundedJson({
+            headers: { get: () => null },
+            async json() {
+                jsonCalled = true;
+                return { status: 'ok' };
+            },
+        }),
+        { code: 'THREAT_INTEL_RESPONSE_INVALID' }
+    );
+
+    assert.equal(jsonCalled, false);
+});

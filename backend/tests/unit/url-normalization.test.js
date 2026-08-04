@@ -49,6 +49,19 @@ test('deduplicates normalized text and HTML links before link analysis', () => {
     assert.equal(result.linkCount, 1);
 });
 
+test('retains very-long URL detection after reputation normalization removes tracking data', () => {
+    const trackingValue = 'a'.repeat(220);
+    const result = analyzeEmailLinks({
+        textBody: [
+            'Open https://example.com/offer',
+            `then https://example.com/offer?utm_source=${trackingValue}#details`,
+        ].join(' '),
+    });
+
+    assert.deepEqual(result.links, ['https://example.com/offer']);
+    assert.deepEqual(result.suspiciousLinkPatterns, ['very_long_url']);
+});
+
 test('reports an HTML anchor domain mismatch without retaining query values', () => {
     const result = analyzeEmailLinks({
         htmlBody: [
@@ -79,16 +92,50 @@ test('does not report a mismatch for equivalent displayed domains or ordinary an
     assert.deepEqual(result.anchorMismatches, []);
 });
 
-test('extracts href only from bounded anchor elements', () => {
-    const harmlessHrefAttribute = '<div href="https://not-an-anchor.example/">ignored</div>';
-    const anchors = Array.from(
+test('extracts href from bounded real HTML elements, with mismatches limited to anchors', () => {
+    const inertHrefAttributes = Array.from(
         { length: 205 },
-        (_, index) => `<a href="https://example${index}.test/">link</a>`
+        (_, index) => `<div href="https://inert${index}.example/">ignored</div>`
     ).join('');
-    const result = analyzeEmailLinks({ htmlBody: `${harmlessHrefAttribute}${anchors}` });
+    const nonAnchorLinks = [
+        '<area href="https://area.example/offer">https://displayed.example</area>',
+        '<link href="https://link.example/stylesheet.css">',
+    ].join('');
+    const result = analyzeEmailLinks({
+        htmlBody: `${inertHrefAttributes}${nonAnchorLinks}`,
+    });
+
+    assert.equal(result.linkCount, 2);
+    assert.deepEqual(result.links, [
+        'https://area.example/offer',
+        'https://link.example/stylesheet.css',
+    ]);
+    assert.deepEqual(result.anchorMismatches, []);
+});
+
+test('resource hrefs cannot exhaust the bounded click-target budget', () => {
+    const resourceLinks = Array.from(
+        { length: 205 },
+        (_, index) => `<link href="https://resource${index}.example/style.css">`
+    ).join('');
+    const areaLinks = Array.from(
+        { length: 205 },
+        (_, index) => `<area href="https://area${index}.example/offer">`
+    ).join('');
+    const anchors = [
+        '<a href="https://bit.ly/evil">https://trusted.example</a>',
+        ...Array.from(
+            { length: 205 },
+            (_, index) => `<a href="https://example${index}.test/">link</a>`
+        ),
+    ].join('');
+    const result = analyzeEmailLinks({
+        htmlBody: `${resourceLinks}${areaLinks}${anchors}`,
+    });
 
     assert.equal(result.linkCount, 200);
-    assert.equal(result.links[0], 'https://example0.test/');
-    assert.equal(result.links.at(-1), 'https://example199.test/');
-    assert.equal(result.links.includes('https://not-an-anchor.example/'), false);
+    assert.equal(result.links[0], 'https://bit.ly/evil');
+    assert.equal(result.hasShortenedUrl, true);
+    assert.deepEqual(result.suspiciousLinkPatterns, ['shortened_url']);
+    assert.equal(result.anchorMismatches.length, 1);
 });

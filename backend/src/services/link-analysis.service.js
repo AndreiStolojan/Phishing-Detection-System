@@ -49,13 +49,15 @@ const extractTextLinks = (content) => {
     const urlPattern = /\b((?:https?:\/\/|www\.)[^\s<>"'`]+)\b/gi;
     const matches = content.match(urlPattern) || [];
 
-    return matches.map(normalizeHttpUrl).filter(Boolean);
+    return matches;
 };
 
 const MAX_HTML_ANALYSIS_CHARS = 200_000;
-const MAX_HTML_ANCHORS = 200;
+const MAX_HTML_LINKS = 200;
+const MAX_HTML_SECONDARY_LINKS = 200;
 const MAX_HTML_TAG_CHARS = 4_096;
 const MAX_ANCHOR_MISMATCHES = 25;
+const HTML_HREF_ELEMENTS = new Set(['a', 'area', 'base', 'link']);
 
 const HTML_ENTITY_VALUES = Object.freeze({
     amp: '&',
@@ -120,7 +122,7 @@ const readHtmlTag = (html, startIndex) => {
     return null;
 };
 
-const getHrefFromAnchorTag = (tagContent) => {
+const getHrefFromTag = (tagContent) => {
     const hrefMatch = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i.exec(tagContent);
 
     return hrefMatch
@@ -177,15 +179,17 @@ const toAnchorMismatch = ({ href, anchorText }) => {
     };
 };
 
-// Extracts only real `<a>` elements, not every string that happens to contain
-// `href=`. The scanner deliberately has no DOM side effects and is bounded by
-// both input size and anchor count.
+// Extracts hrefs from real HTML elements, not every string that happens to
+// contain `href=`. Anchor-text mismatch detection remains limited to `<a>`.
+// The scanner deliberately has no DOM side effects and is bounded by both
+// input size and link count.
 const extractHtmlAnchors = (htmlContent) => {
     const html = String(htmlContent || '').slice(0, MAX_HTML_ANALYSIS_CHARS);
-    const links = [];
+    const anchorLinks = [];
+    const areaLinks = [];
+    const secondaryLinks = [];
     const anchorMismatches = [];
     let openAnchor = null;
-    let anchorCount = 0;
     let index = 0;
 
     const closeAnchor = () => {
@@ -200,7 +204,7 @@ const extractHtmlAnchors = (htmlContent) => {
         openAnchor = null;
     };
 
-    while (index < html.length && anchorCount < MAX_HTML_ANCHORS) {
+    while (index < html.length) {
         const tagStart = html.indexOf('<', index);
 
         if (tagStart === -1) {
@@ -222,20 +226,42 @@ const extractHtmlAnchors = (htmlContent) => {
         const tagName = tag.content.match(/^\s*(\/?)\s*([a-z][a-z0-9:-]*)\b/i);
         if (tagName) {
             const [, closingSlash, name] = tagName;
-            const isAnchor = name.toLowerCase() === 'a';
+            const normalizedName = name.toLowerCase();
+            const isAnchor = normalizedName === 'a';
+            const isArea = normalizedName === 'area';
+            const acceptsHref = HTML_HREF_ELEMENTS.has(normalizedName);
 
-            if (isAnchor && closingSlash) {
-                closeAnchor();
-            } else if (isAnchor) {
-                // Nested anchors are invalid HTML, but closing the previous
-                // one makes the result deterministic instead of swallowing it.
-                closeAnchor();
-                anchorCount += 1;
-                const href = normalizeHttpUrl(getHrefFromAnchorTag(tag.content));
+            if (closingSlash) {
+                if (isAnchor) {
+                    closeAnchor();
+                }
+            } else {
+                const href = acceptsHref ? getHrefFromTag(tag.content) : null;
+                let acceptedHref = false;
 
                 if (href) {
-                    links.push(href);
-                    openAnchor = { href, anchorText: '' };
+                    const bucket = isAnchor
+                        ? anchorLinks
+                        : isArea
+                            ? areaLinks
+                            : secondaryLinks;
+                    const limit = isAnchor || isArea
+                        ? MAX_HTML_LINKS
+                        : MAX_HTML_SECONDARY_LINKS;
+                    if (bucket.length < limit) {
+                        bucket.push(href);
+                        acceptedHref = true;
+                    }
+                }
+
+                if (isAnchor) {
+                    // Nested anchors are invalid HTML, but closing the previous
+                    // one makes the result deterministic instead of swallowing it.
+                    closeAnchor();
+
+                    if (acceptedHref) {
+                        openAnchor = { href: normalizeHttpUrl(href), anchorText: '' };
+                    }
                 }
             }
         }
@@ -245,7 +271,12 @@ const extractHtmlAnchors = (htmlContent) => {
 
     closeAnchor();
 
-    return { links, anchorMismatches };
+    // Anchors take precedence so resource tags or inert/out-of-map areas cannot
+    // consume the analysis budget before a user-visible phishing link.
+    return {
+        links: [...anchorLinks, ...areaLinks, ...secondaryLinks].slice(0, MAX_HTML_LINKS),
+        anchorMismatches,
+    };
 };
 
 // Verifică dacă hostname-ul e o adresă IPv4 (ex: "192.168.1.1") în loc de un
@@ -274,6 +305,12 @@ export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
 
         const parsedUrl = new URL(normalizedUrl);
 
+        // Evaluate the original representation before canonical deduplication:
+        // a short URL must not hide a later long tracking variant of itself.
+        if (rawLink.length > 200) {
+            suspiciousLinkPatterns.push('very_long_url');
+        }
+
         // Eliminăm duplicatele (același link apărut de mai multe ori în email).
         if (seenLinks.has(normalizedUrl)) {
             continue;
@@ -298,10 +335,6 @@ export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
 
         if (parsedUrl.username || parsedUrl.password) {
             suspiciousLinkPatterns.push('embedded_credentials');
-        }
-
-        if (normalizedUrl.length > 200) {
-            suspiciousLinkPatterns.push('very_long_url');
         }
 
         if (normalizedDomain.includes('xn--')) {
