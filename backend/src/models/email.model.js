@@ -112,6 +112,35 @@ const emailAuthResultsSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const attachmentMetadataSchema = new mongoose.Schema(
+    {
+        attachmentId: {
+            type: String,
+            default: null,
+            trim: true,
+            maxlength: 2_048,
+        },
+        filename: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 512,
+        },
+        declaredMimeType: {
+            type: String,
+            default: 'application/octet-stream',
+            trim: true,
+            maxlength: 255,
+        },
+        size: {
+            type: Number,
+            default: null,
+            min: 0,
+        },
+    },
+    { _id: false }
+);
+
 const emailSchema = new mongoose.Schema(
     {
         // ── Legături către alte colecții ──────────────────────────────────
@@ -241,6 +270,10 @@ const emailSchema = new mongoose.Schema(
         // în sine — sunt suficiente pentru regulile de scor.
         attachmentExtensions: {
             type: [String],
+            default: [],
+        },
+        attachments: {
+            type: [attachmentMetadataSchema],
             default: [],
         },
 
