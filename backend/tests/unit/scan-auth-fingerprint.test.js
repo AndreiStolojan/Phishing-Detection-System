@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
     CURRENT_SCAN_ENGINE_VERSION,
     CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
     buildAuthResultsFingerprint,
+    buildAttachmentConfigFingerprint,
     buildThreatIntelConfigFingerprint,
     isCurrentScanValidForCurrentAiSetting,
 } from '../../src/services/scan.service.js';
@@ -42,6 +44,7 @@ test('a current scan is stale whenever the persisted authentication outcome chan
         engineVersion: CURRENT_SCAN_ENGINE_VERSION,
         authResultsFingerprint: oldFingerprint,
         threatIntelConfigFingerprint: CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
+        attachmentConfigFingerprint: CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
     };
 
     assert.equal(
@@ -80,6 +83,7 @@ test('enabling or configuring threat intelligence makes an earlier scan stale', 
         engineVersion: CURRENT_SCAN_ENGINE_VERSION,
         authResultsFingerprint,
         threatIntelConfigFingerprint: disabled,
+        attachmentConfigFingerprint: CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
     };
 
     assert.equal(isCurrentScanValidForCurrentAiSetting({
@@ -117,12 +121,28 @@ test('changing the threat intelligence deadline invalidates a scan', () => {
     assert.notEqual(tenSecondBudget, fiveSecondBudget);
 });
 
+test('enabling attachment analysis invalidates an extension-only scan', () => {
+    const disabled = buildAttachmentConfigFingerprint({ enabled: false });
+    const enabled = buildAttachmentConfigFingerprint({
+        enabled: true,
+        reputationConfigured: true,
+        maxBytes: 10_485_760,
+        maxTotalBytes: 26_214_400,
+        maxCount: 10,
+        timeoutMs: 15_000,
+    });
+
+    assert.notEqual(disabled, enabled);
+    assert.doesNotMatch(enabled, /true|false|malware/i);
+});
+
 test('an enabled threat intelligence outage is retried on a later sync', () => {
     const authResultsFingerprint = buildAuthResultsFingerprint(passedAuth);
     const currentScan = {
         engineVersion: CURRENT_SCAN_ENGINE_VERSION,
         authResultsFingerprint,
         threatIntelConfigFingerprint: CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
+        attachmentConfigFingerprint: CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
         providerMeta: [{
             provider: 'threat-intelligence',
             status: 'skipped',

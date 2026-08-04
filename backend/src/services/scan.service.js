@@ -28,6 +28,12 @@ import { buildAiAnalysisInput } from './scan-ai-input.service.js';
 import { verifySenderBrand } from './brand-verification.service.js';
 import { getSenderListContextForEmail } from './sender-list.service.js';
 import {
+    ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+    ATTACHMENT_MAX_BYTES,
+    ATTACHMENT_MAX_COUNT,
+    ATTACHMENT_MAX_TOTAL_BYTES,
+    MALWAREBAZAAR_AUTH_KEY,
+    isAttachmentAnalysisEnabled,
     isAiSemanticGloballyEnabled,
     isThreatIntelEnabled,
     SCAN_CONCURRENCY,
@@ -68,10 +74,39 @@ import {
 import { createUrlhausService } from './threat-intel/urlhaus.service.js';
 import { createWebRiskService } from './threat-intel/web-risk.service.js';
 
-// Versiunea motorului. Urcată v9 -> v10 pentru threat intelligence.
+// Versiunea motorului. Urcată v10 -> v11 pentru verificarea atașamentelor.
 // Scanările vechi își păstrează scorul anterior până la o
 // rescanare (nu rescorăm retroactiv toată baza de date).
-export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v10';
+export const CURRENT_SCAN_ENGINE_VERSION = 'rules-ai-v11';
+
+export const buildAttachmentConfigFingerprint = ({
+    enabled,
+    reputationConfigured,
+    maxBytes,
+    maxTotalBytes,
+    maxCount,
+    timeoutMs,
+}) => crypto
+    .createHash('sha256')
+    .update(JSON.stringify({
+        enabled: Boolean(enabled),
+        reputationConfigured: Boolean(enabled && reputationConfigured),
+        maxBytes: enabled ? String(maxBytes || '') : null,
+        maxTotalBytes: enabled ? String(maxTotalBytes || '') : null,
+        maxCount: enabled ? String(maxCount || '') : null,
+        timeoutMs: enabled ? String(timeoutMs || '') : null,
+    }))
+    .digest('hex');
+
+export const CURRENT_ATTACHMENT_CONFIG_FINGERPRINT =
+    buildAttachmentConfigFingerprint({
+        enabled: isAttachmentAnalysisEnabled(),
+        reputationConfigured: Boolean(MALWAREBAZAAR_AUTH_KEY),
+        maxBytes: ATTACHMENT_MAX_BYTES,
+        maxTotalBytes: ATTACHMENT_MAX_TOTAL_BYTES,
+        maxCount: ATTACHMENT_MAX_COUNT,
+        timeoutMs: ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+    });
 
 export const buildThreatIntelConfigFingerprint = ({
     enabled,
@@ -302,6 +337,7 @@ export const isCurrentScanValidForCurrentAiSetting = ({
     authResultsFingerprint,
     threatIntelConfigFingerprint = CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
     threatIntelEnabled = isThreatIntelEnabled(),
+    attachmentConfigFingerprint = CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
 }) => {
     if (!currentScan || currentScan.engineVersion !== CURRENT_SCAN_ENGINE_VERSION) {
         return false;
@@ -312,6 +348,10 @@ export const isCurrentScanValidForCurrentAiSetting = ({
     }
 
     if (currentScan.threatIntelConfigFingerprint !== threatIntelConfigFingerprint) {
+        return false;
+    }
+
+    if (currentScan.attachmentConfigFingerprint !== attachmentConfigFingerprint) {
         return false;
     }
 
@@ -419,6 +459,7 @@ const upsertCurrentScanForEmail = async ({
             engineVersion: CURRENT_SCAN_ENGINE_VERSION,
             authResultsFingerprint: buildAuthResultsFingerprint(email.authResults),
             threatIntelConfigFingerprint: CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
+            attachmentConfigFingerprint: CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
             aiSignals,
             providerMeta,
             aiExplanation,
