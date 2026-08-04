@@ -88,3 +88,18 @@ test('stops central-directory enumeration at the configured entry cap', async ()
     assert.equal(result.entryCount, 2);
     assert.equal(result.entryLimitReached, true);
 });
+
+test('aborting an open central-directory listing closes it and returns promptly', async () => {
+    const controller = new AbortController();
+    const pending = listZipCentralDirectory(
+        createSyntheticZip([{ name: 'payload.txt' }]),
+        { signal: controller.signal }
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+    controller.abort();
+
+    const result = await pending;
+    assert.equal(result.status, 'aborted');
+    assert.equal(result.entryCount, 0);
+});

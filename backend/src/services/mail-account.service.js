@@ -62,6 +62,7 @@ import {
     recordGmailSync,
 } from '../monitoring/metrics.js';
 import { createGmailWatchService } from './gmail-watch.service.js';
+import { verifySenderBrand } from './brand-verification.service.js';
 import { createAttachmentAnalysisService } from './attachment/analysis.service.js';
 import { createGmailAttachmentFetchService } from './attachment/fetch.service.js';
 import {
@@ -713,8 +714,8 @@ const attachmentHashReputation = createHashReputationService({
 const attachmentAnalyzer = createAttachmentAnalysisService({
     enabled: isAttachmentAnalysisEnabled(),
     fetchAttachment: attachmentFetcher.fetchAttachment,
-    hashAnalyzer: async (buffer) =>
-        attachmentHashReputation.lookupHash(hashAttachmentBuffer(buffer)),
+    hashAnalyzer: async (buffer, { signal } = {}) =>
+        attachmentHashReputation.lookupHash(hashAttachmentBuffer(buffer), { signal }),
     maxAttachments: ATTACHMENT_MAX_COUNT,
     maxAttachmentBytes: ATTACHMENT_MAX_BYTES,
     maxTotalBytes: ATTACHMENT_MAX_TOTAL_BYTES,
@@ -746,6 +747,11 @@ export const analyzeGmailAttachmentsForPayload = async ({
             attachments: emailPayload.attachments,
             textBody: emailPayload.textBody,
             htmlBody: emailPayload.htmlBody,
+            senderDomain: emailPayload.senderDomain,
+            senderVerified: Boolean(verifySenderBrand({
+                senderDomain: emailPayload.senderDomain,
+                authResults: emailPayload.authResults,
+            }).senderVerifiedBrand),
         });
     } catch {
         return {
@@ -1316,15 +1322,6 @@ const processGmailMessageIds = async ({ mailAccount, messageIds, syncSource, hea
             continue;
         }
 
-        const attachmentAnalysis = await analyzeGmailAttachmentsForPayload({
-            mailAccount,
-            messageId,
-            emailPayload,
-        });
-        if (attachmentAnalysis) {
-            emailPayload.attachmentAnalysis = attachmentAnalysis;
-        }
-
         // Autentificarea este fail-open: orice problemă de rețea, DNS sau
         // verificare produce un rezultat indisponibil, dar emailul este salvat
         // și scanat în continuare pe baza celorlalte dovezi.
@@ -1350,6 +1347,15 @@ const processGmailMessageIds = async ({ mailAccount, messageIds, syncSource, hea
                 messageId,
                 reason: emailPayload.authResults.failureReason,
             });
+        }
+
+        const attachmentAnalysis = await analyzeGmailAttachmentsForPayload({
+            mailAccount,
+            messageId,
+            emailPayload,
+        });
+        if (attachmentAnalysis) {
+            emailPayload.attachmentAnalysis = attachmentAnalysis;
         }
 
         const now = new Date();

@@ -17,6 +17,10 @@ export const ATTACHMENT_RULE_WEIGHTS = Object.freeze({
     attachment_encrypted_archive: 20,
     attachment_nested_archive: 15,
     attachment_type_mismatch_suspicious: 12,
+    attachment_dangerous_archive_entry: 35,
+    attachment_archive_path_traversal: 25,
+    attachment_pdf_external_uri: 12,
+    attachment_legacy_office_unverified: 20,
     high_risk_attachment_extension: 35,
     archive_attachment_extension: 12,
 });

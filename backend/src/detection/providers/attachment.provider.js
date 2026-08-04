@@ -1,3 +1,5 @@
+import { isAttachmentAnalysisEnabled } from '../../config/env.js';
+
 export const meta = Object.freeze({
     id: 'attachment-analysis',
     version: 1,
@@ -50,6 +52,22 @@ const FINDINGS = Object.freeze({
         reason: 'An attachment archive has an unusually high compression ratio.',
         details: 'The archive metadata indicates a possible decompression bomb.',
     },
+    attachment_dangerous_archive_entry: {
+        reason: 'An archive contains a dangerous file type.',
+        details: 'The archive directory lists an executable or script payload.',
+    },
+    attachment_archive_path_traversal: {
+        reason: 'An archive contains an unsafe path.',
+        details: 'The archive directory contains a path-traversal entry.',
+    },
+    attachment_pdf_external_uri: {
+        reason: 'A PDF action points outside the sender domain.',
+        details: 'The PDF contains an external URI action unrelated to the sender.',
+    },
+    attachment_legacy_office_unverified: {
+        reason: 'An unverified sender attached a legacy Office document.',
+        details: 'Legacy Office formats can contain macros without declaring them.',
+    },
 });
 
 const signal = (key) => ({
@@ -92,6 +110,15 @@ export const collectAttachmentAnalysisSignals = (analysis) =>
     normalizedFindings(analysis).map(signal);
 
 export const analyze = async (ctx = {}) => {
+    const enabled = ctx.attachmentAnalysisEnabled ?? isAttachmentAnalysisEnabled();
+    if (!enabled) {
+        return {
+            status: 'skipped',
+            signals: [],
+            meta: { status: 'disabled', itemCount: 0 },
+        };
+    }
+
     const analysis = ctx.email?.attachmentAnalysis;
     if (!analysis || !['evaluated', 'partial'].includes(analysis.status)) {
         return {

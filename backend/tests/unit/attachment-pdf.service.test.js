@@ -43,5 +43,20 @@ test('does not treat non-PDF bytes as an active document', () => {
         hasOpenAction: false,
         hasUri: false,
         hasOpenActionJavaScript: false,
+        hasExternalUri: false,
     });
+});
+
+test('flags a PDF URI action only when it points outside the sender domain', () => {
+    const external = analyzePdfActiveContent(
+        Buffer.from('%PDF-1.7\n/URI (https://login.evil.test/path)'),
+        { senderDomain: 'example.com' }
+    );
+    const aligned = analyzePdfActiveContent(
+        Buffer.from('%PDF-1.7\n/URI (https://docs.example.com/path)'),
+        { senderDomain: 'example.com' }
+    );
+
+    assert.equal(external.hasExternalUri, true);
+    assert.equal(aligned.hasExternalUri, false);
 });

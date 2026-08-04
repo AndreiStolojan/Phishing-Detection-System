@@ -20,6 +20,7 @@ const ZIP_EXTENSIONS = new Set([
     'xlsm', 'xlsx', 'xltm', 'xltx', 'zip',
 ]);
 const UNSUPPORTED_ARCHIVE_EXTENSIONS = new Set(['7z', 'rar']);
+const LEGACY_OFFICE_EXTENSIONS = new Set(['doc', 'xls']);
 const PASSWORD_PATTERN = /\b(?:password|passcode|passwd|pwd|parol[aă])\b(?:\s+(?:is|este))?[\s:=-]{0,12}[^\s<>"']{2,64}/iu;
 const ARCHIVE_CONTEXT_PATTERN = /\b(?:attach(?:ed|ment)?|archive|file|zip|atașament|atasament|arhiv[aă]|fișier|fisier)\b/iu;
 
@@ -32,9 +33,11 @@ const boundedInteger = (value, fallback, minimum, maximum) => {
 const boundedString = (value, maximum) =>
     typeof value === 'string' ? value.normalize('NFC').trim().slice(0, maximum) : '';
 
-const safeAnalyze = async (analyzer, input, fallback) => {
+const safeAnalyze = async (analyzer, input, fallback, options) => {
     try {
-        return await analyzer(input);
+        return await (Array.isArray(input)
+            ? analyzer(...input, options)
+            : analyzer(input, options));
     } catch {
         return fallback;
     }
@@ -72,7 +75,15 @@ const unavailableItem = (attachmentIndex, reason) => ({
     status: 'unavailable',
 });
 
-const classifyFindings = ({ type, archive, office, pdf, hash, passwordInBody }) => {
+const classifyFindings = ({
+    type,
+    archive,
+    office,
+    pdf,
+    hash,
+    passwordInBody,
+    legacyOfficeUnverified,
+}) => {
     const findings = new Set();
 
     if (hash?.status === 'ok' && hash.malicious) {
@@ -100,11 +111,23 @@ const classifyFindings = ({ type, archive, office, pdf, hash, passwordInBody }) 
     if (archive?.highCompressionRatio) {
         findings.add('attachment_zip_bomb_ratio');
     }
+    if (archive?.dangerousEntryCount > 0) {
+        findings.add('attachment_dangerous_archive_entry');
+    }
+    if (archive?.pathTraversalEntryCount > 0) {
+        findings.add('attachment_archive_path_traversal');
+    }
     if (office?.hasVbaProject) {
         findings.add('attachment_macro_enabled_office');
     }
     if (pdf?.hasOpenActionJavaScript) {
         findings.add('attachment_pdf_openaction_javascript');
+    }
+    if (pdf?.hasExternalUri) {
+        findings.add('attachment_pdf_external_uri');
+    }
+    if (legacyOfficeUnverified) {
+        findings.add('attachment_legacy_office_unverified');
     }
 
     return [...findings];
@@ -168,6 +191,8 @@ export const createAttachmentAnalysisService = ({
         attachments = [],
         textBody = '',
         htmlBody = '',
+        senderDomain = '',
+        senderVerified = false,
     } = {}) => {
         if (!enabled) {
             return { status: 'skipped', reason: 'disabled', evaluatedAt: null, items: [] };
@@ -255,30 +280,60 @@ export const createAttachmentAnalysisService = ({
                 );
                 return;
             }
+            if (controller.signal.aborted) {
+                items[resultIndex] = unavailableItem(attachmentIndex, 'timed_out');
+                return;
+            }
 
             const type = await safeAnalyze(
                 typeAnalyzer,
                 { buffer, filename, declaredMimeType },
                 { status: 'error', mismatch: 'unknown' }
             );
+            if (controller.signal.aborted) {
+                items[resultIndex] = unavailableItem(attachmentIndex, 'timed_out');
+                return;
+            }
             const extension = getAttachmentExtension(filename);
             const detectedExtension = boundedString(type?.detectedExtension, 32).toLowerCase();
             const likelyZip = ZIP_EXTENSIONS.has(extension) || detectedExtension === 'zip';
             const likelyPdf = extension === 'pdf' || detectedExtension === 'pdf';
             const [archive, office, pdf, hash] = await Promise.all([
                 likelyZip
-                    ? safeAnalyze(archiveAnalyzer, buffer, { status: 'error' })
+                    ? safeAnalyze(
+                        archiveAnalyzer,
+                        buffer,
+                        { status: 'error' },
+                        { signal: controller.signal }
+                    )
                     : Promise.resolve({ status: 'skipped' }),
                 likelyZip
-                    ? safeAnalyze(officeAnalyzer, { buffer, filename }, { status: 'error' })
+                    ? safeAnalyze(
+                        officeAnalyzer,
+                        { buffer, filename, signal: controller.signal },
+                        { status: 'error' }
+                    )
                     : Promise.resolve({ status: 'skipped' }),
                 likelyPdf
-                    ? safeAnalyze(pdfAnalyzer, buffer, { status: 'error' })
+                    ? safeAnalyze(
+                        pdfAnalyzer,
+                        [buffer, { senderDomain }],
+                        { status: 'error' }
+                    )
                     : Promise.resolve({ status: 'skipped' }),
                 hashAnalyzer
-                    ? safeAnalyze(hashAnalyzer, buffer, { status: 'unavailable' })
+                    ? safeAnalyze(
+                        hashAnalyzer,
+                        buffer,
+                        { status: 'unavailable' },
+                        { signal: controller.signal }
+                    )
                     : Promise.resolve({ status: 'unavailable' }),
             ]);
+            if (controller.signal.aborted) {
+                items[resultIndex] = unavailableItem(attachmentIndex, 'timed_out');
+                return;
+            }
             const unsupportedArchive = UNSUPPORTED_ARCHIVE_EXTENSIONS.has(
                 detectedExtension || extension
             );
@@ -296,6 +351,8 @@ export const createAttachmentAnalysisService = ({
                     pdf,
                     hash,
                     passwordInBody,
+                    legacyOfficeUnverified:
+                        LEGACY_OFFICE_EXTENSIONS.has(extension) && !senderVerified,
                 }),
             };
         };

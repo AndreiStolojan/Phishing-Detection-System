@@ -118,7 +118,7 @@ const toEmailListItem = ({ email }) => {
 };
 
 const MAX_PUBLIC_ATTACHMENT_ANALYSIS_ITEMS = 10;
-const MAX_PUBLIC_ATTACHMENT_FINDINGS = 11;
+const MAX_PUBLIC_ATTACHMENT_FINDINGS = 15;
 
 const publicAttachmentMetadata = (attachments) =>
     (Array.isArray(attachments) ? attachments : []).map((attachment) => ({

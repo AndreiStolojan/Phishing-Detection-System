@@ -121,12 +121,14 @@ export const listZipCentralDirectory = async (buffer, options = {}) => {
         10_000
     );
     const includeEntryNames = options.includeEntryNames === true;
+    const signal = options.signal;
 
     if (!Buffer.isBuffer(buffer)) return emptyArchiveAnalysis('invalid_input');
     if (buffer.length > maxArchiveBytes) {
         return emptyArchiveAnalysis('skipped_too_large');
     }
     if (!isZipBuffer(buffer)) return emptyArchiveAnalysis('not_zip');
+    if (signal?.aborted) return emptyArchiveAnalysis('aborted');
 
     return new Promise((resolve) => {
         let settled = false;
@@ -136,9 +138,17 @@ export const listZipCentralDirectory = async (buffer, options = {}) => {
         const finish = (status, extra = {}) => {
             if (settled) return;
             settled = true;
+            signal?.removeEventListener?.('abort', onAbort);
             if (zipFile?.isOpen) zipFile.close();
             resolve({ ...analysis, status, ...extra });
         };
+        const onAbort = () => finish('aborted');
+        signal?.addEventListener?.('abort', onAbort, { once: true });
+
+        if (signal?.aborted) {
+            onAbort();
+            return;
+        }
 
         const addAggregateSize = (key, value) => {
             const currentValue = analysis[key];
@@ -164,6 +174,10 @@ export const listZipCentralDirectory = async (buffer, options = {}) => {
                     validateEntrySizes: false,
                 },
                 (openError, openedZipFile) => {
+                    if (settled) {
+                        if (openedZipFile?.isOpen) openedZipFile.close();
+                        return;
+                    }
                     if (openError || !openedZipFile) {
                         finish('invalid_archive', {
                             pathTraversalEntryCount: isTraversalError(openError) ? 1 : 0,

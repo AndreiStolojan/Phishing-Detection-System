@@ -37,10 +37,27 @@ test('attachment analysis maps only bounded findings to point-free signals', () 
 
 test('attachment analysis is optional and does not replace extension fallback evidence', async () => {
     const result = await analyze({
+        attachmentAnalysisEnabled: true,
         email: { attachmentExtensions: ['exe'] },
     });
 
     assert.equal(result.status, 'skipped');
     assert.deepEqual(result.signals, []);
     assert.deepEqual(result.meta, { status: 'unavailable', itemCount: 0 });
+});
+
+test('disabled rollback ignores findings already persisted on the email', async () => {
+    const result = await analyze({
+        attachmentAnalysisEnabled: false,
+        email: {
+            attachmentAnalysis: {
+                status: 'evaluated',
+                items: [{ findings: ['attachment_known_malware_hash'] }],
+            },
+        },
+    });
+
+    assert.equal(result.status, 'skipped');
+    assert.deepEqual(result.signals, []);
+    assert.equal(result.meta.status, 'disabled');
 });

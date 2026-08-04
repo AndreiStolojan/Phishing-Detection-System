@@ -29,11 +29,17 @@ const VBA_PROJECT_NAME = /(?:^|\/)vbaProject\.bin$/iu;
 
 // Checks names already present in the ZIP central directory. No Office parser,
 // macro runtime, or archive entry stream is ever opened.
-export const analyzeOfficeDocument = async ({ buffer, filename = '', archiveOptions = {} } = {}) => {
+export const analyzeOfficeDocument = async ({
+    buffer,
+    filename = '',
+    archiveOptions = {},
+    signal = archiveOptions?.signal,
+} = {}) => {
     const extension = getAttachmentExtension(filename);
     const archive = await listZipCentralDirectory(buffer, {
         ...archiveOptions,
         includeEntryNames: true,
+        signal,
     });
     const hasVbaProject = archive.entryNames.some((entryName) => VBA_PROJECT_NAME.test(entryName));
 

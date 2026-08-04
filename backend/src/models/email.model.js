@@ -153,6 +153,10 @@ const ATTACHMENT_ANALYSIS_FINDINGS = [
     'attachment_nested_archive',
     'attachment_type_mismatch_suspicious',
     'attachment_zip_bomb_ratio',
+    'attachment_dangerous_archive_entry',
+    'attachment_archive_path_traversal',
+    'attachment_pdf_external_uri',
+    'attachment_legacy_office_unverified',
 ];
 
 const MAX_ATTACHMENT_ANALYSIS_ITEMS = 10;

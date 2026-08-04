@@ -55,3 +55,17 @@ test('records a declared macro-enabled extension separately from macro presence'
     assert.equal(result.declaresMacroEnabled, true);
     assert.equal(result.hasVbaProject, false);
 });
+
+test('passes cancellation through to the central-directory inspection', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await analyzeOfficeDocument({
+        buffer: createSyntheticZip(['word/vbaProject.bin']),
+        filename: 'agenda.docx',
+        signal: controller.signal,
+    });
+
+    assert.equal(result.status, 'aborted');
+    assert.equal(result.hasVbaProject, false);
+});

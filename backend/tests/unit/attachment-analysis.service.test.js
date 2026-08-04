@@ -88,6 +88,8 @@ test('maps structural and hash results to bounded finding keys without private d
                 encryptedEntryCount: 1,
                 nestedArchiveEntryCount: 1,
                 highCompressionRatio: true,
+                dangerousEntryCount: 1,
+                pathTraversalEntryCount: 1,
                 entryNames: ['private.exe'],
             }),
             officeAnalyzer: async () => ({ hasVbaProject: true }),
@@ -113,9 +115,42 @@ test('maps structural and hash results to bounded finding keys without private d
         'attachment_encrypted_archive_with_password_in_body',
         'attachment_nested_archive',
         'attachment_zip_bomb_ratio',
+        'attachment_dangerous_archive_entry',
+        'attachment_archive_path_traversal',
         'attachment_macro_enabled_office',
     ]);
     assert.doesNotMatch(JSON.stringify(result), /private|1234|a{64}/u);
+});
+
+test('records external PDF actions and legacy Office only for unverified senders', async () => {
+    const service = createAttachmentAnalysisService({
+        enabled: true,
+        fetchAttachment: async ({ declaredSize }) => Buffer.alloc(declaredSize),
+        ...dependencies({
+            typeAnalyzer: async ({ filename }) => ({
+                detectedExtension: filename.endsWith('.doc') ? 'cfb' : 'pdf',
+                detectedMimeType: filename.endsWith('.doc')
+                    ? 'application/x-cfb'
+                    : 'application/pdf',
+                mismatch: 'none',
+            }),
+            pdfAnalyzer: () => ({ hasExternalUri: true }),
+        }),
+    });
+    const input = {
+        attachments: [
+            { attachmentId: 'pdf', filename: 'notice.pdf', size: 1 },
+            { attachmentId: 'doc', filename: 'legacy.doc', size: 1 },
+        ],
+        senderDomain: 'example.com',
+    };
+
+    const unverified = await service.analyze({ ...input, senderVerified: false });
+    assert.deepEqual(unverified.items[0].findings, ['attachment_pdf_external_uri']);
+    assert.deepEqual(unverified.items[1].findings, ['attachment_legacy_office_unverified']);
+
+    const verified = await service.analyze({ ...input, senderVerified: true });
+    assert.deepEqual(verified.items[1].findings, []);
 });
 
 test('isolates fetch failures and returns partial results at the wall-clock deadline', async () => {
@@ -150,4 +185,31 @@ test('isolates fetch failures and returns partial results at the wall-clock dead
     ]);
     assert.deepEqual(result.items.map(({ reason }) => reason), [null, 'fetch_failed', 'timed_out']);
     assert.equal(sawAbort, true);
+});
+
+test('passes the deadline signal to an in-flight hash lookup', async () => {
+    let hashSignal;
+    let sawHashAbort = false;
+    const service = createAttachmentAnalysisService({
+        enabled: true,
+        timeoutMs: 20,
+        fetchAttachment: async ({ declaredSize }) => Buffer.alloc(declaredSize),
+        hashAnalyzer: async (_buffer, { signal }) => new Promise((resolve) => {
+            hashSignal = signal;
+            signal.addEventListener('abort', () => {
+                sawHashAbort = true;
+                resolve({ status: 'unavailable' });
+            }, { once: true });
+        }),
+        ...dependencies(),
+    });
+
+    const result = await service.analyze({
+        attachments: [{ attachmentId: 'slow-hash', filename: 'invoice.pdf', size: 1 }],
+    });
+
+    assert.equal(result.status, 'partial');
+    assert.equal(result.reason, 'timed_out');
+    assert.equal(hashSignal?.aborted, true);
+    assert.equal(sawHashAbort, true);
 });
