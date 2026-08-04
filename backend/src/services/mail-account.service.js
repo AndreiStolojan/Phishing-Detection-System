@@ -373,12 +373,72 @@ export const getGoogleConnectUrl = async (userId) => {
     };
 };
 
+const responseTooLargeError = () => {
+    const error = new Error('Gmail API response exceeds the allowed size');
+    error.code = 'GMAIL_RESPONSE_TOO_LARGE';
+    return error;
+};
+
+const readResponseTextBounded = async (response, maxResponseBytes) => {
+    const contentLength = Number(response.headers?.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > maxResponseBytes) {
+        throw responseTooLargeError();
+    }
+
+    if (!response.body || typeof response.body.getReader !== 'function') {
+        const error = new Error('Gmail API response has no bounded readable body');
+        error.code = 'GMAIL_RESPONSE_UNREADABLE';
+        throw error;
+    }
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    let totalBytes = 0;
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!(value instanceof Uint8Array)) {
+                const error = new Error('Gmail API response body is invalid');
+                error.code = 'GMAIL_RESPONSE_UNREADABLE';
+                throw error;
+            }
+
+            totalBytes += value.byteLength;
+            if (totalBytes > maxResponseBytes) {
+                try {
+                    await reader.cancel();
+                } catch {
+                    // The size limit still applies if cancelling the stream fails.
+                }
+                throw responseTooLargeError();
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    return Buffer.concat(chunks, totalBytes).toString('utf8');
+};
+
 // Încearcă să parseze body-ul unui răspuns HTTP ca JSON; dacă nu e JSON valid
 // (de exemplu un răspuns vid sau HTML), returnează un obiect gol în loc să arunce.
-const parseJsonSafely = async (response) => {
+const parseJsonSafely = async (response, { maxResponseBytes } = {}) => {
     try {
-        return await response.json();
-    } catch {
+        if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1) {
+            return await response.json();
+        }
+
+        return JSON.parse(await readResponseTextBounded(response, maxResponseBytes));
+    } catch (error) {
+        if (
+            error?.code === 'GMAIL_RESPONSE_TOO_LARGE' ||
+            ['AbortError', 'TimeoutError'].includes(error?.name)
+        ) {
+            throw error;
+        }
         return {};
     }
 };
@@ -454,7 +514,7 @@ const exchangeGoogleCodeForTokens = async (code) => {
 // când tokenul de acces a expirat (Gmail răspunde cu 401). Salvează noii tokeni
 // (criptați) în baza de date și actualizează și obiectul `mailAccount` din memorie,
 // ca apelantul să poată continua imediat cu tokenul nou, fără să-l recitească din DB.
-const refreshGoogleAccessToken = async (mailAccount) => {
+const refreshGoogleAccessToken = async (mailAccount, { signal } = {}) => {
     const refreshToken = getDecryptedMailToken(mailAccount.refreshToken);
 
     if (!refreshToken) {
@@ -472,6 +532,7 @@ const refreshGoogleAccessToken = async (mailAccount) => {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: refreshTokenPayload({ refreshToken }).toString(),
+            ...(signal ? { signal } : {}),
         });
 
         const payload = await parseJsonSafely(response);
@@ -540,12 +601,19 @@ const requestGoogleJson = async ({
     errorCode,
     unreachableCode,
     timeoutMs,
+    signal,
+    maxResponseBytes,
 }) => {
     let accessToken = getDecryptedMailToken(mailAccount.accessToken);
 
     // attempt 0 = cu tokenul curent; attempt 1 = după reîmprospătare (dacă a fost 401).
     for (let attempt = 0; attempt < 2; attempt += 1) {
         let response;
+        const requestSignal = timeoutMs
+            ? signal
+                ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+                : AbortSignal.timeout(timeoutMs)
+            : signal;
 
         try {
             response = await fetch(url, {
@@ -555,7 +623,7 @@ const requestGoogleJson = async ({
                     ...(body ? { 'Content-Type': 'application/json' } : {}),
                 },
                 ...(body ? { body: JSON.stringify(body) } : {}),
-                ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+                ...(requestSignal ? { signal: requestSignal } : {}),
             });
         } catch {
             throw createError(
@@ -566,11 +634,31 @@ const requestGoogleJson = async ({
             );
         }
 
-        const payload = await parseJsonSafely(response);
+        let payload;
+        try {
+            payload = await parseJsonSafely(response, { maxResponseBytes });
+        } catch (error) {
+            if (error?.code !== 'GMAIL_RESPONSE_TOO_LARGE') {
+                throw createError(
+                    'Failed to read Gmail API endpoint response',
+                    502,
+                    ['Check your internet connection and Google OAuth configuration.'],
+                    unreachableCode
+                );
+            }
+            throw createError(
+                'Gmail API response exceeds the allowed size',
+                502,
+                [],
+                error?.code || errorCode
+            );
+        }
 
         if (response.status === 401 && attempt === 0) {
             // Tokenul a expirat -> îl reîmprospătăm și reluăm bucla (attempt 1).
-            accessToken = await refreshGoogleAccessToken(mailAccount);
+            accessToken = await refreshGoogleAccessToken(mailAccount, {
+                signal: requestSignal,
+            });
             continue;
         }
 
