@@ -32,9 +32,16 @@ import {
     refreshTokenPayload,
 } from '../config/google-oauth.js';
 import {
+    ATTACHMENT_ANALYSIS_CONCURRENCY,
+    ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+    ATTACHMENT_MAX_BYTES,
+    ATTACHMENT_MAX_COUNT,
+    ATTACHMENT_MAX_TOTAL_BYTES,
     GMAIL_PUBSUB_TOPIC,
     JWT_SECRET,
     MAIL_TOKEN_ENCRYPTION_KEY,
+    MALWAREBAZAAR_AUTH_KEY,
+    isAttachmentAnalysisEnabled,
     isGmailPushConfigured,
 } from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
@@ -55,6 +62,12 @@ import {
     recordGmailSync,
 } from '../monitoring/metrics.js';
 import { createGmailWatchService } from './gmail-watch.service.js';
+import { createAttachmentAnalysisService } from './attachment/analysis.service.js';
+import { createGmailAttachmentFetchService } from './attachment/fetch.service.js';
+import {
+    createHashReputationService,
+    hashAttachmentBuffer,
+} from './attachment/hash-reputation.service.js';
 
 // Câte emailuri se aduc la o sincronizare, dacă userul nu a setat altă valoare.
 const SYNC_MAX_RESULTS_DEFAULT = 10;
@@ -684,6 +697,66 @@ const requestGoogleJson = async ({
     );
 };
 
+const parsedAttachmentMaxBytes = Number.parseInt(ATTACHMENT_MAX_BYTES, 10);
+const gmailAttachmentMaxBytes = Number.isSafeInteger(parsedAttachmentMaxBytes) &&
+    parsedAttachmentMaxBytes > 0
+    ? Math.min(parsedAttachmentMaxBytes, 10 * 1024 * 1024)
+    : 10 * 1024 * 1024;
+const attachmentFetcher = createGmailAttachmentFetchService({
+    request: requestGoogleJson,
+    defaultMaxBytes: gmailAttachmentMaxBytes,
+});
+const attachmentHashReputation = createHashReputationService({
+    authKey: MALWAREBAZAAR_AUTH_KEY,
+    timeoutMs: ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+});
+const attachmentAnalyzer = createAttachmentAnalysisService({
+    enabled: isAttachmentAnalysisEnabled(),
+    fetchAttachment: attachmentFetcher.fetchAttachment,
+    hashAnalyzer: async (buffer) =>
+        attachmentHashReputation.lookupHash(hashAttachmentBuffer(buffer)),
+    maxAttachments: ATTACHMENT_MAX_COUNT,
+    maxAttachmentBytes: ATTACHMENT_MAX_BYTES,
+    maxTotalBytes: ATTACHMENT_MAX_TOTAL_BYTES,
+    concurrency: ATTACHMENT_ANALYSIS_CONCURRENCY,
+    timeoutMs: ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+});
+
+export const analyzeGmailAttachmentsForPayload = async ({
+    enabled = isAttachmentAnalysisEnabled(),
+    emailModel = Email,
+    analyzer = attachmentAnalyzer,
+    mailAccount,
+    messageId,
+    emailPayload,
+}) => {
+    if (!enabled) return null;
+
+    try {
+        const reviewed = await emailModel.exists({
+            userId: mailAccount.userId,
+            providerMessageId: emailPayload.providerMessageId,
+            userVerdict: { $exists: true, $ne: null },
+        });
+        if (reviewed) return null;
+
+        return await analyzer.analyze({
+            mailAccount,
+            messageId,
+            attachments: emailPayload.attachments,
+            textBody: emailPayload.textBody,
+            htmlBody: emailPayload.htmlBody,
+        });
+    } catch {
+        return {
+            status: 'unavailable',
+            reason: 'analysis_failed',
+            evaluatedAt: new Date(),
+            items: [],
+        };
+    }
+};
+
 // Endpoint pentru ecranul de setări: actualizează câte emailuri se aduc la o
 // sincronizare (syncMaxResults), pentru un cont de mail al userului curent.
 export const updateMailAccountSettingsForUser = async ({
@@ -1241,6 +1314,15 @@ const processGmailMessageIds = async ({ mailAccount, messageIds, syncSource, hea
             });
 
             continue;
+        }
+
+        const attachmentAnalysis = await analyzeGmailAttachmentsForPayload({
+            mailAccount,
+            messageId,
+            emailPayload,
+        });
+        if (attachmentAnalysis) {
+            emailPayload.attachmentAnalysis = attachmentAnalysis;
         }
 
         // Autentificarea este fail-open: orice problemă de rețea, DNS sau
