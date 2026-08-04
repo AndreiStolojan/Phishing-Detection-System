@@ -22,13 +22,17 @@ export const hashAttachmentBuffer = (buffer) => {
 };
 
 const createModelCache = ({ model, now }) => ({
-    async get(sha256) {
-        return toPlainObject(model.findOne({
-            sha256,
-            expiresAt: { $gt: now() },
-        }));
+    async get(sha256, { signal } = {}) {
+        return toPlainObject(model.findOne(
+            {
+                sha256,
+                expiresAt: { $gt: now() },
+            },
+            null,
+            { signal }
+        ));
     },
-    async set(sha256, verdict, ttlMs) {
+    async set(sha256, verdict, ttlMs, { signal } = {}) {
         const fetchedAt = now();
         return model.findOneAndUpdate(
             { sha256 },
@@ -40,7 +44,12 @@ const createModelCache = ({ model, now }) => ({
                     expiresAt: new Date(fetchedAt.getTime() + ttlMs),
                 },
             },
-            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+            {
+                upsert: true,
+                returnDocument: 'after',
+                setDefaultsOnInsert: true,
+                signal,
+            }
         );
     },
 });
@@ -50,6 +59,32 @@ const unavailable = (reason) => ({
     malicious: false,
     reason,
 });
+
+const abortedCacheOperation = () => {
+    const error = new Error('Attachment hash cache operation was aborted');
+    error.name = 'AbortError';
+    return error;
+};
+
+// Pass the signal to Mongo where supported, race the wait for compatibility, and
+// observe the underlying promise immediately so a late driver rejection after the
+// attachment deadline never becomes unhandled.
+const awaitCacheWithinSignal = (operation, signal) => {
+    if (signal?.aborted) return Promise.reject(abortedCacheOperation());
+
+    const cachePromise = Promise.resolve().then(operation);
+    cachePromise.catch(() => {});
+    if (!signal) return cachePromise;
+
+    let onAbort;
+    const abortPromise = new Promise((_, reject) => {
+        onAbort = () => reject(abortedCacheOperation());
+        signal.addEventListener('abort', onAbort, { once: true });
+    });
+
+    return Promise.race([cachePromise, abortPromise])
+        .finally(() => signal.removeEventListener('abort', onAbort));
+};
 
 export const createHashReputationService = ({
     authKey = '',
@@ -65,8 +100,20 @@ export const createHashReputationService = ({
     const lookupHash = async (sha256, { signal } = {}) => {
         if (!validSha256(sha256)) return unavailable('invalid_hash');
 
+        const timeoutSignal = AbortSignal.timeout(Math.min(
+            Math.max(Number(timeoutMs) || 1, 1),
+            MAX_TIMEOUT_MS
+        ));
+        const operationSignal = signal
+            ? AbortSignal.any([signal, timeoutSignal])
+            : timeoutSignal;
+
         try {
-            const cached = await cache.get(sha256);
+            const cached = await awaitCacheWithinSignal(
+                () => cache.get(sha256, { signal: operationSignal }),
+                operationSignal
+            );
+            if (operationSignal.aborted) return unavailable('timeout');
             if (cached?.verdict === 'malicious' || cached?.verdict === 'unknown') {
                 return {
                     status: 'ok',
@@ -78,13 +125,9 @@ export const createHashReputationService = ({
             // Cache failures do not decide the attachment verdict.
         }
 
+        if (operationSignal.aborted) return unavailable('timeout');
         if (!key) return unavailable('not_configured');
         if (typeof fetchImpl !== 'function') return unavailable('fetch_unavailable');
-
-        const timeoutSignal = AbortSignal.timeout(Math.min(
-            Math.max(Number(timeoutMs) || 1, 1),
-            MAX_TIMEOUT_MS
-        ));
 
         let response;
         try {
@@ -96,9 +139,7 @@ export const createHashReputationService = ({
                 },
                 body: new URLSearchParams({ query: 'get_info', hash: sha256 }).toString(),
                 redirect: 'error',
-                signal: signal
-                    ? AbortSignal.any([signal, timeoutSignal])
-                    : timeoutSignal,
+                signal: operationSignal,
             });
         } catch (error) {
             return unavailable(error?.name === 'TimeoutError' ? 'timeout' : 'request_failed');
@@ -125,10 +166,14 @@ export const createHashReputationService = ({
 
         const verdict = malicious ? 'malicious' : 'unknown';
         try {
-            await cache.set(
-                sha256,
-                verdict,
-                malicious ? MALICIOUS_TTL_MS : UNKNOWN_TTL_MS
+            await awaitCacheWithinSignal(
+                () => cache.set(
+                    sha256,
+                    verdict,
+                    malicious ? MALICIOUS_TTL_MS : UNKNOWN_TTL_MS,
+                    { signal: operationSignal }
+                ),
+                operationSignal
             );
         } catch {
             // A successful source lookup remains usable when Mongo is down.

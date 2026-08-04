@@ -86,6 +86,93 @@ test('MalwareBazaar caches misses and makes no request without an Auth-Key', asy
     assert.equal(calls, 1);
 });
 
+test('an aborted caller does not wait for a stalled cache read or leak its late rejection', async () => {
+    const unhandled = [];
+    const onUnhandled = (error) => unhandled.push(error);
+    process.on('unhandledRejection', onUnhandled);
+
+    let rejectRead;
+    let markReadStarted;
+    let cacheSignal;
+    const readStarted = new Promise((resolve) => { markReadStarted = resolve; });
+    let fetchCalls = 0;
+    const controller = new AbortController();
+    const service = createHashReputationService({
+        authKey: 'key',
+        cache: {
+            get: (_hash, { signal }) => new Promise((_resolve, reject) => {
+                cacheSignal = signal;
+                rejectRead = reject;
+                markReadStarted();
+            }),
+            async set() {},
+        },
+        fetch: async () => {
+            fetchCalls += 1;
+            return jsonResponse({ query_status: 'hash_not_found' });
+        },
+    });
+
+    try {
+        const lookup = service.lookupHash('a'.repeat(64), { signal: controller.signal });
+        await readStarted;
+        controller.abort();
+
+        assert.deepEqual(await lookup, {
+            status: 'unavailable', malicious: false, reason: 'timeout',
+        });
+        assert.equal(fetchCalls, 0);
+        assert.equal(cacheSignal?.aborted, true);
+
+        rejectRead(new Error('late cache read failure'));
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.deepEqual(unhandled, []);
+    } finally {
+        process.off('unhandledRejection', onUnhandled);
+    }
+});
+
+test('an aborted caller does not wait for a stalled cache write or leak its late rejection', async () => {
+    const unhandled = [];
+    const onUnhandled = (error) => unhandled.push(error);
+    process.on('unhandledRejection', onUnhandled);
+
+    let rejectWrite;
+    let markWriteStarted;
+    let cacheSignal;
+    const writeStarted = new Promise((resolve) => { markWriteStarted = resolve; });
+    const controller = new AbortController();
+    const service = createHashReputationService({
+        authKey: 'key',
+        cache: {
+            async get() { return null; },
+            set: (_hash, _verdict, _ttlMs, { signal }) => new Promise((_resolve, reject) => {
+                cacheSignal = signal;
+                rejectWrite = reject;
+                markWriteStarted();
+            }),
+        },
+        fetch: async () => jsonResponse({ query_status: 'hash_not_found' }),
+    });
+
+    try {
+        const lookup = service.lookupHash('b'.repeat(64), { signal: controller.signal });
+        await writeStarted;
+        controller.abort();
+
+        assert.deepEqual(await lookup, {
+            status: 'ok', malicious: false, cached: false,
+        });
+        assert.equal(cacheSignal?.aborted, true);
+
+        rejectWrite(new Error('late cache write failure'));
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.deepEqual(unhandled, []);
+    } finally {
+        process.off('unhandledRejection', onUnhandled);
+    }
+});
+
 test('attachment hash cache schema has a unique hash and absolute TTL index', () => {
     const indexes = AttachmentHash.schema.indexes();
     assert.equal(AttachmentHash.collection.collectionName, 'attachmenthashes');
