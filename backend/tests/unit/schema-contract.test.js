@@ -31,6 +31,7 @@ test('Scan schema persists engineVersion for current-scan validation', () => {
 
     assert.equal(Scan.schema.path('engineVersion').instance, 'String');
     assert.equal(Scan.schema.path('authResultsFingerprint').instance, 'String');
+    assert.equal(Scan.schema.path('attachmentAnalysisFingerprint').instance, 'String');
     assert.equal(scan.engineVersion, CURRENT_SCAN_ENGINE_VERSION);
 });
 

@@ -51,6 +51,9 @@ import {
     collectAttachmentSignals,
 } from '../detection/providers/attachment-extension.provider.js';
 import {
+    collectAttachmentAnalysisSignals,
+} from '../detection/providers/attachment.provider.js';
+import {
     collectLinkSignals,
 } from '../detection/providers/link-analysis.provider.js';
 import {
@@ -97,6 +100,29 @@ export const buildAttachmentConfigFingerprint = ({
         timeoutMs: enabled ? String(timeoutMs || '') : null,
     }))
     .digest('hex');
+
+// Amprenta rezultatului atașamentelor include numai ceea ce poate schimba
+// scorul: disponibilitatea semnalelor și setul normalizat de reguli. Nu
+// persistăm conținutul, hashurile, numele de fișier sau momentul evaluării.
+export const buildAttachmentAnalysisFingerprint = (analysis) => {
+    const availableForScoring = ['evaluated', 'partial'].includes(analysis?.status);
+    const findings = availableForScoring
+        ? collectAttachmentAnalysisSignals(analysis)
+              .map(({ rule }) => rule)
+              .sort()
+        : [];
+
+    const normalized = {
+        // Providerul de atașamente aplică semnale numai pentru aceste stări.
+        availableForScoring,
+        findings,
+    };
+
+    return crypto
+        .createHash('sha256')
+        .update(JSON.stringify(normalized))
+        .digest('hex');
+};
 
 export const CURRENT_ATTACHMENT_CONFIG_FINGERPRINT =
     buildAttachmentConfigFingerprint({
@@ -338,6 +364,8 @@ export const isCurrentScanValidForCurrentAiSetting = ({
     threatIntelConfigFingerprint = CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
     threatIntelEnabled = isThreatIntelEnabled(),
     attachmentConfigFingerprint = CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
+    attachmentAnalysisFingerprint,
+    attachmentAnalysisEnabled = isAttachmentAnalysisEnabled(),
 }) => {
     if (!currentScan || currentScan.engineVersion !== CURRENT_SCAN_ENGINE_VERSION) {
         return false;
@@ -352,6 +380,15 @@ export const isCurrentScanValidForCurrentAiSetting = ({
     }
 
     if (currentScan.attachmentConfigFingerprint !== attachmentConfigFingerprint) {
+        return false;
+    }
+
+    // Când funcția este oprită, rezultatele persistate ale atașamentelor nu
+    // influențează scorarea și nu trebuie să producă rescanări inutile.
+    if (
+        attachmentAnalysisEnabled &&
+        currentScan.attachmentAnalysisFingerprint !== attachmentAnalysisFingerprint
+    ) {
         return false;
     }
 
@@ -460,6 +497,9 @@ const upsertCurrentScanForEmail = async ({
             authResultsFingerprint: buildAuthResultsFingerprint(email.authResults),
             threatIntelConfigFingerprint: CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
             attachmentConfigFingerprint: CURRENT_ATTACHMENT_CONFIG_FINGERPRINT,
+            attachmentAnalysisFingerprint: isAttachmentAnalysisEnabled()
+                ? buildAttachmentAnalysisFingerprint(email.attachmentAnalysis)
+                : null,
             aiSignals,
             providerMeta,
             aiExplanation,
@@ -584,6 +624,9 @@ export const scanEmailWithRules = async ({
     const aiEnabled = await getUserAiEnabled(userId);
     const currentScan = await getCurrentScanForEmail({ userId, emailId: email._id });
     const authResultsFingerprint = buildAuthResultsFingerprint(email.authResults);
+    const attachmentAnalysisFingerprint = isAttachmentAnalysisEnabled()
+        ? buildAttachmentAnalysisFingerprint(email.attachmentAnalysis)
+        : undefined;
 
     if (
         skipIfCurrentEngineExists &&
@@ -593,6 +636,8 @@ export const scanEmailWithRules = async ({
             authResultsFingerprint,
             threatIntelConfigFingerprint: CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT,
             threatIntelEnabled: isThreatIntelEnabled(),
+            attachmentAnalysisFingerprint,
+            attachmentAnalysisEnabled: isAttachmentAnalysisEnabled(),
         })
     ) {
         await cleanupDuplicateScans({
