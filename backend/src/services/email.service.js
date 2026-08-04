@@ -25,6 +25,7 @@ import { parseDateRangeQuery } from '../common/utils/date-range.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
 import { buildEmailStateForUser } from './email-state.service.js';
+import { isAttachmentAnalysisEnabled } from '../config/env.js';
 
 // Valorile permise pentru filtrul "verdict" (verdictul scanului/userului).
 const ALLOWED_VERDICTS = new Set(['safe', 'suspicious', 'likely_phishing', 'phishing']);
@@ -168,7 +169,12 @@ const publicAttachmentAnalysis = (analysis) => {
 // emailul de bază + scanul curent + "starea" lui (effectiveVerdict, riskBucket,
 // reviewStatus — calculate de email-state.service.js) + dacă este prima dată
 // când userul primește un email de la acest expeditor (isFirstTimeSender).
-const toEmailDetails = async ({ userId, email, latestScan }) => {
+const toEmailDetails = async ({
+    userId,
+    email,
+    latestScan,
+    attachmentAnalysisEnabled,
+}) => {
     const [emailState, priorSenderCount] = await Promise.all([
         buildEmailStateForUser({ userId, email, latestScan }),
         // Numărăm câte alte emailuri (diferite de acesta) am mai primit de la
@@ -199,8 +205,12 @@ const toEmailDetails = async ({ userId, email, latestScan }) => {
         hasShortenedUrl: email.hasShortenedUrl,
         suspiciousLinkPatterns: email.suspiciousLinkPatterns,
         attachmentExtensions: email.attachmentExtensions,
-        attachments: publicAttachmentMetadata(email.attachments),
-        attachmentAnalysis: publicAttachmentAnalysis(email.attachmentAnalysis),
+        attachments: attachmentAnalysisEnabled
+            ? publicAttachmentMetadata(email.attachments)
+            : [],
+        attachmentAnalysis: attachmentAnalysisEnabled
+            ? publicAttachmentAnalysis(email.attachmentAnalysis)
+            : null,
         authResults: email.authResults || null,
         receivedAt: email.receivedAt,
         syncSource: email.syncSource,
@@ -702,7 +712,11 @@ export const getEmailsForUser = async ({ userId, query }) => {
 
 // GET /emails/:id — detaliile complete ale unui email (cu scanul curent și
 // starea calculată: effectiveVerdict, riskBucket, reviewStatus, isFirstTimeSender).
-export const getEmailByIdForUser = async ({ userId, emailId }) => {
+export const getEmailByIdForUser = async ({
+    userId,
+    emailId,
+    attachmentAnalysisEnabled = isAttachmentAnalysisEnabled(),
+}) => {
     const email = await findOwnedEmailById({ userId, emailId });
     const latestScan = await findLatestScanForOwnedEmail({
         userId,
@@ -713,6 +727,7 @@ export const getEmailByIdForUser = async ({ userId, emailId }) => {
         userId,
         email,
         latestScan,
+        attachmentAnalysisEnabled,
     });
 };
 

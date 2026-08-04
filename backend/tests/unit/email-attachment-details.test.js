@@ -50,6 +50,7 @@ test('email details expose attachment analysis without Gmail locators, hashes, o
         const result = await getEmailByIdForUser({
             userId: email.userId,
             emailId: email._id,
+            attachmentAnalysisEnabled: true,
         });
 
         assert.deepEqual(result.attachments, [{
@@ -71,6 +72,47 @@ test('email details expose attachment analysis without Gmail locators, hashes, o
             }],
         });
         assert.doesNotMatch(JSON.stringify(result), /gmail-private-locator|must-not-leak/);
+    } finally {
+        Email.findOne = originalFindEmail;
+        Scan.findOne = originalFindScan;
+        Email.countDocuments = originalCountDocuments;
+    }
+});
+
+test('email details hide persisted attachment findings while rollback is enabled', async () => {
+    const originalFindEmail = Email.findOne;
+    const originalFindScan = Scan.findOne;
+    const originalCountDocuments = Email.countDocuments;
+    const email = {
+        _id: '507f1f77bcf86cd799439011',
+        userId: '507f1f77bcf86cd799439012',
+        attachments: [{ filename: 'invoice.exe', size: 42 }],
+        attachmentAnalysis: {
+            status: 'evaluated',
+            items: [{
+                attachmentIndex: 0,
+                status: 'evaluated',
+                findings: ['attachment_known_malware_hash'],
+            }],
+        },
+    };
+
+    try {
+        Email.findOne = () => ({ lean: async () => email });
+        Scan.findOne = () => ({
+            sort: () => ({ select: () => ({ lean: async () => null }) }),
+        });
+        Email.countDocuments = async () => 0;
+
+        const result = await getEmailByIdForUser({
+            userId: email.userId,
+            emailId: email._id,
+            attachmentAnalysisEnabled: false,
+        });
+
+        assert.deepEqual(result.attachments, []);
+        assert.equal(result.attachmentAnalysis, null);
+        assert.doesNotMatch(JSON.stringify(result), /known_malware|invoice\.exe/u);
     } finally {
         Email.findOne = originalFindEmail;
         Scan.findOne = originalFindScan;
