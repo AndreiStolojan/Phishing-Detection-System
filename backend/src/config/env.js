@@ -102,6 +102,15 @@ export const {
 
 export const FRONTEND_APP_URL = process.env.FRONTEND_APP_URL || 'http://localhost:5173';
 export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || EMAIL_FROM || '';
+// Threat intelligence stays opt-in. Source keys are intentionally not startup
+// requirements: each external source can be unavailable independently.
+export const THREAT_INTEL_ENABLED = process.env.THREAT_INTEL_ENABLED || 'false';
+export const WEB_RISK_API_KEY = process.env.WEB_RISK_API_KEY || '';
+export const URLHAUS_AUTH_KEY = process.env.URLHAUS_AUTH_KEY || '';
+// Services own range validation so bad optional values cannot prevent startup.
+export const THREAT_INTEL_MAX_URLS_PER_EMAIL =
+    process.env.THREAT_INTEL_MAX_URLS_PER_EMAIL || '5';
+export const THREAT_INTEL_TIMEOUT_MS = process.env.THREAT_INTEL_TIMEOUT_MS || '10000';
 
 export const isTruthyEnvValue = (value) =>
     typeof value === 'string' &&
@@ -112,3 +121,6 @@ export const isAiSemanticGloballyEnabled = () =>
 
 export const isGmailPushConfigured = () =>
     gmailPushEnabled && missingGmailPushEnvVars.length === 0;
+
+export const isThreatIntelEnabled = () =>
+    isTruthyEnvValue(THREAT_INTEL_ENABLED);
