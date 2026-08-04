@@ -117,6 +117,53 @@ const toEmailListItem = ({ email }) => {
     };
 };
 
+const MAX_PUBLIC_ATTACHMENT_ANALYSIS_ITEMS = 10;
+const MAX_PUBLIC_ATTACHMENT_FINDINGS = 11;
+
+const publicAttachmentMetadata = (attachments) =>
+    (Array.isArray(attachments) ? attachments : []).map((attachment) => ({
+        filename: typeof attachment?.filename === 'string' ? attachment.filename : '',
+        declaredMimeType: typeof attachment?.declaredMimeType === 'string'
+            ? attachment.declaredMimeType
+            : 'application/octet-stream',
+        size: Number.isSafeInteger(attachment?.size) && attachment.size >= 0
+            ? attachment.size
+            : null,
+    }));
+
+const publicAttachmentAnalysis = (analysis) => {
+    if (!analysis || typeof analysis !== 'object') return null;
+
+    const status = ['evaluated', 'partial', 'skipped', 'unavailable'].includes(analysis.status)
+        ? analysis.status
+        : 'unavailable';
+    const items = Array.isArray(analysis.items) ? analysis.items : [];
+
+    return {
+        status,
+        reason: typeof analysis.reason === 'string' ? analysis.reason : null,
+        evaluatedAt: analysis.evaluatedAt || null,
+        items: items.slice(0, MAX_PUBLIC_ATTACHMENT_ANALYSIS_ITEMS).map((item) => ({
+            attachmentIndex: Number.isInteger(item?.attachmentIndex) && item.attachmentIndex >= 0
+                ? item.attachmentIndex
+                : null,
+            status: ['evaluated', 'skipped', 'unavailable', 'invalid'].includes(item?.status)
+                ? item.status
+                : 'unavailable',
+            reason: typeof item?.reason === 'string' ? item.reason : null,
+            detectedMimeType: typeof item?.detectedMimeType === 'string'
+                ? item.detectedMimeType
+                : null,
+            detectedExtension: typeof item?.detectedExtension === 'string'
+                ? item.detectedExtension
+                : null,
+            findings: (Array.isArray(item?.findings) ? item.findings : [])
+                .filter((finding) => typeof finding === 'string')
+                .slice(0, MAX_PUBLIC_ATTACHMENT_FINDINGS),
+        })),
+    };
+};
+
 // Construiește răspunsul pentru detaliile unui email (GET /emails/:id):
 // emailul de bază + scanul curent + "starea" lui (effectiveVerdict, riskBucket,
 // reviewStatus — calculate de email-state.service.js) + dacă este prima dată
@@ -152,6 +199,8 @@ const toEmailDetails = async ({ userId, email, latestScan }) => {
         hasShortenedUrl: email.hasShortenedUrl,
         suspiciousLinkPatterns: email.suspiciousLinkPatterns,
         attachmentExtensions: email.attachmentExtensions,
+        attachments: publicAttachmentMetadata(email.attachments),
+        attachmentAnalysis: publicAttachmentAnalysis(email.attachmentAnalysis),
         authResults: email.authResults || null,
         receivedAt: email.receivedAt,
         syncSource: email.syncSource,

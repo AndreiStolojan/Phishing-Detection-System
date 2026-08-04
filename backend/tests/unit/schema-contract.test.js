@@ -40,6 +40,8 @@ test('Email schema keeps raw body fields separate from detail contract fields', 
     assert.equal(Email.schema.path('syncSource').instance, 'String');
     assert.ok(Email.schema.path('authResults'));
     assert.equal(Email.schema.path('authResults.status').instance, 'String');
+    assert.equal(Email.schema.path('attachmentAnalysis').instance, 'Embedded');
+    assert.equal(Email.schema.path('attachmentAnalysis.items').instance, 'Array');
     assert.deepEqual(
         Email.schema.path('authResults.status').options.enum,
         ['ok', 'partial', 'unavailable']

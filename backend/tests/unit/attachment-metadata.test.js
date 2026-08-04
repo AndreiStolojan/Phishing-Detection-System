@@ -61,3 +61,57 @@ test('Email attachment metadata schema cannot retain undeclared byte fields', ()
         'size',
     ]);
 });
+
+test('Email attachment analysis persists only bounded metadata and finding keys', () => {
+    const email = new Email({
+        userId: '507f1f77bcf86cd799439012',
+        mailAccountId: '507f1f77bcf86cd799439011',
+        providerMessageId: 'message-id',
+        attachmentAnalysis: {
+            status: 'evaluated',
+            items: [{
+                attachmentIndex: 0,
+                status: 'evaluated',
+                reason: 'unsupported_archive_type',
+                detectedMimeType: 'application/x-dosexec',
+                detectedExtension: 'exe',
+                findings: ['attachment_type_mismatch_dangerous'],
+                attachmentId: 'not-allowed',
+                sha256: 'not-allowed',
+                data: Buffer.from('not-allowed'),
+                bytes: Buffer.from('not-allowed'),
+            }],
+        },
+    });
+
+    const stored = email.toObject().attachmentAnalysis.items[0];
+    assert.deepEqual(Object.keys(stored).sort(), [
+        'attachmentIndex',
+        'detectedExtension',
+        'detectedMimeType',
+        'findings',
+        'reason',
+        'status',
+    ]);
+});
+
+test('Email attachment analysis limits persisted item count', async () => {
+    const email = new Email({
+        userId: '507f1f77bcf86cd799439012',
+        mailAccountId: '507f1f77bcf86cd799439011',
+        providerMessageId: 'message-id',
+        attachmentAnalysis: {
+            status: 'evaluated',
+            items: Array.from({ length: 11 }, (_, attachmentIndex) => ({
+                attachmentIndex,
+                status: 'evaluated',
+                findings: [],
+            })),
+        },
+    });
+
+    await assert.rejects(
+        email.validate(),
+        (error) => Boolean(error.errors['attachmentAnalysis.items'])
+    );
+});
