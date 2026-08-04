@@ -394,3 +394,37 @@ test('a timed-out single-flight waiter does not cancel a later scan', async () =
         'clean'
     );
 });
+
+test('an already-expired single-flight deadline observes an orphaned rejection', async () => {
+    const unhandled = [];
+    const onUnhandled = (error) => unhandled.push(error);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+        const service = createThreatIntelligenceService({
+            enabled: true,
+            timeoutMs: 1,
+            cache: {
+                async get() {
+                    await new Promise((resolve) => setTimeout(resolve, 5));
+                    return null;
+                },
+                async set() {},
+            },
+            webRisk: { async lookup() { return { status: 'ok', matches: [] }; } },
+            urlhaus: { async lookup() { return { status: 'ok', match: false }; } },
+            rdap: { async lookupDomain() { return { status: 'not_found' }; } },
+            async resolveRedirect() {
+                throw new Error('redirect failed after its waiter expired');
+            },
+        });
+
+        const result = await service.analyze({ links: ['https://bit.ly/abc'] });
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.equal(result.status, 'evaluated');
+        assert.deepEqual(unhandled, []);
+    } finally {
+        process.off('unhandledRejection', onUnhandled);
+    }
+});

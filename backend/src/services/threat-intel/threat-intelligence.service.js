@@ -208,6 +208,10 @@ export const createThreatIntelligenceService = ({
                     entry.settled = true;
                     if (inFlight.get(key) === entry) inFlight.delete(key);
                 });
+            // A deadline can expire before the first waiter attaches below.
+            // Observe rejection immediately so aborting an orphaned operation
+            // cannot become a process-level unhandled rejection.
+            entry.promise.catch(() => {});
             inFlight.set(key, entry);
         }
 
