@@ -60,6 +60,12 @@ test('retains very-long URL detection after reputation normalization removes tra
 
     assert.deepEqual(result.links, ['https://example.com/offer']);
     assert.deepEqual(result.suspiciousLinkPatterns, ['very_long_url']);
+
+    const wwwPrefix = 'www.example.com/?q=';
+    const wwwResult = analyzeEmailLinks({
+        textBody: wwwPrefix + 'a'.repeat(200 - wwwPrefix.length),
+    });
+    assert.deepEqual(wwwResult.suspiciousLinkPatterns, ['very_long_url']);
 });
 
 test('reports an HTML anchor domain mismatch without retaining query values', () => {
@@ -89,6 +95,54 @@ test('does not report a mismatch for equivalent displayed domains or ordinary an
         ].join(''),
     });
 
+    assert.deepEqual(result.anchorMismatches, []);
+});
+
+test('requires a real public suffix for schemeless displayed domains', () => {
+    const result = analyzeEmailLinks({
+        htmlBody: [
+            '<a href="https://evil.example/">49.99</a>',
+            '<a href="https://evil.example/">Mr.Smith</a>',
+            '<a href="https://evil.example/">www.trusted.com</a>',
+        ].join(''),
+    });
+
+    assert.deepEqual(result.anchorMismatches, [
+        {
+            href: { scheme: 'https', domain: 'evil.example' },
+            displayed: { scheme: 'https', domain: 'trusted.com' },
+            anchorTextLength: 'www.trusted.com'.length,
+        },
+    ]);
+});
+
+test('skips oversized tags and comments before scanning later links', () => {
+    const oversizedTag = `<div data-padding="${'x'.repeat(4_096)}">`;
+    const oversizedUnclosedTag = `<div data-padding="${'x'.repeat(4_096)}`;
+    const oversizedComment = `<!--${'x'.repeat(4_096)}-->`;
+    const result = analyzeEmailLinks({
+        htmlBody: [
+            oversizedTag,
+            '<a href="https://first.example/">https://trusted.example</a>',
+            oversizedComment,
+            oversizedUnclosedTag,
+            '<area href="https://second.example/offer">',
+        ].join(''),
+    });
+
+    assert.deepEqual(result.links, [
+        'https://first.example/',
+        'https://second.example/offer',
+    ]);
+    assert.equal(result.anchorMismatches.length, 1);
+});
+
+test('does not recover through a genuinely unterminated HTML comment', () => {
+    const result = analyzeEmailLinks({
+        htmlBody: '<!-- no closing marker > <a href="https://evil.example/">https://trusted.example</a>',
+    });
+
+    assert.deepEqual(result.links, []);
     assert.deepEqual(result.anchorMismatches, []);
 });
 

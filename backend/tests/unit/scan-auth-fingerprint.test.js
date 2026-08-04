@@ -97,6 +97,26 @@ test('enabling or configuring threat intelligence makes an earlier scan stale', 
     assert.doesNotMatch(enabled, /true|false|web|urlhaus/i);
 });
 
+test('changing the threat intelligence deadline invalidates a scan', () => {
+    const baseConfig = {
+        enabled: true,
+        webRiskConfigured: true,
+        urlhausConfigured: true,
+        maxUrls: 5,
+    };
+
+    const tenSecondBudget = buildThreatIntelConfigFingerprint({
+        ...baseConfig,
+        timeoutMs: 10_000,
+    });
+    const fiveSecondBudget = buildThreatIntelConfigFingerprint({
+        ...baseConfig,
+        timeoutMs: 5_000,
+    });
+
+    assert.notEqual(tenSecondBudget, fiveSecondBudget);
+});
+
 test('an enabled threat intelligence outage is retried on a later sync', () => {
     const authResultsFingerprint = buildAuthResultsFingerprint(passedAuth);
     const currentScan = {

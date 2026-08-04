@@ -181,6 +181,34 @@ test('fails open when sources fail independently or the total budget expires', a
     });
 });
 
+test('bounds stalled cache reads and writes by the per-scan deadline', async () => {
+    const never = new Promise(() => {});
+    const readStall = createThreatIntelligenceService({
+        enabled: true,
+        timeoutMs: 10,
+        cache: { get: async () => never, set: async () => {} },
+        webRisk: { async lookup() { return { status: 'ok', matches: [] }; } },
+        urlhaus: { async lookup() { return { status: 'ok', match: false }; } },
+        rdap: { async lookupDomain() { return { status: 'not_found' }; } },
+    });
+    const writeStall = createThreatIntelligenceService({
+        enabled: true,
+        timeoutMs: 10,
+        cache: { get: async () => null, set: async () => never },
+        webRisk: { async lookup() { return { status: 'ok', matches: [] }; } },
+        urlhaus: { async lookup() { return { status: 'ok', match: false }; } },
+        rdap: { async lookupDomain() { return { status: 'not_found' }; } },
+    });
+
+    for (const service of [readStall, writeStall]) {
+        const startedAt = Date.now();
+        const result = await service.analyze({ links: ['https://example.com/'] });
+
+        assert.ok(Date.now() - startedAt < 250);
+        assert.equal(result.status, 'evaluated');
+    }
+});
+
 test('turns private redirect attempts and long chains into bounded evidence', async () => {
     const privateError = new Error('private address');
     privateError.code = 'SAFE_FETCH_ADDRESS_BLOCKED';

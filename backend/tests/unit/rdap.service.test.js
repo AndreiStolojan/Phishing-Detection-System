@@ -146,6 +146,42 @@ test('RDAP bootstrap uses one refresh, negative-caches failures, then retries af
     assert.equal(bootstrapRequests, 2);
 });
 
+test('RDAP serves a stale bootstrap during a short refresh outage', async () => {
+    let currentTime = new Date('2026-08-03T12:00:00.000Z');
+    let bootstrapRequests = 0;
+    const service = createRdapService({
+        now: () => currentTime,
+        bootstrapTtlMs: 60_000,
+        bootstrapNegativeTtlMs: 1_000,
+        safeJsonGet: async (url) => {
+            if (url.includes('iana.org')) {
+                bootstrapRequests += 1;
+                return bootstrapRequests === 1
+                    ? { ok: true, status: 200, body: bootstrap }
+                    : { ok: false, status: 503, body: null };
+            }
+            return {
+                ok: true,
+                status: 200,
+                body: { objectClassName: 'domain', events: [] },
+            };
+        },
+    });
+
+    assert.deepEqual(await service.lookupDomain('first-example.com'), {
+        status: 'ok', registeredAt: null,
+    });
+    currentTime = new Date('2026-08-03T12:01:00.000Z');
+    assert.deepEqual(await service.lookupDomain('second-example.com'), {
+        status: 'ok', registeredAt: null,
+    });
+    currentTime = new Date('2026-08-03T12:01:00.500Z');
+    assert.deepEqual(await service.lookupDomain('third-example.com'), {
+        status: 'ok', registeredAt: null,
+    });
+    assert.equal(bootstrapRequests, 2);
+});
+
 test('a cancelled bootstrap waiter does not cancel the shared refresh for another lookup', async () => {
     let releaseBootstrap;
     let bootstrapSignal;

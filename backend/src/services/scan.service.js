@@ -78,6 +78,7 @@ export const buildThreatIntelConfigFingerprint = ({
     webRiskConfigured,
     urlhausConfigured,
     maxUrls,
+    timeoutMs,
 }) => crypto
     .createHash('sha256')
     .update(JSON.stringify({
@@ -85,6 +86,7 @@ export const buildThreatIntelConfigFingerprint = ({
         webRiskConfigured: Boolean(enabled && webRiskConfigured),
         urlhausConfigured: Boolean(enabled && urlhausConfigured),
         maxUrls: enabled ? String(maxUrls || '') : null,
+        timeoutMs: enabled ? String(timeoutMs || '') : null,
     }))
     .digest('hex');
 
@@ -94,6 +96,7 @@ export const CURRENT_THREAT_INTEL_CONFIG_FINGERPRINT =
         webRiskConfigured: Boolean(WEB_RISK_API_KEY),
         urlhausConfigured: Boolean(URLHAUS_AUTH_KEY),
         maxUrls: THREAT_INTEL_MAX_URLS_PER_EMAIL,
+        timeoutMs: THREAT_INTEL_TIMEOUT_MS,
     });
 
 const threatIntelAnalyzer = createThreatIntelligenceService({

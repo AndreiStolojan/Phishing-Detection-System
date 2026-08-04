@@ -25,6 +25,7 @@ import {
     normalizeHttpUrl,
     toRedactedUrlMetadata,
 } from './threat-intel/url-normalization.service.js';
+import { getDomain, parse } from 'tldts';
 
 // Domenii cunoscute de servicii de "shortener" (scurtare de linkuri).
 const SHORTENER_DOMAINS = new Set([
@@ -93,9 +94,23 @@ const decodeHtmlEntities = (value) => value.replace(
 );
 
 // Reads one tag without a backtracking expression, respecting quoted attribute
-// values where `>` is legal. The work is capped so a hostile HTML body cannot
-// consume unbounded CPU here.
+// values where `>` is legal. The input itself is capped before this scanner is
+// called, while oversized tags are skipped instead of being run through the
+// attribute expressions below.
 const readHtmlTag = (html, startIndex) => {
+    if (html.startsWith('<!--', startIndex)) {
+        const commentEnd = html.indexOf('-->', startIndex + 4);
+
+        if (commentEnd === -1) {
+            return { kind: 'unterminated' };
+        }
+
+        return {
+            kind: 'skipped',
+            nextIndex: commentEnd + 3,
+        };
+    }
+
     let quote = null;
     const stopIndex = Math.min(html.length, startIndex + MAX_HTML_TAG_CHARS);
 
@@ -113,13 +128,16 @@ const readHtmlTag = (html, startIndex) => {
             quote = character;
         } else if (character === '>') {
             return {
+                kind: 'tag',
                 content: html.slice(startIndex + 1, index),
                 nextIndex: index + 1,
             };
         }
     }
 
-    return null;
+    return stopIndex < html.length
+        ? { kind: 'skipped', nextIndex: stopIndex }
+        : { kind: 'unterminated' };
 };
 
 const getHrefFromTag = (tagContent) => {
@@ -128,6 +146,15 @@ const getHrefFromTag = (tagContent) => {
     return hrefMatch
         ? decodeHtmlEntities(hrefMatch[1] ?? hrefMatch[2] ?? hrefMatch[3])
         : null;
+};
+
+const hasRegistrablePublicDomain = (value) => {
+    const parsed = parse(value);
+
+    // tldts has a fallback for syntactically valid, unknown suffixes. Require
+    // a suffix from its ICANN data so prose such as "Mr.Smith" is not treated
+    // as a displayed URL.
+    return parsed.isIcann === true && Boolean(getDomain(value));
 };
 
 const normalizeVisibleAnchorUrl = (anchorText) => {
@@ -147,7 +174,10 @@ const normalizeVisibleAnchorUrl = (anchorText) => {
     // A domain rendered without a scheme is common in email copy. Treat only a
     // complete domain/path token as URL-like; prose such as "visit example.com"
     // must not create an anchor mismatch signal.
-    if (/^(?:[\p{L}\p{N}-]+\.)+[\p{L}\p{N}-]+(?::\d+)?(?:[/][^\s]*)?$/iu.test(visibleText)) {
+    if (
+        /^(?:[\p{L}\p{N}-]+\.)+[\p{L}\p{N}-]+(?::\d+)?(?:[/][^\s]*)?$/iu.test(visibleText) &&
+        hasRegistrablePublicDomain(visibleText)
+    ) {
         return normalizeHttpUrl(`https://${visibleText}`);
     }
 
@@ -219,8 +249,13 @@ const extractHtmlAnchors = (htmlContent) => {
         }
 
         const tag = readHtmlTag(html, tagStart);
-        if (!tag) {
+        if (tag.kind === 'unterminated') {
             break;
+        }
+
+        if (tag.kind === 'skipped') {
+            index = tag.nextIndex;
+            continue;
         }
 
         const tagName = tag.content.match(/^\s*(\/?)\s*([a-z][a-z0-9:-]*)\b/i);
@@ -307,7 +342,10 @@ export const analyzeEmailLinks = ({ textBody = '', htmlBody = '' }) => {
 
         // Evaluate the original representation before canonical deduplication:
         // a short URL must not hide a later long tracking variant of itself.
-        if (rawLink.length > 200) {
+        const comparableRawLength = /^www\./i.test(rawLink)
+            ? `https://${rawLink}`.length
+            : rawLink.length;
+        if (comparableRawLength > 200) {
             suspiciousLinkPatterns.push('very_long_url');
         }
 

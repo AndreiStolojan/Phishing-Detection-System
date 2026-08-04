@@ -95,17 +95,17 @@ const updateSourceStatus = (sourceStatuses, source, status) => {
     }
 };
 
-const safeCacheGet = async (cache, input) => {
+const safeCacheGet = async (cache, input, deadline) => {
     try {
-        return await cache.get(input);
+        return await withinDeadline(() => cache.get(input), deadline);
     } catch {
         return null;
     }
 };
 
-const safeCacheSet = async (cache, input) => {
+const safeCacheSet = async (cache, input, deadline) => {
     try {
-        await cache.set(input);
+        await withinDeadline(() => cache.set(input), deadline);
     } catch {
         // Cache availability must never decide the email verdict.
     }
@@ -238,7 +238,11 @@ export const createThreatIntelligenceService = ({
         const selection = uniqueSelectedUrls({ email, maxUrls: urlLimit });
 
         const lookupWebRisk = async (url) => {
-            const cached = await safeCacheGet(cache, { source: 'web_risk', subject: url });
+            const cached = await safeCacheGet(
+                cache,
+                { source: 'web_risk', subject: url },
+                deadline
+            );
             if (cached) {
                 cacheHitCount += 1;
                 if (cached.status === 'unavailable') return unavailableResult({ matches: [] });
@@ -278,7 +282,7 @@ export const createThreatIntelligenceService = ({
                     ttlMs: matches.length > 0
                         ? ttlFromWebRiskExpiry(result.expiresAt, now())
                         : CLEAN_TTL_MS,
-                });
+                }, deadline);
             } else if (!['not_configured', 'scan_timeout'].includes(result.reason)) {
                 await safeCacheSet(cache, {
                     source: 'web_risk',
@@ -286,13 +290,17 @@ export const createThreatIntelligenceService = ({
                     subject: url,
                     value: { status: 'unavailable' },
                     ttlMs: ERROR_TTL_MS,
-                });
+                }, deadline);
             }
             return result;
         };
 
         const lookupUrlhaus = async (url) => {
-            const cached = await safeCacheGet(cache, { source: 'urlhaus', subject: url });
+            const cached = await safeCacheGet(
+                cache,
+                { source: 'urlhaus', subject: url },
+                deadline
+            );
             if (cached) {
                 cacheHitCount += 1;
                 if (cached.status === 'unavailable') return unavailableResult({ match: false });
@@ -326,7 +334,7 @@ export const createThreatIntelligenceService = ({
                     subject: url,
                     value: { status: result.match ? 'malicious' : 'clean' },
                     ttlMs: result.match ? MALICIOUS_TTL_MS : CLEAN_TTL_MS,
-                });
+                }, deadline);
             } else if (!['not_configured', 'scan_timeout'].includes(result.reason)) {
                 await safeCacheSet(cache, {
                     source: 'urlhaus',
@@ -334,7 +342,7 @@ export const createThreatIntelligenceService = ({
                     subject: url,
                     value: { status: 'unavailable' },
                     ttlMs: ERROR_TTL_MS,
-                });
+                }, deadline);
             }
             return result;
         };
@@ -386,7 +394,11 @@ export const createThreatIntelligenceService = ({
         }).filter(Boolean))];
 
         const lookupRdap = async (domain) => {
-            const cached = await safeCacheGet(cache, { source: 'rdap', subject: domain });
+            const cached = await safeCacheGet(
+                cache,
+                { source: 'rdap', subject: domain },
+                deadline
+            );
             if (cached) {
                 cacheHitCount += 1;
                 if (cached.status === 'unavailable') return unavailableResult({ registeredAt: null });
@@ -428,7 +440,7 @@ export const createThreatIntelligenceService = ({
                         registeredAt: result.registeredAt,
                     },
                     ttlMs: result.status === 'ok' ? DOMAIN_TTL_MS : CLEAN_TTL_MS,
-                });
+                }, deadline);
             } else if (result.reason !== 'scan_timeout') {
                 await safeCacheSet(cache, {
                     source: 'rdap',
@@ -436,7 +448,7 @@ export const createThreatIntelligenceService = ({
                     subject: domain,
                     value: { status: 'unavailable' },
                     ttlMs: ERROR_TTL_MS,
-                });
+                }, deadline);
             }
             return result;
         };
@@ -478,7 +490,11 @@ export const createThreatIntelligenceService = ({
         let redirectToPrivateCount = 0;
 
         const lookupRedirect = async (url) => {
-            const cached = await safeCacheGet(cache, { source: 'redirect', subject: url });
+            const cached = await safeCacheGet(
+                cache,
+                { source: 'redirect', subject: url },
+                deadline
+            );
             if (cached) {
                 cacheHitCount += 1;
                 return {
@@ -517,7 +533,7 @@ export const createThreatIntelligenceService = ({
                         hopCount,
                     },
                     ttlMs: CLEAN_TTL_MS,
-                });
+                }, deadline);
                 return { status: 'resolved', targetDomainHash, hopCount };
             } catch (error) {
                 const hopCount = Number.isInteger(error?.hopCount) ? error.hopCount : 0;
@@ -534,7 +550,7 @@ export const createThreatIntelligenceService = ({
                         // A blocked private address is a safe-fetch policy
                         // violation, not proof that the short URL is malicious.
                         ttlMs: ERROR_TTL_MS,
-                    });
+                    }, deadline);
                 }
                 return { status: isPrivate ? 'blocked' : 'unavailable', hopCount };
             }

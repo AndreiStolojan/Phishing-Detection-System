@@ -153,7 +153,9 @@ export const createRdapService = ({
     const loadBootstrap = async (signal) => {
         const currentTime = now().getTime();
         if (bootstrap && bootstrapExpiresAt > currentTime) return bootstrap;
-        if (bootstrapUnavailableUntil > currentTime || signal?.aborted) return null;
+        if (bootstrapUnavailableUntil > currentTime || signal?.aborted) {
+            return signal?.aborted ? null : bootstrap;
+        }
 
         if (!bootstrapInFlight) {
             // The bootstrap request has its own deadline. A cancelled scan only
@@ -166,7 +168,7 @@ export const createRdapService = ({
                     const parsed = response?.ok ? parseBootstrap(response.body) : null;
                     if (!parsed) {
                         bootstrapUnavailableUntil = now().getTime() + negativeTtlMs;
-                        return null;
+                        return bootstrap;
                     }
 
                     bootstrap = parsed;
@@ -175,7 +177,7 @@ export const createRdapService = ({
                     return bootstrap;
                 } catch {
                     bootstrapUnavailableUntil = now().getTime() + negativeTtlMs;
-                    return null;
+                    return bootstrap;
                 }
             })().finally(() => {
                 bootstrapInFlight = null;
