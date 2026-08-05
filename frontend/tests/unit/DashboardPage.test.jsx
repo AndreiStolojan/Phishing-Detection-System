@@ -151,8 +151,17 @@ describe('DashboardPage', () => {
     renderDashboard();
 
     const first = await screen.findByText('Your account will be closed');
-    const rows = screen.getAllByRole('link').filter((el) => el.getAttribute('href')?.startsWith('/inbox/'));
-    expect(rows.map((el) => el.getAttribute('href'))).toEqual(['/inbox/high', '/inbox/low']);
+    // Each row opens THAT message with the queue's own filter still applied, so
+    // the list beside it is the rest of the review queue rather than the whole
+    // inbox. The id travels in `?selected=`, which is where the two-pane inbox
+    // reads it from — a bare /inbox/:id path is dropped by the redirect.
+    const rows = screen
+      .getAllByRole('link')
+      .filter((el) => el.getAttribute('href')?.startsWith('/inbox?riskBucket=quarantine&selected='));
+    expect(rows.map((el) => el.getAttribute('href'))).toEqual([
+      '/inbox?riskBucket=quarantine&selected=high',
+      '/inbox?riskBucket=quarantine&selected=low',
+    ]);
     expect(within(rows[0]).getByText('91')).toBeTruthy();
     expect(rows[0].contains(first)).toBe(true);
   });

@@ -20,6 +20,10 @@ import { cn } from '@/lib/utils';
   needs to know the layout mode BEFORE the route renders (it decides the
   wrapper element), and a child-published flag would arrive a commit too late
   and cause a layout flash. Add a path here to opt a route into full-bleed.
+
+  /settings was briefly on this list while it was a two-pane workspace. It is a
+  normal single-column settings page again, so it wants the standard padded
+  <main> and the page transition, like the dashboard.
 */
 const FULL_BLEED_ROUTES = ['/inbox'];
 

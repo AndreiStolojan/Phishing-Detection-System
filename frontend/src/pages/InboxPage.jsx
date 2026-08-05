@@ -137,10 +137,19 @@ export function InboxPage() {
   const groups = groupByDate(emails);
   const searching = loading || searchInput !== debouncedSearch;
 
-  // If the id in the URL is not on the current page (filter changed, other
-  // page), fall back to the first message — the right pane is never blank
-  // without a reason.
-  const selectedId = emailIds.includes(selectedParam) ? selectedParam : emailIds[0] || '';
+  /*
+    An id in the URL is an explicit request for THAT message, so it wins even
+    when the message is not in the list currently on screen — MessagePane loads
+    it by id on its own, so the pane can show a message the list has not paged
+    to. This is what makes a link from the dashboard (or an old bookmark) open
+    the message it names instead of quietly showing whatever sorts first.
+
+    The row simply will not be highlighted in that case, which is honest: the
+    message genuinely is not in the visible list. Changing filter, page or
+    search clears `selected` (see setParam callers), so a stale id cannot
+    survive navigation — it only ever arrives from a link.
+  */
+  const selectedId = selectedParam || emailIds[0] || '';
 
   useEffect(() => {
     setSelectMode(false);

@@ -331,7 +331,11 @@ const buildEmailListBaseMatch = ({ userId, q, mailAccountId, range }) => {
 // Folosește un $lookup cu sub-pipeline (echivalentul unui JOIN din SQL): pentru
 // fiecare email, caută în colecția "scans" documentele cu același emailId și
 // userId, le sortează descrescător după dată și ține doar primul (cel mai nou).
-const buildLatestScanLookupStages = () => [
+// Exportat pentru că și alte servicii au nevoie de EXACT aceeași derivare a
+// stării (ex: sender-list.service.js, care numără emailurile acoperite de o
+// regulă pe categorii de risc). Duplicarea logicii ar face ca aceleași emailuri
+// să apară în categorii diferite în ecrane diferite.
+export const buildLatestScanLookupStages = () => [
     {
         $lookup: {
             from: 'scans',
@@ -493,7 +497,9 @@ const riskBucketExpr = {
 // Pasul de aggregation care adaugă toate cele 5 câmpuri "de stare" calculate
 // mai sus (effectiveVerdict, verdictSource, reviewStatus, isQuarantined,
 // riskBucket) pe fiecare document de email din pipeline.
-const buildEmailStateStages = () => [
+// Exportat din același motiv ca buildLatestScanLookupStages de mai sus: cele
+// două se folosesc mereu împreună, în această ordine.
+export const buildEmailStateStages = () => [
     {
         $addFields: {
             effectiveVerdict: effectiveVerdictExpr,
