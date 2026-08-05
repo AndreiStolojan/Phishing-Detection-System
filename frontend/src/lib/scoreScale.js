@@ -82,11 +82,13 @@ export const isScored = (score) => Number.isFinite(score);
 export const UNSCORED_COLOR = 'var(--color-risk-unscanned)';
 
 // ── Contrast ────────────────────────────────────────────────────────────────
-// The ramp colours are used as large tinted NUMERALS on the near-black canvas,
+// The ramp colours are used as large tinted NUMERALS on the charcoal canvas,
 // so they have to stay legible rather than just look nice. These helpers keep
 // that guarantee in code instead of in a comment that can rot.
 
-const BACKGROUND = '#09090c'; // --color-background
+// Must track --color-background in index.css. It is duplicated here because
+// ensureReadable() runs during render and cannot read a CSS custom property.
+const BACKGROUND = '#121319'; // --color-background
 
 const relativeLuminance = (hex) => {
   const [r, g, b] = toRgb(hex).map((c) => {
