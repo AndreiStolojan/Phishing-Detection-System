@@ -1,0 +1,10 @@
+{
+  "id": "link-count-high-lower",
+  "email": {
+    "senderDomain": "example.test",
+    "linkCount": 10
+  },
+  "ai": {
+    "enabled": false
+  }
+}

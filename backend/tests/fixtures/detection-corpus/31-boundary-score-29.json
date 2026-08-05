@@ -1,0 +1,14 @@
+{
+  "id": "boundary-score-29",
+  "email": {
+    "senderDomain": "example.test",
+    "hasShortenedUrl": true,
+    "linkCount": 6
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "medium"
+    }
+  }
+}

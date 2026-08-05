@@ -1,0 +1,12 @@
+{
+  "id": "ip-address-link",
+  "email": {
+    "senderDomain": "example.test",
+    "suspiciousLinkPatterns": [
+      "ip_address_link"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

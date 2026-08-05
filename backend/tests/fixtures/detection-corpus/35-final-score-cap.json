@@ -1,0 +1,39 @@
+{
+  "id": "final-score-cap",
+  "email": {
+    "senderDomain": "blocked.example",
+    "replyToDomain": "reply.example",
+    "hasShortenedUrl": true,
+    "suspiciousLinkPatterns": [
+      "ip_address_link",
+      "embedded_credentials",
+      "punycode_domain",
+      "very_long_url",
+      "shortened_url"
+    ],
+    "attachmentExtensions": [
+      "exe",
+      "zip"
+    ],
+    "linkCount": 25
+  },
+  "listContext": {
+    "senderAllowlisted": false,
+    "senderBlocklisted": true,
+    "listMatch": {
+      "listType": "block",
+      "kind": "domain",
+      "value": "blocked.example"
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "high",
+      "sensitiveDataRequest": true,
+      "loginOrActionRequest": true,
+      "socialEngineeringLevel": "high",
+      "brandImpersonationSuspected": true
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "ai-login-action",
+  "email": {
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "loginOrActionRequest": true
+    }
+  }
+}

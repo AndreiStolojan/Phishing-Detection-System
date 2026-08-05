@@ -52,6 +52,9 @@ const isConsumerMailbox = (senderDomain) =>
 // a obiectului în toate cazurile de "nu", ca să fie simplu de folosit mai departe.
 const buildUnverifiedResult = (senderDomain) => ({
     senderVerifiedBrand: false,
+    brandState: 'unknown',
+    brandMatch: false,
+    authenticationStatus: 'unavailable',
     brandKey: null,
     brandName: null,
     matchedDomain: null,
@@ -72,7 +75,7 @@ const buildUnverifiedResult = (senderDomain) => ({
  */
 // Funcția principală a fișierului: primește domeniul expeditorului și spune dacă
 // e un domeniu oficial al unui brand cunoscut din config/brand-domains.config.js.
-export const verifySenderBrand = ({ senderDomain } = {}) => {
+export const verifySenderBrand = ({ senderDomain, authResults } = {}) => {
     const normalizedSenderDomain = normalizeDomain(senderDomain);
 
     // Fără domeniu -> nu putem verifica nimic.
@@ -90,8 +93,24 @@ export const verifySenderBrand = ({ senderDomain } = {}) => {
     for (const [brandKey, brand] of Object.entries(BRAND_OFFICIAL_DOMAINS)) {
         for (const officialDomain of brand.domains) {
             if (domainMatches(normalizedSenderDomain, officialDomain)) {
+                const dmarcResult = authResults?.dmarc;
+                const dmarcPassesWithAlignment =
+                    authResults?.status === 'ok' &&
+                    dmarcResult?.result === 'pass' &&
+                    ['strict', 'relaxed'].includes(dmarcResult.alignment);
+                const authenticationStatus = dmarcPassesWithAlignment
+                    ? 'pass'
+                    : authResults && authResults.status !== 'unavailable'
+                        ? 'fail'
+                        : 'unavailable';
+
                 return {
-                    senderVerifiedBrand: true,
+                    senderVerifiedBrand: dmarcPassesWithAlignment,
+                    brandState: dmarcPassesWithAlignment
+                        ? 'verified'
+                        : 'claimed_unauthenticated',
+                    brandMatch: true,
+                    authenticationStatus,
                     brandKey,
                     brandName: brand.displayName,
                     matchedDomain: officialDomain,

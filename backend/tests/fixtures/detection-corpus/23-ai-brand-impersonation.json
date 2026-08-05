@@ -1,0 +1,12 @@
+{
+  "id": "ai-brand-impersonation",
+  "email": {
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "brandImpersonationSuspected": true
+    }
+  }
+}

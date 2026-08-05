@@ -1,0 +1,13 @@
+{
+  "id": "dead-shortened-pattern",
+  "email": {
+    "senderDomain": "example.test",
+    "hasShortenedUrl": false,
+    "suspiciousLinkPatterns": [
+      "shortened_url"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

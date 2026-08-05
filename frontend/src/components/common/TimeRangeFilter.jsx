@@ -52,7 +52,7 @@ function MonthGrid({ year, month, today, start, end, hovered, onHover, onPick, o
           aria-label="Month"
           value={month}
           onChange={(e) => onMonth(year, Number(e.target.value))}
-          className="h-9 flex-1 rounded-md border border-input bg-card px-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+          className="h-8 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           {MONTH_NAMES.map((name, i) => (
             <option key={name} value={i}>
@@ -64,7 +64,7 @@ function MonthGrid({ year, month, today, start, end, hovered, onHover, onPick, o
           aria-label="Year"
           value={year}
           onChange={(e) => onMonth(Number(e.target.value), month)}
-          className="h-9 w-24 rounded-md border border-input bg-card px-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+          className="h-8 w-24 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           {years.map((y) => (
             <option key={y} value={y}>
@@ -76,7 +76,10 @@ function MonthGrid({ year, month, today, start, end, hovered, onHover, onPick, o
 
       <div className="grid grid-cols-7 gap-y-1">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="flex h-8 items-center justify-center text-xs font-semibold text-foreground">
+          <div
+            key={d}
+            className="flex h-8 items-center justify-center text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground-subtle"
+          >
             {d}
           </div>
         ))}
@@ -95,14 +98,17 @@ function MonthGrid({ year, month, today, start, end, hovered, onHover, onPick, o
               disabled={disabled}
               onMouseEnter={() => onHover(day)}
               onClick={() => onPick(day)}
+              aria-current={isToday ? 'date' : undefined}
               className={cn(
-                'mx-auto flex h-9 w-9 items-center justify-center rounded-md text-sm tabular-nums transition-colors',
+                'mx-auto flex h-8 w-8 items-center justify-center rounded-md text-sm tabular-nums outline-none transition-colors',
+                'focus-visible:ring-2 focus-visible:ring-ring/60',
                 disabled && 'cursor-not-allowed text-muted-foreground-subtle opacity-40',
                 !disabled && !inMonth && 'text-muted-foreground-subtle',
                 !disabled && inMonth && 'text-foreground hover:bg-accent',
                 !disabled && isToday && !isEndpoint && 'font-semibold text-primary',
-                between && 'bg-primary/15',
-                isEndpoint && 'bg-primary font-medium text-primary-foreground hover:bg-primary'
+                between && 'bg-primary/12 text-foreground',
+                isEndpoint &&
+                  'bg-primary font-medium text-primary-foreground hover:bg-primary-hover'
               )}
             >
               {day.getDate()}
@@ -203,42 +209,46 @@ export function TimeRangeFilter({ variant = 'default', className }) {
         onClick={toggleMenu}
         aria-haspopup="dialog"
         aria-expanded={open}
-        style={{ borderColor: '#2d3a5e' }}
         className={cn(
-          'inline-flex h-[34px] items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-foreground transition-colors',
-          variant === 'default' && 'border border-input bg-card/60 hover:bg-accent',
-          variant === 'plain' && 'border border-input hover:bg-accent'
+          'inline-flex h-[32px] items-center gap-2 rounded-md border border-border px-3 text-sm font-medium tabular-nums text-foreground outline-none transition-colors',
+          'hover:bg-accent hover:text-accent-foreground',
+          'focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          variant === 'default' && 'bg-card',
+          open && 'bg-accent'
         )}
       >
-        <ListFilter className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <ListFilter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         {label}
       </button>
 
       {open && (
         <div
           role="dialog"
-          className="surface-overlay absolute right-0 z-50 mt-2 rounded-lg border border-border bg-popover p-2 text-popover-foreground"
+          aria-label="Select time range"
+          className="surface-overlay absolute right-0 z-50 mt-2 rounded-lg border border-border bg-popover p-1.5 text-popover-foreground"
         >
           {view === 'presets' ? (
-            <div className="w-52">
+            <div className="flex w-52 flex-col gap-0.5">
               {RANGE_PRESETS.map((p) => (
                 <button
                   type="button"
                   key={p.key}
                   onClick={() => choosePreset(p)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent"
+                  aria-current={preset === p.key ? 'true' : undefined}
+                  className="flex h-8 w-full items-center justify-between rounded-md px-2.5 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"
                 >
                   {p.label}
-                  {preset === p.key && <Check className="h-4 w-4 text-primary" />}
+                  {preset === p.key && <Check className="h-3.5 w-3.5 text-primary" />}
                 </button>
               ))}
+              <div className="my-0.5 border-t border-border" />
               <button
                 type="button"
                 onClick={() => setView('custom')}
-                className="mt-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                className="flex h-8 w-full items-center justify-between rounded-md px-2.5 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"
               >
-                Custom
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                Custom range
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             </div>
           ) : (
@@ -246,9 +256,9 @@ export function TimeRangeFilter({ variant = 'default', className }) {
               <button
                 type="button"
                 onClick={() => setView('presets')}
-                className="mb-3 flex items-center gap-1 rounded-md px-1 py-1 text-sm font-medium text-foreground transition-colors hover:text-muted-foreground"
+                className="mb-3 -ml-1 flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 Back
               </button>
               <div

@@ -13,6 +13,7 @@
 
 import { Router } from 'express';
 import {
+    backfillMailAccount,
     disconnectMailAccount,
     getMailAccounts,
     handleGoogleCallback,
@@ -37,6 +38,7 @@ mailAccountRouter.get('/', authorize, getMailAccounts);
 mailAccountRouter.patch('/:id/settings', authorize, updateMailAccountSettings);
 // Declanșează manual sincronizarea cu Gmail pentru un cont.
 mailAccountRouter.post('/:id/sync', authorize, syncMailAccount);
+mailAccountRouter.post('/:id/backfill', authorize, backfillMailAccount);
 // Deconectează (șterge) un cont de mail al userului.
 mailAccountRouter.delete('/:id', authorize, disconnectMailAccount);
 

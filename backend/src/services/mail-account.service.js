@@ -22,15 +22,53 @@ import {
     assertGoogleOAuthConfig,
     buildGoogleOAuthUrl,
     exchangeCodePayload,
+    GMAIL_HISTORY_LIST_URL,
     GMAIL_MESSAGE_DETAILS_BASE_URL,
     GMAIL_MESSAGES_LIST_URL,
     GMAIL_PROFILE_URL,
+    GMAIL_STOP_URL,
+    GMAIL_WATCH_URL,
     GOOGLE_OAUTH_TOKEN_URL,
     refreshTokenPayload,
 } from '../config/google-oauth.js';
-import { JWT_SECRET, MAIL_TOKEN_ENCRYPTION_KEY } from '../config/env.js';
+import {
+    ATTACHMENT_ANALYSIS_CONCURRENCY,
+    ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+    ATTACHMENT_MAX_BYTES,
+    ATTACHMENT_MAX_COUNT,
+    ATTACHMENT_MAX_TOTAL_BYTES,
+    GMAIL_PUBSUB_TOPIC,
+    JWT_SECRET,
+    MAIL_TOKEN_ENCRYPTION_KEY,
+    MALWAREBAZAAR_AUTH_KEY,
+    isAttachmentAnalysisEnabled,
+    isGmailPushConfigured,
+} from '../config/env.js';
 import { parseGmailMessageToEmailPayload } from './email-parser.service.js';
+import {
+    buildUnavailableAuthResults,
+    evaluateEmailAuthentication,
+} from './email-auth/email-authentication.service.js';
 import { runSyncScanPipeline } from './scan.service.js';
+import { createGmailSyncStateMachine } from './gmail-sync-state-machine.service.js';
+import {
+    acquireGmailSyncLock,
+    releaseGmailSyncLock,
+    renewGmailSyncLock,
+} from './gmail-sync-lock.service.js';
+import {
+    recordGmailHistoryGap,
+    recordGmailMessagesIngested,
+    recordGmailSync,
+} from '../monitoring/metrics.js';
+import { createGmailWatchService } from './gmail-watch.service.js';
+import { verifySenderBrand } from './brand-verification.service.js';
+import { createAttachmentAnalysisService } from './attachment/analysis.service.js';
+import { createGmailAttachmentFetchService } from './attachment/fetch.service.js';
+import {
+    createHashReputationService,
+    hashAttachmentBuffer,
+} from './attachment/hash-reputation.service.js';
 
 // Câte emailuri se aduc la o sincronizare, dacă userul nu a setat altă valoare.
 const SYNC_MAX_RESULTS_DEFAULT = 10;
@@ -43,6 +81,26 @@ const SYNC_ERRORS_MAX_ITEMS = 5;
 const SYNC_ERROR_MESSAGE_MAX_LENGTH = 180;
 // Algoritmul folosit pentru criptarea tokenilor Gmail la repaus (în baza de date).
 const MAIL_TOKEN_ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const EMAIL_AUTH_RAW_FETCH_TIMEOUT_MS = Math.min(
+    30_000,
+    Math.max(1_000, Number.parseInt(process.env.EMAIL_AUTH_RAW_FETCH_TIMEOUT_MS, 10) || 10_000)
+);
+const EMAIL_AUTH_MAX_RAW_BYTES = Math.min(
+    64 * 1024 * 1024,
+    Math.max(
+        1_024,
+        Number.parseInt(process.env.EMAIL_AUTH_MAX_RAW_BYTES, 10) || 32 * 1024 * 1024
+    )
+);
+const EMAIL_AUTH_MAX_RAW_BASE64_LENGTH = Math.ceil(EMAIL_AUTH_MAX_RAW_BYTES / 3) * 4;
+const GMAIL_BACKFILL_MAX_MESSAGES = Math.max(
+    1,
+    Number.parseInt(process.env.GMAIL_BACKFILL_MAX_MESSAGES, 10) || 500
+);
+const GMAIL_BACKFILL_MAX_DURATION_MS = Math.max(
+    1_000,
+    Number.parseInt(process.env.GMAIL_BACKFILL_MAX_DURATION_MS, 10) || 90_000
+);
 
 // Derivă cheia de criptare din MAIL_TOKEN_ENCRYPTION_KEY (variabilă de mediu).
 // Cheia e transformată cu SHA-256 ca să aibă mereu lungimea corectă pentru AES-256.
@@ -152,11 +210,15 @@ const toPublicMailAccount = (mailAccount) => ({
     syncMaxResults: mailAccount.syncMaxResults ?? SYNC_MAX_RESULTS_DEFAULT,
     tokenExpiryDate: mailAccount.tokenExpiryDate,
     lastSyncedAt: mailAccount.lastSyncedAt,
+    lastHistoryId: mailAccount.lastHistoryId,
+    lastFullSyncAt: mailAccount.lastFullSyncAt,
+    syncState: mailAccount.syncState,
+    backfillCompletedAt: mailAccount.backfillCompletedAt,
     createdAt: mailAccount.createdAt,
     updatedAt: mailAccount.updatedAt,
 });
 
-// Validează și normalizează valoarea syncMaxResults (câte emailuri se aduc la sync).
+// Validează și normalizează dimensiunea unei pagini de backfill.
 // Acceptă number sau string numeric (din formular), respinge orice altceva sau
 // valori în afara intervalului SYNC_MAX_RESULTS_MIN..SYNC_MAX_RESULTS_MAX.
 export const normalizeSyncMaxResults = (value) => {
@@ -325,12 +387,72 @@ export const getGoogleConnectUrl = async (userId) => {
     };
 };
 
+const responseTooLargeError = () => {
+    const error = new Error('Gmail API response exceeds the allowed size');
+    error.code = 'GMAIL_RESPONSE_TOO_LARGE';
+    return error;
+};
+
+const readResponseTextBounded = async (response, maxResponseBytes) => {
+    const contentLength = Number(response.headers?.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > maxResponseBytes) {
+        throw responseTooLargeError();
+    }
+
+    if (!response.body || typeof response.body.getReader !== 'function') {
+        const error = new Error('Gmail API response has no bounded readable body');
+        error.code = 'GMAIL_RESPONSE_UNREADABLE';
+        throw error;
+    }
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    let totalBytes = 0;
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!(value instanceof Uint8Array)) {
+                const error = new Error('Gmail API response body is invalid');
+                error.code = 'GMAIL_RESPONSE_UNREADABLE';
+                throw error;
+            }
+
+            totalBytes += value.byteLength;
+            if (totalBytes > maxResponseBytes) {
+                try {
+                    await reader.cancel();
+                } catch {
+                    // The size limit still applies if cancelling the stream fails.
+                }
+                throw responseTooLargeError();
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    return Buffer.concat(chunks, totalBytes).toString('utf8');
+};
+
 // Încearcă să parseze body-ul unui răspuns HTTP ca JSON; dacă nu e JSON valid
 // (de exemplu un răspuns vid sau HTML), returnează un obiect gol în loc să arunce.
-const parseJsonSafely = async (response) => {
+const parseJsonSafely = async (response, { maxResponseBytes } = {}) => {
     try {
-        return await response.json();
-    } catch {
+        if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1) {
+            return await response.json();
+        }
+
+        return JSON.parse(await readResponseTextBounded(response, maxResponseBytes));
+    } catch (error) {
+        if (
+            error?.code === 'GMAIL_RESPONSE_TOO_LARGE' ||
+            ['AbortError', 'TimeoutError'].includes(error?.name)
+        ) {
+            throw error;
+        }
         return {};
     }
 };
@@ -406,7 +528,7 @@ const exchangeGoogleCodeForTokens = async (code) => {
 // când tokenul de acces a expirat (Gmail răspunde cu 401). Salvează noii tokeni
 // (criptați) în baza de date și actualizează și obiectul `mailAccount` din memorie,
 // ca apelantul să poată continua imediat cu tokenul nou, fără să-l recitească din DB.
-const refreshGoogleAccessToken = async (mailAccount) => {
+const refreshGoogleAccessToken = async (mailAccount, { signal } = {}) => {
     const refreshToken = getDecryptedMailToken(mailAccount.refreshToken);
 
     if (!refreshToken) {
@@ -424,6 +546,7 @@ const refreshGoogleAccessToken = async (mailAccount) => {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: refreshTokenPayload({ refreshToken }).toString(),
+            ...(signal ? { signal } : {}),
         });
 
         const payload = await parseJsonSafely(response);
@@ -491,12 +614,20 @@ const requestGoogleJson = async ({
     fallbackMessage,
     errorCode,
     unreachableCode,
+    timeoutMs,
+    signal,
+    maxResponseBytes,
 }) => {
     let accessToken = getDecryptedMailToken(mailAccount.accessToken);
 
     // attempt 0 = cu tokenul curent; attempt 1 = după reîmprospătare (dacă a fost 401).
     for (let attempt = 0; attempt < 2; attempt += 1) {
         let response;
+        const requestSignal = timeoutMs
+            ? signal
+                ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+                : AbortSignal.timeout(timeoutMs)
+            : signal;
 
         try {
             response = await fetch(url, {
@@ -506,6 +637,7 @@ const requestGoogleJson = async ({
                     ...(body ? { 'Content-Type': 'application/json' } : {}),
                 },
                 ...(body ? { body: JSON.stringify(body) } : {}),
+                ...(requestSignal ? { signal: requestSignal } : {}),
             });
         } catch {
             throw createError(
@@ -516,11 +648,31 @@ const requestGoogleJson = async ({
             );
         }
 
-        const payload = await parseJsonSafely(response);
+        let payload;
+        try {
+            payload = await parseJsonSafely(response, { maxResponseBytes });
+        } catch (error) {
+            if (error?.code !== 'GMAIL_RESPONSE_TOO_LARGE') {
+                throw createError(
+                    'Failed to read Gmail API endpoint response',
+                    502,
+                    ['Check your internet connection and Google OAuth configuration.'],
+                    unreachableCode
+                );
+            }
+            throw createError(
+                'Gmail API response exceeds the allowed size',
+                502,
+                [],
+                error?.code || errorCode
+            );
+        }
 
         if (response.status === 401 && attempt === 0) {
             // Tokenul a expirat -> îl reîmprospătăm și reluăm bucla (attempt 1).
-            accessToken = await refreshGoogleAccessToken(mailAccount);
+            accessToken = await refreshGoogleAccessToken(mailAccount, {
+                signal: requestSignal,
+            });
             continue;
         }
 
@@ -546,28 +698,69 @@ const requestGoogleJson = async ({
     );
 };
 
-// Cere lista de mesaje din INBOX (ids), limitată la syncMaxResults. Gmail returnează
-// doar id-uri scurte aici — detaliile complete (subiect, corp etc.) se aduc separat,
-// per mesaj, în fetchGmailMessageDetails.
-const fetchGmailMessagesList = async (mailAccount) => {
-    const syncMaxResults = normalizeSyncMaxResults(mailAccount.syncMaxResults);
-    const query = new URLSearchParams({
-        maxResults: String(syncMaxResults),
-    });
+const parsedAttachmentMaxBytes = Number.parseInt(ATTACHMENT_MAX_BYTES, 10);
+const gmailAttachmentMaxBytes = Number.isSafeInteger(parsedAttachmentMaxBytes) &&
+    parsedAttachmentMaxBytes > 0
+    ? Math.min(parsedAttachmentMaxBytes, 10 * 1024 * 1024)
+    : 10 * 1024 * 1024;
+const attachmentFetcher = createGmailAttachmentFetchService({
+    request: requestGoogleJson,
+    defaultMaxBytes: gmailAttachmentMaxBytes,
+});
+const attachmentHashReputation = createHashReputationService({
+    authKey: MALWAREBAZAAR_AUTH_KEY,
+    timeoutMs: ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+});
+const attachmentAnalyzer = createAttachmentAnalysisService({
+    enabled: isAttachmentAnalysisEnabled(),
+    fetchAttachment: attachmentFetcher.fetchAttachment,
+    hashAnalyzer: async (buffer, { signal } = {}) =>
+        attachmentHashReputation.lookupHash(hashAttachmentBuffer(buffer), { signal }),
+    maxAttachments: ATTACHMENT_MAX_COUNT,
+    maxAttachmentBytes: ATTACHMENT_MAX_BYTES,
+    maxTotalBytes: ATTACHMENT_MAX_TOTAL_BYTES,
+    concurrency: ATTACHMENT_ANALYSIS_CONCURRENCY,
+    timeoutMs: ATTACHMENT_ANALYSIS_TIMEOUT_MS,
+});
 
-    query.append('labelIds', 'INBOX');
+export const analyzeGmailAttachmentsForPayload = async ({
+    enabled = isAttachmentAnalysisEnabled(),
+    emailModel = Email,
+    analyzer = attachmentAnalyzer,
+    mailAccount,
+    messageId,
+    emailPayload,
+}) => {
+    if (!enabled) return null;
 
-    const url = `${GMAIL_MESSAGES_LIST_URL}?${query.toString()}`;
+    try {
+        const reviewed = await emailModel.exists({
+            userId: mailAccount.userId,
+            providerMessageId: emailPayload.providerMessageId,
+            userVerdict: { $exists: true, $ne: null },
+        });
+        if (reviewed) return null;
 
-    const payload = await requestGoogleJson({
-        mailAccount,
-        url,
-        fallbackMessage: 'Failed to fetch Gmail messages list',
-        errorCode: 'GMAIL_MESSAGES_LIST_FAILED',
-        unreachableCode: 'GMAIL_MESSAGES_LIST_UNREACHABLE',
-    });
-
-    return payload.messages || [];
+        return await analyzer.analyze({
+            mailAccount,
+            messageId,
+            attachments: emailPayload.attachments,
+            textBody: emailPayload.textBody,
+            htmlBody: emailPayload.htmlBody,
+            senderDomain: emailPayload.senderDomain,
+            senderVerified: Boolean(verifySenderBrand({
+                senderDomain: emailPayload.senderDomain,
+                authResults: emailPayload.authResults,
+            }).senderVerifiedBrand),
+        });
+    } catch {
+        return {
+            status: 'unavailable',
+            reason: 'analysis_failed',
+            evaluatedAt: new Date(),
+            items: [],
+        };
+    }
 };
 
 // Endpoint pentru ecranul de setări: actualizează câte emailuri se aduc la o
@@ -709,6 +902,40 @@ const fetchGmailMessageDetails = async ({ mailAccount, messageId }) => {
     });
 };
 
+// Aduce bytes-ii RFC 822 exacți necesari pentru DKIM/ARC. Buffer-ul este folosit
+// doar în timpul autentificării și nu este atașat niciodată payload-ului MongoDB.
+export const fetchRawMessage = async ({
+    mailAccount,
+    messageId,
+    request = requestGoogleJson,
+}) => {
+    const query = new URLSearchParams({ format: 'raw' });
+    const url = `${GMAIL_MESSAGE_DETAILS_BASE_URL}/${encodeURIComponent(messageId)}?${query.toString()}`;
+    const payload = await request({
+        mailAccount,
+        url,
+        fallbackMessage: 'Failed to fetch raw Gmail message',
+        errorCode: 'GMAIL_RAW_MESSAGE_FAILED',
+        unreachableCode: 'GMAIL_RAW_MESSAGE_UNREACHABLE',
+        timeoutMs: EMAIL_AUTH_RAW_FETCH_TIMEOUT_MS,
+    });
+    const encoded = payload?.raw;
+
+    // Limita base64url este derivată din plafonul configurat pentru bytes decodați;
+    // verificarea înainte de decodare evită alocări necontrolate.
+    if (
+        typeof encoded !== 'string' ||
+        encoded.length === 0 ||
+        encoded.length > EMAIL_AUTH_MAX_RAW_BASE64_LENGTH ||
+        encoded.replace(/=+$/, '').length % 4 === 1 ||
+        !/^[A-Za-z0-9_-]+={0,2}$/.test(encoded)
+    ) {
+        throw new Error('Gmail returned an invalid raw message');
+    }
+
+    return Buffer.from(encoded, 'base64url');
+};
+
 // Cere adresa de email a contului Gmail conectat (din endpoint-ul de profil Gmail).
 // Folosit imediat după schimbul de tokeni, ca să știm CU CE cont Gmail s-a conectat
 // userul (salvat în câmpul accountEmail al MailAccount).
@@ -792,6 +1019,17 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
         userId: decodedState.userId,
         provider: 'gmail',
     });
+    if (
+        existingMailAccount?.accountEmail &&
+        existingMailAccount.accountEmail !== accountEmail.toLowerCase()
+    ) {
+        throw createError(
+            'A different Gmail account is already connected',
+            409,
+            ['Disconnect the current Gmail account before connecting another one.'],
+            'GMAIL_ACCOUNT_SWITCH_REQUIRES_DISCONNECT'
+        );
+    }
 
     const mailAccount = await MailAccount.findOneAndUpdate(
         {
@@ -818,7 +1056,187 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
         }
     );
 
+    // Push is an optional acceleration of the normal polling path. A Pub/Sub
+    // setup problem must not reject an otherwise valid Gmail OAuth connection.
+    // The Watch history id is kept apart from T3's lastHistoryId by the Watch
+    // service, so this cannot make the synchronizer skip older messages.
+    if (isGmailPushConfigured()) {
+        try {
+            await ensureGmailWatchForAccount({ mailAccount });
+        } catch (error) {
+            console.warn('[gmail-watch] Failed to register Watch after Gmail connect', {
+                mailAccountId: String(mailAccount._id),
+                error: error.message,
+            });
+        }
+    }
+
     return toPublicMailAccount(mailAccount);
+};
+
+const requestGmailSyncResource = async ({
+    type,
+    mailAccount,
+    pageToken,
+    maxResults,
+    labelIds = [],
+    labelId,
+    startHistoryId,
+    historyTypes = [],
+    topicName,
+}) => {
+    if (type === 'profile') {
+        return requestGoogleJson({
+            mailAccount,
+            url: GMAIL_PROFILE_URL,
+            fallbackMessage: 'Failed to fetch Gmail profile',
+            errorCode: 'GMAIL_PROFILE_FAILED',
+            unreachableCode: 'GMAIL_PROFILE_UNREACHABLE',
+        });
+    }
+
+    if (type === 'messages.list') {
+        const query = new URLSearchParams({ maxResults: String(maxResults) });
+        for (const value of labelIds) query.append('labelIds', value);
+        if (pageToken) query.set('pageToken', pageToken);
+        return requestGoogleJson({
+            mailAccount,
+            url: `${GMAIL_MESSAGES_LIST_URL}?${query.toString()}`,
+            fallbackMessage: 'Failed to fetch Gmail messages list',
+            errorCode: 'GMAIL_MESSAGES_LIST_FAILED',
+            unreachableCode: 'GMAIL_MESSAGES_LIST_UNREACHABLE',
+        });
+    }
+
+    if (type === 'history.list') {
+        const query = new URLSearchParams({ startHistoryId: String(startHistoryId) });
+        if (pageToken) query.set('pageToken', pageToken);
+        if (labelId) query.set('labelId', labelId);
+        for (const value of historyTypes) query.append('historyTypes', value);
+        return requestGoogleJson({
+            mailAccount,
+            url: `${GMAIL_HISTORY_LIST_URL}?${query.toString()}`,
+            fallbackMessage: 'Failed to fetch Gmail history',
+            errorCode: 'GMAIL_HISTORY_LIST_FAILED',
+            unreachableCode: 'GMAIL_HISTORY_LIST_UNREACHABLE',
+        });
+    }
+
+    if (type === 'watch') {
+        return requestGoogleJson({
+            mailAccount,
+            url: GMAIL_WATCH_URL,
+            method: 'POST',
+            body: {
+                topicName,
+                labelIds: ['INBOX'],
+                labelFilterBehavior: 'include',
+            },
+            fallbackMessage: 'Failed to register Gmail Watch',
+            errorCode: 'GMAIL_WATCH_FAILED',
+            unreachableCode: 'GMAIL_WATCH_UNREACHABLE',
+            timeoutMs: 10_000,
+        });
+    }
+
+    if (type === 'stop') {
+        return requestGoogleJson({
+            mailAccount,
+            url: GMAIL_STOP_URL,
+            method: 'POST',
+            body: {},
+            fallbackMessage: 'Failed to stop Gmail Watch',
+            errorCode: 'GMAIL_WATCH_STOP_FAILED',
+            unreachableCode: 'GMAIL_WATCH_STOP_UNREACHABLE',
+            timeoutMs: 10_000,
+        });
+    }
+
+    throw new TypeError(`Unknown Gmail sync request type: ${type}`);
+};
+
+// The Watch service receives only OAuth-aware request callbacks. It does not
+// import this module, so Gmail lifecycle support cannot create a circular
+// dependency with the connection and sync service.
+const gmailWatchService = createGmailWatchService({
+    model: MailAccount,
+    enabled: isGmailPushConfigured(),
+    topicName: GMAIL_PUBSUB_TOPIC,
+    requestWatch: ({ mailAccount, topicName }) =>
+        requestGmailSyncResource({ type: 'watch', mailAccount, topicName }),
+    requestStop: ({ mailAccount }) =>
+        requestGmailSyncResource({ type: 'stop', mailAccount }),
+});
+
+export const ensureGmailWatchForAccount = ({ mailAccount }) =>
+    gmailWatchService.ensure({ mailAccount });
+
+export const stopGmailWatchForAccount = ({ mailAccount }) =>
+    gmailWatchService.stop({ mailAccount });
+
+const findExistingGmailMessageIds = async ({ mailAccount, messageIds }) => {
+    if (messageIds.length === 0) return [];
+    const emails = await Email.find({
+        userId: mailAccount.userId,
+        mailAccountId: mailAccount._id,
+        providerMessageId: { $in: messageIds },
+    })
+        .select('providerMessageId')
+        .lean();
+    return emails.map((email) => email.providerMessageId);
+};
+
+const scanExistingGmailMessages = async ({ mailAccount, messageIds }) => {
+    if (messageIds.length === 0) return { scanSummary: emptyScanSummary(), persisted: true };
+    const emails = await Email.find({
+        userId: mailAccount.userId,
+        mailAccountId: mailAccount._id,
+        providerMessageId: { $in: messageIds },
+    })
+        .select('_id')
+        .lean();
+    const scanSummary = await runSyncScanPipeline({
+        userId: mailAccount.userId,
+        updatedEmailIds: emails.map((email) => email._id),
+    });
+    return { scanSummary, persisted: scanSummary.failedCount === 0 };
+};
+
+const setGmailInboxStates = async ({ mailAccount, presentIds, removedIds }) => {
+    const baseFilter = {
+        userId: mailAccount.userId,
+        mailAccountId: mailAccount._id,
+    };
+    if (presentIds.length > 0) {
+        await Email.updateMany(
+            { ...baseFilter, providerMessageId: { $in: presentIds } },
+            { $set: { inboxState: 'present' } }
+        );
+    }
+    if (removedIds.length > 0) {
+        await Email.updateMany(
+            { ...baseFilter, providerMessageId: { $in: removedIds } },
+            { $set: { inboxState: 'removed' } }
+        );
+    }
+};
+
+const updateGmailSyncAccount = async ({ mailAccount, lockOwner, patch }) => {
+    const persistedPatch = Object.hasOwn(patch, 'lastSyncedAt')
+        ? { ...patch, status: 'active' }
+        : patch;
+    const filter = {
+        _id: mailAccount._id,
+        'syncLock.lockedBy': lockOwner,
+    };
+    if (Object.hasOwn(persistedPatch, 'lastHistoryId')) {
+        filter.lastHistoryId = mailAccount.lastHistoryId ?? null;
+    }
+    return MailAccount.findOneAndUpdate(
+        filter,
+        { $set: persistedPatch },
+        { returnDocument: 'after', runValidators: true }
+    );
 };
 
 // FUNCȚIA PRINCIPALĂ DE SINCRONIZARE — apelată manual (buton "Sync") sau automat
@@ -833,39 +1251,8 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
 //
 // Erorile per-mesaj sunt prinse și contorizate (syncErrors), NU aruncate — un singur
 // email cu probleme nu trebuie să oprească sincronizarea întregii liste.
-export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
-    const mailAccount = await MailAccount.findOne({
-        _id: mailAccountId,
-        userId,
-    });
-
-    if (!mailAccount) {
-        throw createError('Mail account not found', 404, [], 'MAIL_ACCOUNT_NOT_FOUND');
-    }
-
-    if (mailAccount.provider !== 'gmail') {
-        throw createError(
-            'Sync is currently available only for Gmail accounts',
-            400,
-            [],
-            'MAIL_PROVIDER_NOT_SUPPORTED'
-        );
-    }
-
-    if (!mailAccount.accessToken) {
-        throw createError(
-            'Google access token is missing for this account',
-            400,
-            ['Reconnect your Gmail account and retry the sync.'],
-            'GOOGLE_ACCESS_TOKEN_MISSING'
-        );
-    }
-
-    const gmailMessages = await fetchGmailMessagesList(mailAccount);
-    // Dacă e prima sincronizare a acestui cont (lastSyncedAt nu există încă), marcăm
-    // sursa ca "initial_sync" — util pentru loguri și pentru orice logică ulterioară
-    // care tratează diferit prima sincronizare.
-    const syncSource = mailAccount.lastSyncedAt ? 'gmail_manual_sync' : 'gmail_initial_sync';
+const processGmailMessageIds = async ({ mailAccount, messageIds, syncSource, heartbeat }) => {
+    const gmailMessages = messageIds.map((id) => ({ id }));
 
     let insertedCount = 0;
     let updatedCount = 0;
@@ -874,11 +1261,13 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
     const updatedEmailIds = [];
     const syncErrors = [];
     let omittedSyncErrorsCount = 0;
+    let processingIncomplete = false;
 
     // Procesăm fiecare mesaj din listă, pas cu pas. Orice eroare la un mesaj e
     // prinsă local (try/catch), contorizată în syncErrors, iar bucla continuă cu
     // următorul mesaj — un email "stricat" nu blochează restul sincronizării.
     for (const gmailMessage of gmailMessages) {
+        if (heartbeat) await heartbeat();
         if (!gmailMessage.id) {
             skippedCount += 1;
             continue;
@@ -933,6 +1322,42 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             continue;
         }
 
+        // Autentificarea este fail-open: orice problemă de rețea, DNS sau
+        // verificare produce un rezultat indisponibil, dar emailul este salvat
+        // și scanat în continuare pe baza celorlalte dovezi.
+        try {
+            if (Number(messageDetails.sizeEstimate) > EMAIL_AUTH_MAX_RAW_BYTES) {
+                const sizeError = new Error('Raw Gmail message exceeds the authentication limit');
+                sizeError.code = 'raw_message_too_large';
+                throw sizeError;
+            }
+            const rawMessage = await fetchRawMessage({ mailAccount, messageId });
+            emailPayload.authResults = await evaluateEmailAuthentication({
+                rawHeaders: emailPayload.rawHeaders,
+                rawMessage,
+                fromDomain: emailPayload.senderDomain,
+            });
+        } catch (error) {
+            emailPayload.authResults = buildUnavailableAuthResults(
+                error?.code || 'authentication_pipeline_failed'
+            );
+            console.warn('[gmail-sync] Email authentication unavailable', {
+                userId: String(mailAccount.userId),
+                mailAccountId: String(mailAccount._id),
+                messageId,
+                reason: emailPayload.authResults.failureReason,
+            });
+        }
+
+        const attachmentAnalysis = await analyzeGmailAttachmentsForPayload({
+            mailAccount,
+            messageId,
+            emailPayload,
+        });
+        if (attachmentAnalysis) {
+            emailPayload.attachmentAnalysis = attachmentAnalysis;
+        }
+
         const now = new Date();
 
         let updateResult;
@@ -951,6 +1376,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
                 {
                     $set: {
                         ...emailPayload,
+                        inboxState: 'present',
                         updatedAt: now,
                     },
                     $setOnInsert: {
@@ -984,6 +1410,7 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
             syncErrors,
         });
         omittedSyncErrorsCount += omitted;
+        if (!upsertedEmailId) processingIncomplete = true;
 
         // upsertedCount === 1 înseamnă că documentul a fost CREAT (inserare nouă);
         // altfel, documentul exista deja și a fost actualizat.
@@ -1016,18 +1443,6 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
 
     const syncedAt = new Date();
 
-    // Marchează contul ca sincronizat acum și activ (status 'active' — confirmă că
-    // accesul Gmail funcționează).
-    await MailAccount.updateOne(
-        { _id: mailAccount._id },
-        {
-            $set: {
-                lastSyncedAt: syncedAt,
-                status: 'active',
-            },
-        }
-    );
-
     // Pas 4: scanează emailurile noi/actualizate (din scan.service.js). Emailurile pe
     // care userul le-a marcat deja manual sunt sărite acolo — nu le suprascriem decizia.
     const scanSummary = await runSyncScanPipeline({
@@ -1049,8 +1464,164 @@ export const syncGmailEmailsForUser = async ({ userId, mailAccountId }) => {
         scanSummary,
         syncedAt,
         insertedEmailIds,
+        persisted:
+            skippedCount === 0 &&
+            !processingIncomplete &&
+            scanSummary.failedCount === 0,
     };
 };
+
+const emptyScanSummary = () => ({
+    insertedCandidatesCount: 0,
+    updatedCandidatesCount: 0,
+    scannedCount: 0,
+    scannedInsertedCount: 0,
+    scannedUpdatedCount: 0,
+    skippedCount: 0,
+    skippedAlreadyCurrentCount: 0,
+    skippedReviewedCount: 0,
+    failedCount: 0,
+});
+
+const runGmailSyncForUser = async ({ userId, mailAccountId, forceBackfill = false }) => {
+    const lock = await acquireGmailSyncLock({ userId, mailAccountId });
+    if (lock.skipped) {
+        const account = await MailAccount.findOne({ _id: mailAccountId, userId })
+            .select('syncState')
+            .lean();
+        const mode = account?.syncState === 'backfilling'
+            ? 'backfill'
+            : account?.syncState === 'resync_required'
+                ? 'resync'
+                : 'incremental';
+        recordGmailSync({ mode, result: 'skipped' });
+        return {
+            ...lock,
+            fetchedCount: 0,
+            insertedCount: 0,
+            updatedCount: 0,
+            skippedCount: 0,
+            syncErrors: [],
+            insertedEmailIds: [],
+            scanSummary: emptyScanSummary(),
+        };
+    }
+
+    const { mailAccount, lockedBy } = lock;
+    let heartbeatError = null;
+    const maintainLock = async () => {
+        if (heartbeatError) throw heartbeatError;
+        await renewGmailSyncLock({ mailAccountId: mailAccount._id, lockedBy });
+    };
+    const heartbeatTimer = setInterval(() => {
+        maintainLock().catch((error) => {
+            heartbeatError ??= error;
+        });
+    }, 30_000);
+    heartbeatTimer.unref?.();
+    try {
+        if (mailAccount.provider !== 'gmail') {
+            throw createError(
+                'Sync is currently available only for Gmail accounts',
+                400,
+                [],
+                'MAIL_PROVIDER_NOT_SUPPORTED'
+            );
+        }
+        if (!mailAccount.accessToken) {
+            throw createError(
+                'Google access token is missing for this account',
+                400,
+                ['Reconnect your Gmail account and retry the sync.'],
+                'GOOGLE_ACCESS_TOKEN_MISSING'
+            );
+        }
+
+        const legacyAccount = Boolean(await MailAccount.exists({
+            _id: mailAccount._id,
+            syncState: { $exists: false },
+        }));
+        const insertedEmailIds = [];
+        const scanSummary = emptyScanSummary();
+        const collectScanSummary = (summary) => {
+            for (const key of Object.keys(scanSummary)) {
+                scanSummary[key] += Number(summary?.[key]) || 0;
+            }
+        };
+        const processAndCollect = async (input) => {
+            const result = await processGmailMessageIds({
+                ...input,
+                heartbeat: maintainLock,
+            });
+            insertedEmailIds.push(...result.insertedEmailIds);
+            collectScanSummary(result.scanSummary);
+            return result;
+        };
+        const processExistingAndCollect = async (input) => {
+            const result = await scanExistingGmailMessages(input);
+            collectScanSummary(result.scanSummary);
+            return result;
+        };
+        const machine = createGmailSyncStateMachine({
+            request: requestGmailSyncResource,
+            processMessageIds: processAndCollect,
+            processExistingMessageIds: processExistingAndCollect,
+            findExistingMessages: findExistingGmailMessageIds,
+            setInboxStates: setGmailInboxStates,
+            updateAccount: updateGmailSyncAccount,
+            heartbeat: maintainLock,
+            metrics: {
+                recordSync: recordGmailSync,
+                incrementMessagesIngested: recordGmailMessagesIngested,
+                incrementHistoryGap: recordGmailHistoryGap,
+            },
+            caps: {
+                backfillMaxMessages: GMAIL_BACKFILL_MAX_MESSAGES,
+                backfillMaxDurationMs: GMAIL_BACKFILL_MAX_DURATION_MS,
+            },
+        });
+        const result = await machine.run({
+            mailAccount,
+            lockOwner: lockedBy,
+            legacyAccount,
+            forceBackfill,
+        });
+        if (result.failed) {
+            throw createError(
+                'Gmail sync could not safely advance its cursor',
+                502,
+                ['Retry the sync after the reported message errors are resolved.'],
+                'GMAIL_SYNC_INCOMPLETE'
+            );
+        }
+        return {
+            mailAccountId: mailAccount._id,
+            accountEmail: mailAccount.accountEmail,
+            provider: 'gmail',
+            syncSource: `gmail_${result.mode}`,
+            ...result,
+            insertedEmailIds,
+            scanSummary,
+            syncedAt: new Date(),
+        };
+    } finally {
+        clearInterval(heartbeatTimer);
+        try {
+            await releaseGmailSyncLock({ mailAccountId, lockedBy });
+        } catch (error) {
+            console.warn('[gmail-sync] Failed to release sync lock', {
+                mailAccountId: String(mailAccountId),
+                error: error.message,
+            });
+        }
+    }
+};
+
+export const syncGmailEmailsForUser = ({ userId, mailAccountId }) =>
+    runGmailSyncForUser({ userId, mailAccountId });
+
+export const backfillGmailEmailsForUser = ({ userId, mailAccountId }) =>
+    runGmailSyncForUser({ userId, mailAccountId, forceBackfill: true });
 
 // Deconectează contul de mail: șterge documentul MailAccount (inclusiv tokenii
 // criptați salvați pe el). Emailurile deja sincronizate rămân în baza de date — doar
@@ -1063,6 +1634,18 @@ export const disconnectMailAccountForUser = async ({ userId, mailAccountId }) =>
 
     if (!mailAccount) {
         throw createError('Mail account not found', 404, [], 'MAIL_ACCOUNT_NOT_FOUND');
+    }
+
+    // Stop is best-effort: a revoked OAuth grant may prevent Gmail from
+    // accepting it, but local token deletion must still complete. Gmail notes
+    // that delivery can continue for a few minutes even after a successful stop.
+    try {
+        await stopGmailWatchForAccount({ mailAccount });
+    } catch (error) {
+        console.warn('[gmail-watch] Failed to stop Watch before disconnect', {
+            mailAccountId: String(mailAccount._id),
+            error: error.message,
+        });
     }
 
     await MailAccount.deleteOne({ _id: mailAccount._id });

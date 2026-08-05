@@ -1,0 +1,21 @@
+{
+  "id": "verified-brand-modifiers",
+  "email": {
+    "senderDomain": "mail.paypal.com",
+    "replyToDomain": "paypal-support.example",
+    "linkCount": 10,
+    "authResults": {
+      "status": "ok",
+      "dmarc": { "result": "pass", "alignment": "relaxed", "policy": "reject" }
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "high",
+      "loginOrActionRequest": true,
+      "socialEngineeringLevel": "high",
+      "brandImpersonationSuspected": true
+    }
+  }
+}

@@ -10,7 +10,7 @@
 // doar scanările viitoare, de aceea componenta-părinte arată un mesaj
 // "Scan again" după fiecare schimbare.
 //
-// Folosit în EmailDetailPage, lângă detaliile expeditorului.
+// Folosit în MessagePane (panoul de citire din inbox), lângă expeditor.
 //
 // Detalii: docs/EXPLICATIE_FRONTEND.md §6.3.
 // ─────────────────────────────────────────────────────────────────────────────

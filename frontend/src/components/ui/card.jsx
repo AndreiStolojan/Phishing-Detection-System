@@ -9,7 +9,7 @@ function Card({ className, interactive = false, style, ...props }) {
           'transition-[transform,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/10',
         className
       )}
-      style={{ borderColor: '#1e2a45', ...style }}
+      style={style}
       {...props}
     />
   );

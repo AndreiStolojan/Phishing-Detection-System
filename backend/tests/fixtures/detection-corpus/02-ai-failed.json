@@ -1,0 +1,13 @@
+{
+  "id": "ai-failed",
+  "email": {
+    "subject": "Ordinary message with unavailable AI",
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "status": "failed"
+    }
+  }
+}

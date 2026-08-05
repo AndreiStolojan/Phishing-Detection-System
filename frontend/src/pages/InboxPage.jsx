@@ -1,41 +1,56 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// InboxPage.jsx — the inbox workspace: list on the left, message on the right,
+// across the full width of the screen.
+//
+// It is not a page with a card in it: AppShell marks /inbox as "full bleed" (no
+// padding), so the toolbar spans everything and the list + message fill what is
+// left, separated by a single vertical hairline.
+//
+// LAYOUT CONTRACT — the message list keeps its width, always.
+// The workspace grid is `[LIST_WIDTH minmax(0,1fr)]`. The first track is a
+// fixed length, so when the sidebar collapses and this container gets wider,
+// every extra pixel goes to the second track — the detail pane — and the list
+// does not move at all. `minmax(0,1fr)` (not `1fr`) is what lets that track
+// shrink below its content instead of forcing the page to scroll sideways.
+// The animation itself comes from the shell's width transition, which changes
+// this container's width frame by frame; adding a second transition here would
+// only fight it.
+//
+// Selection lives in the URL (`?selected=<id>`), like the filter, the search and
+// the page — so a link sent to a colleague opens exactly the same screen.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  Search,
-  Inbox as InboxIcon,
-  ShieldCheck,
-  ShieldX,
-  X,
-  Loader2,
-  CheckSquare,
-  RefreshCw,
-  Mail,
-} from 'lucide-react';
+import { Search, X, Loader2, CheckSquare, RefreshCw, ShieldCheck, ShieldX } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { InboxSkeleton, ErrorState, EmptyState } from '@/components/common/states';
-import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
 import { EmailRow } from '@/components/inbox/EmailRow';
+import { FilterTabs } from '@/components/inbox/FilterTabs';
+import { MessagePane, MessagePaneEmpty } from '@/components/inbox/MessagePane';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { useApi } from '@/hooks/useApi';
+import { useApi, bustCacheByPrefix } from '@/hooks/useApi';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useMailAccount } from '@/context/MailAccountContext';
 import { useTimeRange } from '@/context/TimeRangeContext';
 import { getEmails, getEmailStats } from '@/api/emailsApi';
 import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
-import { bustCacheByPrefix } from '@/hooks/useApi';
 import { normalizeEmailList } from '@/lib/email-list';
 import { emailId } from '@/lib/email';
-import { RISK_FILTERS, getRiskMeta } from '@/lib/risk';
+import { RISK_FILTERS } from '@/lib/risk';
 import { getDateGroupLabel } from '@/utils/formatDate';
-import { springSoft } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
+
+// The one place the list width is written down. Wide enough for a sender name,
+// an address and a verdict on one row; narrow enough that the message keeps the
+// lion's share of the screen.
+const LIST_WIDTH = '22.5rem'; // 360px
 
 const DATE_GROUP_ORDER = ['Today', 'Yesterday', 'This week', 'Older'];
 
@@ -46,11 +61,13 @@ function groupByDate(emails) {
     if (!groups[label]) groups[label] = [];
     groups[label].push(email);
   }
-  return DATE_GROUP_ORDER
-    .filter((g) => groups[g]?.length > 0)
-    .map((g) => ({ label: g, emails: groups[g] }));
+  return DATE_GROUP_ORDER.filter((g) => groups[g]?.length > 0).map((g) => ({
+    label: g,
+    emails: groups[g],
+  }));
 }
 
+// Filter key (from RISK_FILTERS) → the key it has in the /emails/stats payload.
 const FILTER_COUNT_MAP = {
   '': '__total__',
   quarantine: 'quarantine',
@@ -59,30 +76,24 @@ const FILTER_COUNT_MAP = {
   safe: 'safe',
 };
 
-// Tone used to colour an active filter chip; null filter ("All") uses the brand.
-const filterHex = (key) => (key ? getRiskMeta(key).tone.hex : 'var(--color-primary)');
-const filterTextClass = (key) => (key ? getRiskMeta(key).tone.text : 'text-foreground');
-
 export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { isConnected, syncVersion, sync, syncing } = useMailAccount();
-  // Global time-range filter — the picker lives on the dashboard; the inbox
-  // list and its chip counts are both scoped to the same window.
   const { from, to } = useTimeRange();
   const searchRef = useRef(null);
 
   const riskBucket = searchParams.get('riskBucket') || '';
   const rawSearch = searchParams.get('q') || '';
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const selectedParam = searchParams.get('selected') || '';
 
-  // Local input state — API fires only after debounce settles
   const [searchInput, setSearchInput] = useState(rawSearch);
   const debouncedSearch = useDebounce(searchInput, 300);
 
-  // Bulk select state
+  // Bulk selection (checkboxes). Named `checked*` so it is never confused with
+  // `selected`, which is the message open in the right-hand pane.
   const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState(new Set());
+  const [checkedIds, setCheckedIds] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const cacheKey = `inbox-${from}-${to}-${syncVersion}-${riskBucket}-${debouncedSearch}-${page}`;
@@ -100,6 +111,8 @@ export function InboxPage() {
     cacheKey
   );
 
+  // Tab counts. Deliberately NOT keyed on the search box: these are the totals
+  // for the time range, and they must not jump around as the user types.
   const countsQuery = useApi(
     () => getEmailStats({ from, to }),
     [syncVersion, from, to],
@@ -107,26 +120,33 @@ export function InboxPage() {
   );
   const counts = countsQuery.data?.counts || {};
   const totalCount = countsQuery.data?.total ?? 0;
-  // Counts are per current risk bucket (same source as the list). They can't
-  // reflect a free-text search, so only surface them when no search is active —
-  // and never before a Gmail account is connected (no data to reveal).
+  // While searching, the visible list is a subset of the range, so range totals
+  // on the tabs would be misleading — hide them until the search is cleared.
   const showCounts = isConnected && !debouncedSearch;
+
+  const tabCounts = Object.fromEntries(
+    RISK_FILTERS.map(({ key }) => {
+      const mapped = FILTER_COUNT_MAP[key];
+      return [key, mapped === '__total__' ? totalCount : counts[mapped] ?? 0];
+    })
+  );
 
   const emails = normalizeEmailList(data);
   const totalPages = data?.pagination?.totalPages ?? (emails.length > 0 ? 1 : 0);
-
   const emailIds = emails.map(emailId);
   const groups = groupByDate(emails);
-
   const searching = loading || searchInput !== debouncedSearch;
 
-  // Exit select mode when list changes (page/filter change)
+  // If the id in the URL is not on the current page (filter changed, other
+  // page), fall back to the first message — the right pane is never blank
+  // without a reason.
+  const selectedId = emailIds.includes(selectedParam) ? selectedParam : emailIds[0] || '';
+
   useEffect(() => {
     setSelectMode(false);
-    setSelected(new Set());
+    setCheckedIds(new Set());
   }, [riskBucket, debouncedSearch, page, syncVersion]);
 
-  // "/" focuses the search box (unless already typing in a field)
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== '/') return;
@@ -148,33 +168,23 @@ export function InboxPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const setFilter = (key) => setParam({ riskBucket: key, page: '' });
-  const setPage = (p) => setParam({ page: String(p) });
+  const setFilter = (key) => setParam({ riskBucket: key, page: '', selected: '' });
+  const setPage = (p) => setParam({ page: String(p), selected: '' });
+  const selectEmail = (id) => setParam({ selected: id });
 
-  const handleSearchChange = (e) => {
-    setSearchInput(e.target.value);
-    setParam({ q: e.target.value, page: '' });
+  const handleSearchChange = (value) => {
+    setSearchInput(value);
+    setParam({ q: value, page: '', selected: '' });
   };
 
-  const clearSearch = () => {
-    setSearchInput('');
-    setParam({ q: '', page: '' });
-    searchRef.current?.focus();
+  const afterReview = () => {
+    reload();
+    countsQuery.reload();
+    bustCacheByPrefix('inbox-', 'dash-', 'risky-');
   };
 
-  // Select mode helpers
-  const enterSelectMode = () => {
-    setSelectMode(true);
-    setSelected(new Set());
-  };
-
-  const exitSelectMode = () => {
-    setSelectMode(false);
-    setSelected(new Set());
-  };
-
-  const toggleSelect = (id) => {
-    setSelected((prev) => {
+  const toggleChecked = (id) => {
+    setCheckedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -182,292 +192,202 @@ export function InboxPage() {
     });
   };
 
-  const allSelected = emails.length > 0 && emails.every((e) => selected.has(emailId(e)));
-
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(emails.map(emailId)));
-    }
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setCheckedIds(new Set());
   };
 
-  const handleBulkSafe = async () => {
-    if (selected.size === 0) return;
+  const runBulk = async (fn, label) => {
+    if (checkedIds.size === 0) return;
     setBulkBusy(true);
     try {
-      await Promise.all([...selected].map((id) => markEmailSafe(id)));
-      toast.success(`${selected.size} email${selected.size > 1 ? 's' : ''} marked as safe`);
+      await Promise.all([...checkedIds].map((id) => fn(id)));
+      toast.success(`${checkedIds.size} ${checkedIds.size === 1 ? 'message' : 'messages'} ${label}`);
       exitSelectMode();
-      reload();
-      bustCacheByPrefix('inbox-', 'dash-', 'risky-');
+      afterReview();
     } catch (err) {
-      toast.error(err.message || 'Bulk action failed');
-    } finally {
-      setBulkBusy(false);
-    }
-  };
-
-  const handleBulkPhishing = async () => {
-    if (selected.size === 0) return;
-    setBulkBusy(true);
-    try {
-      await Promise.all([...selected].map((id) => markEmailPhishing(id)));
-      toast.success(`${selected.size} email${selected.size > 1 ? 's' : ''} marked as phishing`);
-      exitSelectMode();
-      reload();
-      bustCacheByPrefix('inbox-', 'dash-', 'risky-');
-    } catch (err) {
-      toast.error(err.message || 'Bulk action failed');
+      toast.error(err?.message || 'Something went wrong.');
     } finally {
       setBulkBusy(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Scaned Emails"
-        className="mb-8"
-        titleClassName="text-[1.625rem] font-semibold tracking-tight"
-      />
-
-      {/* Search (left, above filters) + select/refresh actions (right) */}
-      <div className="sticky top-0 z-20 flex flex-col gap-6 bg-background py-2 md:top-0">
-        {/* Top row: search on the left, action buttons on the right */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {!selectMode ? (
-            <div className="relative w-full sm:w-96">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={searchRef}
-                value={searchInput}
-                onChange={handleSearchChange}
-                placeholder="Search sender or subject…  (press /)"
-                className="rounded-lg bg-card surface-raised pl-9 pr-9 focus-visible:!border-[#4485fd]"
-                style={{ borderColor: '#1e2a45' }}
-              />
-              {searchInput && (
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                  {searching ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : (
-                    <button
-                      onClick={clearSearch}
-                      aria-label="Clear search"
-                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={toggleSelectAll}
-                className="h-4 w-4 rounded border-border accent-primary"
-                aria-label="Select all"
-              />
-              <span className="text-xs text-muted-foreground">
-                {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
-              </span>
-            </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden">
+      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
+      <div className="flex shrink-0 flex-wrap items-center gap-3 px-4 py-2.5">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-[15px] font-semibold tracking-tight">Inbox</h1>
+          {showCounts && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {totalCount} scanned
+            </span>
           )}
-
-          <div className="flex items-center gap-2 sm:ml-auto">
-            {!selectMode ? (
-              <>
-                <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={enterSelectMode} disabled={emails.length === 0 || syncing}>
-                  <CheckSquare className="h-4 w-4" />
-                  Select
-                </Button>
-                {isConnected && (
-                  <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={sync} disabled={syncing}>
-                    {syncing
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <RefreshCw className="h-4 w-4" />}
-                    {syncing ? 'Refreshing…' : 'Refresh'}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Button variant="outline" className="h-[34px]" style={{ borderColor: '#2d3a5e' }} onClick={exitSelectMode}>
-                <X className="h-4 w-4" />
-                Cancel
-              </Button>
-            )}
-          </div>
         </div>
 
-        {/* Bară de filtre: un track compact (fundal soft + linie fină) care
-            grupează chips-urile într-un singur element — aliniat la stânga,
-            mai mic decât search. Doar chip-ul activ se colorează (pilula
-            alunecă lin). */}
-        {!selectMode && (
-          <div
-            className="scrollbar-none flex w-fit max-w-full items-center gap-1 self-start overflow-x-auto rounded-md border bg-card/40 p-1"
-            style={{ borderColor: '#2d3a5e' }}
-          >
-            {RISK_FILTERS.map((filter) => {
-              const isActive = riskBucket === filter.key;
-              const countKey = FILTER_COUNT_MAP[filter.key];
-              const count = !showCounts
-                ? null
-                : countKey === '__total__'
-                  ? totalCount
-                  : (counts[countKey] ?? null);
-              const hex = filterHex(filter.key);
-              return (
-                <button
-                  key={filter.key || 'all'}
-                  onClick={() => setFilter(filter.key)}
-                  className={cn(
-                    'relative flex-none whitespace-nowrap rounded-sm px-3 py-1 text-sm font-medium transition-colors',
-                    isActive ? filterTextClass(filter.key) : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {isActive && (
-                    <motion.span
-                      layoutId="filter-pill"
-                      transition={springSoft}
-                      className="absolute inset-0 rounded-sm"
-                      style={{
-                        backgroundColor: `color-mix(in oklab, ${hex} 14%, transparent)`,
-                        boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${hex} 40%, transparent)`,
-                      }}
-                    />
-                  )}
-                  <span className="relative">
-                    {filter.label}
-                    {count != null && count > 0 && (
-                      <span className="ml-1.5 opacity-70">({count})</span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="relative w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground-subtle" />
+          <Input
+            ref={searchRef}
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search sender, subject…"
+            aria-label="Search messages"
+            className="h-8 rounded-lg pl-8 pr-8 text-[13px]"
+          />
+          {searching ? (
+            <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground-subtle" />
+          ) : (
+            searchInput && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground-subtle transition-colors hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )
+          )}
+        </div>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          {selectMode ? (
+            <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+              Cancel
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setSelectMode(true)}>
+              <CheckSquare className="h-3.5 w-3.5" />
+              Select
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
+            <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* List */}
-      {!isConnected ? (
-        <EmptyState
-          icon={InboxIcon}
-          title="Connect Gmail to see your inbox"
-          description="SecureInbox syncs and scans your messages once a Gmail account is connected. No counts are shown until then."
-          action={
-            <Button asChild>
-              <Link to="/settings">
-                <Mail className="h-4 w-4" />
-                Connect Gmail
-              </Link>
-            </Button>
-          }
-        />
-      ) : loading ? (
-        <InboxSkeleton />
-      ) : error ? (
-        <ErrorState message={error} onRetry={reload} />
-      ) : emails.length === 0 ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title={debouncedSearch ? 'No matching messages' : 'No messages here'}
-          description={
-            debouncedSearch
-              ? 'Try a different search term.'
-              : 'Nothing matches this filter yet. Try syncing your inbox.'
-          }
-        />
-      ) : (
-        <Card className="overflow-hidden">
-          {groups.map(({ label, emails: groupEmails }) => (
-            <div key={label}>
-              <div className="border-b border-border/60 bg-card/40 px-4 py-2">
-                <p className="label-overline">{label}</p>
-              </div>
-              <div className="divide-y divide-border/60">
-                {groupEmails.map((email) => {
-                  const id = emailId(email);
-                  if (selectMode) {
-                    return (
-                      <div
-                        key={id}
-                        className={cn(
-                          'flex cursor-pointer items-center transition-colors hover:bg-accent/50',
-                          selected.has(id) && 'bg-primary/5'
-                        )}
-                        onClick={() => toggleSelect(id)}
-                      >
-                        <div className="flex shrink-0 items-center justify-center px-3 py-3">
-                          <input
-                            type="checkbox"
-                            checked={selected.has(id)}
-                            onChange={() => toggleSelect(id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="h-4 w-4 rounded border-border accent-primary"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1 pointer-events-none">
-                          <EmailRow email={email} compact={false} />
-                        </div>
-                      </div>
-                    );
-                  }
-                  return (
-                    <EmailRow
-                      key={id}
-                      email={email}
-                      linkState={{ ids: emailIds }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          <Pagination page={page} totalPages={totalPages} onPage={setPage} />
-        </Card>
-      )}
+      {/* ── Filter tabs, directly above the list ──────────────────────────── */}
+      <FilterTabs
+        active={riskBucket}
+        counts={tabCounts}
+        showCounts={showCounts}
+        onSelect={setFilter}
+      />
 
-      {/* Bulk action bar */}
+      {/* ── Workspace: list | message ─────────────────────────────────────── */}
+      <div
+        className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[var(--inbox-list-w)_minmax(0,1fr)]"
+        style={{ '--inbox-list-w': LIST_WIDTH }}
+      >
+        {/* The list. Fixed track above, so this never resizes. */}
+        <aside className="flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden border-border md:border-r">
+          {!isConnected ? (
+            <div className="p-4">
+              <EmptyState
+                title="Connect Gmail to see your inbox"
+                message="SecureInbox scans every message once your account is linked."
+              />
+            </div>
+          ) : loading ? (
+            <div className="p-2">
+              <InboxSkeleton />
+            </div>
+          ) : error ? (
+            <div className="p-4">
+              <ErrorState message={error} onRetry={reload} />
+            </div>
+          ) : emails.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={ShieldCheck}
+                title={debouncedSearch ? 'No matches' : 'Nothing to review here'}
+                message={
+                  debouncedSearch
+                    ? 'No message matches that search in this time range.'
+                    : 'No messages in this category for the selected time range.'
+                }
+              />
+            </div>
+          ) : (
+            <>
+              {groups.map((group) => (
+                <div key={group.label}>
+                  <p className="sticky top-0 z-10 bg-background px-[18px] py-2 text-[11px] font-semibold text-muted-foreground">
+                    {group.label}
+                  </p>
+                  <div className="divide-y divide-border">
+                    {group.emails.map((email) => {
+                      const id = emailId(email);
+                      return (
+                        <EmailRow
+                          key={id}
+                          email={email}
+                          active={!selectMode && id === selectedId}
+                          onSelect={selectEmail}
+                          checkable={selectMode}
+                          checked={checkedIds.has(id)}
+                          onCheck={toggleChecked}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {totalPages > 1 && (
+                <div className="mt-auto">
+                  <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+                </div>
+              )}
+            </>
+          )}
+        </aside>
+
+        {/* The message. This is the only track that grows or shrinks. */}
+        <main className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden border-t border-border md:border-t-0">
+          {isConnected && selectedId ? (
+            <MessagePane key={selectedId} id={selectedId} onReviewed={afterReview} />
+          ) : (
+            <MessagePaneEmpty />
+          )}
+        </main>
+      </div>
+
+      {/* ── Bulk action bar ───────────────────────────────────────────────── */}
       <AnimatePresence>
-        {selectMode && selected.size > 0 && (
+        {selectMode && checkedIds.size > 0 && (
           <motion.div
             initial={{ y: 60, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 60, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2 shadow-lg backdrop-blur-xl"
+            className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur-xl"
           >
-            <span className="text-sm font-medium">{selected.size} selected</span>
-            <div className="h-4 w-px bg-border" />
+            <span className="px-2 text-[13px] tabular-nums text-muted-foreground">
+              {checkedIds.size} selected
+            </span>
             <Button
-              size="sm"
               variant="ghost"
-              className="text-risk-safe"
-              onClick={handleBulkSafe}
+              size="sm"
               disabled={bulkBusy}
+              className="text-risk-safe"
+              onClick={() => runBulk(markEmailSafe, 'marked safe')}
             >
-              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              <ShieldCheck className="h-3.5 w-3.5" />
               Mark safe
             </Button>
             <Button
-              size="sm"
               variant="ghost"
-              className="text-risk-quarantine"
-              onClick={handleBulkPhishing}
+              size="sm"
               disabled={bulkBusy}
+              className="text-risk-quarantine"
+              onClick={() => runBulk(markEmailPhishing, 'marked as phishing')}
             >
-              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldX className="h-4 w-4" />}
+              <ShieldX className="h-3.5 w-3.5" />
               Mark phishing
-            </Button>
-            <Button size="sm" variant="ghost" onClick={exitSelectMode} disabled={bulkBusy}>
-              <X className="h-4 w-4" />
-              Cancel
             </Button>
           </motion.div>
         )}
@@ -475,3 +395,5 @@ export function InboxPage() {
     </div>
   );
 }
+
+export default InboxPage;

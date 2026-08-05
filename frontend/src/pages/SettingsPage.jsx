@@ -267,14 +267,14 @@ export function SettingsPage() {
                 </p>
               </div>
               <span className="shrink-0 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-                Up to {account.syncMaxResults ?? maxResults} emails
+                Page size: {account.syncMaxResults ?? maxResults}
               </span>
             </div>
 
             {/* Sync count stepper */}
             <div className="space-y-1.5">
               <Label htmlFor="maxResults" className="text-sm text-muted-foreground">
-                Recent emails to scan per sync (1–50)
+                Backfill page size (1–50)
               </Label>
               <div className="flex items-center gap-3">
                 <NumberStepper

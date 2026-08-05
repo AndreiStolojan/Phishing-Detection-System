@@ -1,0 +1,1607 @@
+<style>
+@font-face {
+  font-family: 'InterVariable';
+  src: url('../../frontend/public/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   K — QUARTZ
+   A production app, not a product page. The reference points are Apple Mail
+   and System Settings: dense, calm, functional, and quiet enough to sit open
+   all day.
+
+   Monochrome by policy. Severity is carried by weight and opacity, and red
+   appears only at the top of the scale — so when it does appear, it means
+   something. Compare with L, which uses Apple's system colours instead.
+
+   Two Apple habits that do most of the work here:
+   - Labels are sentence case, not uppercase-tracked. Uppercase micro-labels
+     are a dashboard cliche; Apple almost never uses them in app chrome.
+   - Separation comes from hairlines and spacing, never from shadows or
+     floating cards. In dark mode a shadow has nothing to fall on.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.dir-quartz {
+  --q-canvas: #09090b;
+  --q-lift: #0b0b0e;
+
+  --q-sep: rgb(245 245 247 / 0.075);
+  --q-sep-strong: rgb(245 245 247 / 0.14);
+  --q-fill: rgb(245 245 247 / 0.045);
+  --q-fill-hover: rgb(245 245 247 / 0.06);
+  --q-selected: rgb(245 245 247 / 0.09);
+
+  --q-text: #f5f5f7;
+  --q-secondary: rgb(245 245 247 / 0.62);
+  --q-tertiary: rgb(245 245 247 / 0.42);
+  --q-quaternary: rgb(245 245 247 / 0.26);
+
+  --q-alert: #e5554b;
+
+  position: relative;
+  background: var(--q-canvas);
+  color: var(--q-text);
+  font-family: 'InterVariable', -apple-system, system-ui, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.47;
+  letter-spacing: -0.011em;
+}
+
+/* The only background effect: a faint lift over the top ~46%, so the page is
+   not dead flat. No shapes, no grain, nothing describable. */
+.dir-quartz section[data-screen] {
+  position: relative;
+  min-height: 100vh;
+  padding: 64px max(24px, calc((100% - 1240px) / 2)) 104px;
+  background: linear-gradient(180deg, var(--q-lift) 0%, var(--q-canvas) 46%);
+}
+
+.dir-quartz section[data-screen="inbox"] {
+  border-top: 1px solid var(--q-sep);
+}
+
+/* ── Type scale ──────────────────────────────────────────────────────────
+   Seven sizes, four weights. Apple's own ramp, near enough:
+   11 / 12 / 13 / 15 / 17 / 22 / 28 px. */
+
+.dir-quartz .t-caption { font-size: 0.6875rem; font-weight: 500; }
+.dir-quartz .t-foot { font-size: 0.75rem; font-weight: 450; }
+.dir-quartz .t-body { font-size: 0.8125rem; font-weight: 450; }
+
+.dir-quartz .screen-label {
+  margin: 0 0 32px;
+  font-size: 0.75rem;
+  font-weight: 590;
+  color: var(--q-quaternary);
+}
+
+.dir-quartz .page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--q-sep);
+}
+
+.dir-quartz .page-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  line-height: 1.16;
+}
+
+.dir-quartz .page-sub {
+  margin: 5px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  color: var(--q-secondary);
+  letter-spacing: -0.006em;
+}
+
+.dir-quartz .header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Controls ────────────────────────────────────────────────────────────
+   Apple's control language: 28-32px tall, 6-8px radius, hairline border,
+   a translucent fill rather than a solid one. */
+
+.dir-quartz .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--q-fill);
+  color: var(--q-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 520;
+  letter-spacing: -0.008em;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.dir-quartz .btn svg { width: 14px; height: 14px; }
+.dir-quartz .btn:hover { background: rgb(245 245 247 / 0.09); }
+
+.dir-quartz .btn-primary {
+  background: var(--q-text);
+  color: #09090b;
+  font-weight: 590;
+}
+
+.dir-quartz .btn-primary:hover { background: #ffffff; }
+
+.dir-quartz .btn-quiet {
+  background: transparent;
+  color: var(--q-secondary);
+}
+
+.dir-quartz .btn-quiet:hover { background: var(--q-fill); color: var(--q-text); }
+
+.dir-quartz .btn-danger {
+  background: rgb(229 85 75 / 0.14);
+  color: #f08076;
+  border-color: rgb(229 85 75 / 0.3);
+}
+
+.dir-quartz .btn-danger:hover { background: rgb(229 85 75 / 0.2); }
+
+.dir-quartz .segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 8px;
+  background: var(--q-fill);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--q-secondary);
+}
+
+.dir-quartz .segmented svg { width: 13px; height: 13px; opacity: 0.75; }
+
+.dir-quartz .btn:focus-visible,
+.dir-quartz .chip:focus-visible,
+.dir-quartz .search-field:focus-visible,
+.dir-quartz .page-btn:focus-visible,
+.dir-quartz .queue-row:focus-visible,
+.dir-quartz .list-row:focus-visible {
+  outline: 2px solid rgb(245 245 247 / 0.5);
+  outline-offset: 2px;
+}
+
+/* ── Section frame ───────────────────────────────────────────────────────── */
+
+.dir-quartz .block {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--q-sep);
+}
+
+.dir-quartz .block:last-of-type { border-bottom: 0; }
+
+.dir-quartz .block-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.dir-quartz .block-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 620;
+  letter-spacing: -0.019em;
+}
+
+.dir-quartz .block-note {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+}
+
+/* ── 1 · Posture — gauge left, everything else right ─────────────────────── */
+
+.dir-quartz .posture {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  align-items: center;
+  gap: 52px;
+}
+
+.dir-quartz .gauge-wrap { width: 216px; height: 216px; }
+
+.dir-quartz .gauge {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* No ticks, no crosshairs. An arc and a number read instantly; the
+   instrumentation around them was decoration. */
+.dir-quartz .gauge-track {
+  fill: none;
+  stroke: rgb(245 245 247 / 0.09);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.dir-quartz .gauge-value {
+  fill: none;
+  stroke: var(--q-text);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.dir-quartz .gauge-number {
+  fill: var(--q-text);
+  font-family: 'InterVariable', -apple-system, sans-serif;
+  font-size: 58px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-quartz .gauge-pct {
+  fill: var(--q-tertiary);
+  font-family: 'InterVariable', -apple-system, sans-serif;
+  font-size: 20px;
+  font-weight: 560;
+}
+
+.dir-quartz .gauge-cap {
+  fill: var(--q-tertiary);
+  font-family: 'InterVariable', -apple-system, sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.dir-quartz .posture-body { min-width: 0; }
+
+.dir-quartz .posture-statement {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 620;
+  letter-spacing: -0.024em;
+  line-height: 1.27;
+}
+
+.dir-quartz .posture-support {
+  margin: 8px 0 0;
+  max-width: 52ch;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  color: var(--q-secondary);
+}
+
+.dir-quartz .counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 28px;
+  border-top: 1px solid var(--q-sep);
+}
+
+.dir-quartz .count {
+  padding: 16px 20px 14px 0;
+}
+
+.dir-quartz .count + .count {
+  padding-left: 20px;
+  border-left: 1px solid var(--q-sep);
+}
+
+.dir-quartz .count-value {
+  display: block;
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-quartz .count-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .count.is-alert .count-value { color: var(--q-alert); }
+
+.dir-quartz .counts-tail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 22px;
+  margin-top: 13px;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .counts-tail b {
+  font-weight: 560;
+  color: var(--q-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Shared row parts ────────────────────────────────────────────────────── */
+
+.dir-quartz .col-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--q-quaternary);
+}
+
+.dir-quartz .col-label.is-right { text-align: right; }
+
+.dir-quartz .sender-name {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 590;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-quartz .sender-addr {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-quartz .subject {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 480;
+  color: rgb(245 245 247 / 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-quartz .signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 5px;
+}
+
+.dir-quartz .signal {
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .signal + .signal::before {
+  content: '·';
+  margin-right: 12px;
+  color: var(--q-quaternary);
+}
+
+.dir-quartz .score-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dir-quartz .meter {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(245 245 247 / 0.09);
+  overflow: hidden;
+}
+
+.dir-quartz .meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--score) * 1%);
+  border-radius: 2px;
+  background: rgb(245 245 247 / 0.3);
+}
+
+/* Monochrome severity: the fill gets brighter and the numeral heavier as the
+   score climbs. Red is held back for the top two states only. */
+.dir-quartz .meter.is-suspicious i { background: rgb(245 245 247 / 0.6); }
+.dir-quartz .meter.is-alert i { background: var(--q-alert); }
+
+.dir-quartz .score-num {
+  min-width: 24px;
+  text-align: right;
+  font-size: 0.8125rem;
+  font-weight: 590;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .score-num.is-suspicious { color: var(--q-secondary); }
+.dir-quartz .score-num.is-alert { color: var(--q-alert); font-weight: 650; }
+
+.dir-quartz .when {
+  text-align: right;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-quartz .bucket {
+  font-size: 0.75rem;
+  font-weight: 480;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .bucket.is-suspicious { color: var(--q-secondary); }
+.dir-quartz .bucket.is-alert { color: var(--q-alert); }
+.dir-quartz .bucket.is-confirmed { color: var(--q-alert); font-weight: 620; }
+
+/* ── 2 · Review queue ────────────────────────────────────────────────────── */
+
+.dir-quartz .queue-head,
+.dir-quartz .queue-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.85fr) minmax(230px, 1.7fr) 118px 88px;
+  align-items: center;
+  gap: 20px;
+}
+
+.dir-quartz .queue-head {
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--q-sep);
+}
+
+.dir-quartz .queue-row {
+  padding: 13px 10px;
+  border-bottom: 1px solid var(--q-sep);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.dir-quartz .queue-row:hover { background: var(--q-fill-hover); }
+
+/* ── 3 · Trend ───────────────────────────────────────────────────────────── */
+
+.dir-quartz .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-bottom: 20px;
+}
+
+.dir-quartz .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-secondary);
+}
+
+.dir-quartz .legend-swatch {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.dir-quartz .legend-item.is-suspicious { color: rgb(245 245 247 / 0.55); }
+.dir-quartz .legend-item.is-alert { color: var(--q-alert); }
+.dir-quartz .legend-item.is-confirmed { color: var(--q-text); }
+.dir-quartz .legend-item span { color: var(--q-secondary); }
+
+.dir-quartz .chart-frame { width: 100%; overflow-x: auto; }
+
+.dir-quartz .chart {
+  display: block;
+  width: 100%;
+  min-width: 600px;
+  height: auto;
+  overflow: visible;
+}
+
+.dir-quartz .grid-line { stroke: var(--q-sep); stroke-width: 1; }
+.dir-quartz .grid-line.is-base { stroke: var(--q-sep-strong); }
+
+.dir-quartz .axis-label {
+  fill: var(--q-quaternary);
+  font-family: 'InterVariable', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-quartz .series {
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.dir-quartz .series-suspicious { stroke: rgb(245 245 247 / 0.42); }
+.dir-quartz .series-likely { stroke: var(--q-alert); }
+.dir-quartz .series-confirmed { stroke: var(--q-text); stroke-width: 1.25; stroke-dasharray: 3 4; }
+
+.dir-quartz .marker {
+  fill: var(--q-canvas);
+  stroke: var(--q-text);
+  stroke-width: 1.5;
+}
+
+/* ── 4 · Attacking domains ───────────────────────────────────────────────── */
+
+.dir-quartz .domain-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(140px, 2fr) 76px;
+  align-items: center;
+  gap: 22px;
+  padding: 13px 10px;
+  border-bottom: 1px solid var(--q-sep);
+  border-radius: 6px;
+  transition: background 180ms ease;
+}
+
+.dir-quartz .domain-row:hover { background: var(--q-fill-hover); }
+
+.dir-quartz .domain-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-quartz .stack {
+  display: flex;
+  height: 5px;
+  border-radius: 3px;
+  background: rgb(245 245 247 / 0.05);
+  overflow: hidden;
+}
+
+.dir-quartz .stack span { height: 100%; }
+.dir-quartz .stack .seg-suspicious { background: rgb(245 245 247 / 0.32); }
+.dir-quartz .stack .seg-likely { background: rgb(229 85 75 / 0.85); }
+.dir-quartz .stack .seg-confirmed { background: var(--q-text); }
+
+.dir-quartz .domain-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.dir-quartz .domain-total b {
+  font-size: 0.9375rem;
+  font-weight: 620;
+  letter-spacing: -0.024em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-quartz .domain-total span {
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-quaternary);
+}
+
+.dir-quartz .domain-breakdown {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .domain-breakdown b {
+  font-weight: 560;
+  color: var(--q-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Inbox: two panes ────────────────────────────────────────────────────
+   List left, message right. The list column is fixed-width so the reading
+   measure on the right stays stable as the window resizes — the same reason
+   Mail does not let its sidebar grow. */
+
+.dir-quartz .inbox-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 18px;
+}
+
+.dir-quartz .search-wrap {
+  position: relative;
+  flex: 0 1 300px;
+}
+
+.dir-quartz .search-wrap svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--q-quaternary);
+  pointer-events: none;
+}
+
+.dir-quartz .search-field {
+  width: 100%;
+  height: 30px;
+  padding: 0 12px 0 31px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--q-fill);
+  color: var(--q-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.dir-quartz .search-field::placeholder { color: var(--q-quaternary); }
+.dir-quartz .search-field:hover { background: rgb(245 245 247 / 0.07); }
+
+.dir-quartz .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.dir-quartz .chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--q-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.dir-quartz .chip b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--q-quaternary);
+}
+
+.dir-quartz .chip:hover { background: var(--q-fill); color: var(--q-text); }
+
+.dir-quartz .chip.is-active {
+  background: var(--q-selected);
+  color: var(--q-text);
+}
+
+.dir-quartz .chip.is-active b { color: var(--q-secondary); }
+
+.dir-quartz .panes {
+  display: grid;
+  grid-template-columns: 392px minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--q-sep);
+}
+
+.dir-quartz .pane-list {
+  border-right: 1px solid var(--q-sep);
+  padding-right: 0;
+}
+
+.dir-quartz .date-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 14px 16px 6px 0;
+  background: var(--q-canvas);
+  font-size: 0.75rem;
+  font-weight: 590;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 11px 16px 11px 12px;
+  margin-right: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.dir-quartz .list-row:hover { background: var(--q-fill-hover); }
+
+.dir-quartz .list-row.is-selected { background: var(--q-selected); }
+
+/* The address earns its line here. In a mail client it would be noise; in a
+   phishing triage list it is the evidence — paypa1-alerts.com is the whole
+   story of that row, and hiding it until the message is opened would defeat
+   the point of scanning the list at all. */
+.dir-quartz .list-addr {
+  grid-column: 1 / -1;
+  margin-top: 1px;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-quartz .list-row .subject {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  font-weight: 450;
+  color: var(--q-secondary);
+}
+
+.dir-quartz .list-row.is-selected .subject { color: rgb(245 245 247 / 0.85); }
+
+.dir-quartz .list-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+}
+
+.dir-quartz .list-meta .meter { max-width: 76px; }
+
+/* ── Reading pane ────────────────────────────────────────────────────────── */
+
+.dir-quartz .pane-read {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 22px 0 0 28px;
+}
+
+.dir-quartz .read-head {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--q-sep);
+}
+
+.dir-quartz .read-subject {
+  margin: 0;
+  font-size: 1.1875rem;
+  font-weight: 620;
+  letter-spacing: -0.022em;
+  line-height: 1.3;
+}
+
+.dir-quartz .read-from {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.dir-quartz .read-from .sender-name { font-size: 0.8125rem; }
+
+.dir-quartz .read-from .sender-addr {
+  margin-top: 0;
+  font-size: 0.8125rem;
+}
+
+.dir-quartz .read-from .when { margin-left: auto; }
+
+/* The verdict strip: the one place the score is stated in full, sitting
+   between the header and the body so it is read before the message is. */
+.dir-quartz .verdict {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px 20px;
+  padding: 16px 18px;
+  margin: 18px 0;
+  border: 1px solid rgb(229 85 75 / 0.28);
+  border-radius: 12px;
+  background: rgb(229 85 75 / 0.07);
+}
+
+.dir-quartz .verdict-score {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 1.875rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--q-alert);
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-quartz .verdict-score span {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--q-tertiary);
+}
+
+.dir-quartz .verdict-label {
+  font-size: 0.9375rem;
+  font-weight: 620;
+  letter-spacing: -0.016em;
+}
+
+.dir-quartz .verdict-sub {
+  margin: 3px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  color: var(--q-secondary);
+}
+
+.dir-quartz .verdict-signals {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(229 85 75 / 0.18);
+}
+
+.dir-quartz .verdict-signal {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  color: var(--q-secondary);
+}
+
+.dir-quartz .verdict-signal::before {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--q-alert);
+}
+
+.dir-quartz .verdict-signal b {
+  font-weight: 560;
+  color: var(--q-text);
+}
+
+.dir-quartz .read-body {
+  flex: 1;
+  padding: 4px 0 26px;
+  max-width: 68ch;
+  font-size: 0.875rem;
+  font-weight: 450;
+  line-height: 1.62;
+  color: rgb(245 245 247 / 0.8);
+}
+
+.dir-quartz .read-body p { margin: 0 0 14px; }
+
+.dir-quartz .read-body .quoted-link {
+  color: var(--q-alert);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgb(229 85 75 / 0.45);
+  word-break: break-all;
+}
+
+.dir-quartz .read-body .sig {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--q-sep);
+  font-size: 0.8125rem;
+  color: var(--q-tertiary);
+}
+
+/* Actions pinned to the bottom of the pane — the decision is always reachable
+   without scrolling back. */
+.dir-quartz .read-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0;
+  border-top: 1px solid var(--q-sep);
+  background: linear-gradient(180deg, rgb(9 9 11 / 0.7), var(--q-canvas) 40%);
+}
+
+.dir-quartz .read-actions .spacer { margin-left: auto; }
+
+.dir-quartz .pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 12px 0 0;
+}
+
+.dir-quartz .page-status {
+  margin-right: auto;
+  font-size: 0.75rem;
+  font-weight: 450;
+  color: var(--q-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dir-quartz .page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--q-secondary);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.dir-quartz .page-btn:hover { background: var(--q-fill); color: var(--q-text); }
+.dir-quartz .page-btn.is-current { background: var(--q-selected); color: var(--q-text); font-weight: 590; }
+.dir-quartz .page-btn[disabled] { color: var(--q-quaternary); cursor: default; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 780px) {
+  .dir-quartz section[data-screen] { padding: 44px 18px 76px; }
+
+  .dir-quartz .posture {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .dir-quartz .gauge-wrap { width: 180px; height: 180px; }
+
+  .dir-quartz .counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .dir-quartz .count:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .dir-quartz .queue-head { display: none; }
+
+  .dir-quartz .queue-row {
+    grid-template-columns: minmax(0, 1fr) 100px;
+    gap: 8px 16px;
+  }
+
+  .dir-quartz .queue-row > .subject-cell { grid-column: 1 / -1; order: 3; }
+
+  .dir-quartz .domain-row { grid-template-columns: minmax(0, 1fr) 76px; }
+  .dir-quartz .domain-row > .stack-cell { grid-column: 1 / -1; }
+
+  /* Two panes cannot coexist on a phone. The list stays on top and the
+     message stacks beneath it, which is the same order the user reads in. */
+  .dir-quartz .panes { grid-template-columns: minmax(0, 1fr); }
+
+  .dir-quartz .pane-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--q-sep);
+    padding-bottom: 12px;
+  }
+
+  .dir-quartz .list-row { margin-right: 0; }
+
+  .dir-quartz .pane-read { padding: 22px 0 0; }
+
+  .dir-quartz .chips { margin-left: 0; }
+}
+
+@media (max-width: 420px) {
+  .dir-quartz section[data-screen] { padding: 34px 14px 64px; }
+
+  .dir-quartz .page-title { font-size: 1.4375rem; }
+  .dir-quartz .posture-statement { font-size: 1.125rem; }
+
+  .dir-quartz .gauge-wrap { width: 156px; height: 156px; }
+  .dir-quartz .gauge-number { font-size: 50px; }
+
+  .dir-quartz .counts { grid-template-columns: minmax(0, 1fr); }
+
+  .dir-quartz .count + .count {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--q-sep);
+    padding-top: 14px;
+  }
+
+  .dir-quartz .verdict { grid-template-columns: minmax(0, 1fr); }
+
+  .dir-quartz .header-actions { margin-left: 0; width: 100%; }
+
+  .dir-quartz .block { padding: 30px 0; }
+}
+</style>
+
+<div class="dir-quartz">
+
+  <!-- ═══════════════ DASHBOARD ═══════════════ -->
+  <section data-screen="dashboard">
+    <p class="screen-label">Dashboard</p>
+
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Mailbox posture</h1>
+        <p class="page-sub">Last synced Today at 14:02 · 338 of 342 messages scanned</p>
+      </div>
+      <div class="header-actions">
+        <span class="segmented">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+          Last 30 days
+        </span>
+        <button type="button" class="btn btn-quiet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+          Refresh
+        </button>
+        <button type="button" class="btn btn-primary">Send report</button>
+      </div>
+    </header>
+
+    <!-- 1 · Posture -->
+    <div class="block">
+      <div class="block-head">
+        <h2 class="block-title">Posture</h2>
+        <span class="block-note">Last 30 days</span>
+      </div>
+
+      <div class="posture">
+        <div class="gauge-wrap">
+          <svg class="gauge" viewBox="0 0 220 220" role="img" aria-label="Safe rate, 88 percent">
+            <circle class="gauge-track" cx="110" cy="110" r="88" pathLength="100"
+                    stroke-dasharray="75 25" transform="rotate(135 110 110)"/>
+            <circle class="gauge-value" cx="110" cy="110" r="88" pathLength="100"
+                    stroke-dasharray="66 34" transform="rotate(135 110 110)"/>
+            <text class="gauge-number" x="103" y="120" text-anchor="middle">88</text>
+            <text class="gauge-pct" x="140" y="118">%</text>
+            <text class="gauge-cap" x="110" y="150" text-anchor="middle">Safe rate</text>
+          </svg>
+        </div>
+
+        <div class="posture-body">
+          <p class="posture-statement">11 messages need your review.</p>
+          <p class="posture-support">These look like phishing attempts. Review them before opening.</p>
+
+          <div class="counts">
+            <div class="count">
+              <span class="count-value">342</span>
+              <span class="count-label">Total messages</span>
+            </div>
+            <div class="count">
+              <span class="count-value">289</span>
+              <span class="count-label">Safe</span>
+            </div>
+            <div class="count">
+              <span class="count-value">24</span>
+              <span class="count-label">Suspicious</span>
+            </div>
+            <div class="count is-alert">
+              <span class="count-value">11</span>
+              <span class="count-label">Likely phishing</span>
+            </div>
+          </div>
+
+          <div class="counts-tail">
+            <span>Confirmed phishing <b>5</b></span>
+            <span>Reviewed safe <b>9</b></span>
+            <span>Unscanned <b>4</b></span>
+            <span>Scanned <b>338</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 · Review queue -->
+    <div class="block">
+      <div class="block-head">
+        <h2 class="block-title">Review queue</h2>
+        <span class="block-note">5 of 11 shown</span>
+      </div>
+
+      <div class="queue-head">
+        <span class="col-label">Sender</span>
+        <span class="col-label">Subject</span>
+        <span class="col-label">Score</span>
+        <span class="col-label is-right">When</span>
+      </div>
+
+      <div class="queue-row" tabindex="0">
+        <div>
+          <span class="sender-name">PayPal Service</span>
+          <span class="sender-addr">security@paypa1-alerts.com</span>
+        </div>
+        <div class="subject-cell">
+          <span class="subject">Your account access has been limited</span>
+          <div class="signals">
+            <span class="signal">Lookalike domain</span>
+            <span class="signal">Asks for personal info</span>
+            <span class="signal">Urgency language</span>
+          </div>
+        </div>
+        <div class="score-cell">
+          <span class="meter is-alert" style="--score: 87"><i></i></span>
+          <span class="score-num is-alert">87</span>
+        </div>
+        <div class="when">2h ago</div>
+      </div>
+
+      <div class="queue-row" tabindex="0">
+        <div>
+          <span class="sender-name">Microsoft Account</span>
+          <span class="sender-addr">no-reply@microsoft-verify.net</span>
+        </div>
+        <div class="subject-cell">
+          <span class="subject">Unusual sign-in attempt blocked</span>
+          <div class="signals">
+            <span class="signal">Brand impersonation</span>
+            <span class="signal">Pressures to act</span>
+          </div>
+        </div>
+        <div class="score-cell">
+          <span class="meter is-alert" style="--score: 78"><i></i></span>
+          <span class="score-num is-alert">78</span>
+        </div>
+        <div class="when">5h ago</div>
+      </div>
+
+      <div class="queue-row" tabindex="0">
+        <div>
+          <span class="sender-name">DHL Billing</span>
+          <span class="sender-addr">billing@dhl-express-tracking.com</span>
+        </div>
+        <div class="subject-cell">
+          <span class="subject">Invoice INV-88213 is overdue — action required</span>
+          <div class="signals">
+            <span class="signal">Dangerous attachment</span>
+            <span class="signal">Reply address differs</span>
+          </div>
+        </div>
+        <div class="score-cell">
+          <span class="meter is-alert" style="--score: 72"><i></i></span>
+          <span class="score-num is-alert">72</span>
+        </div>
+        <div class="when">Yesterday</div>
+      </div>
+
+      <div class="queue-row" tabindex="0">
+        <div>
+          <span class="sender-name">DHL Express</span>
+          <span class="sender-addr">support@dhl-express-tracking.com</span>
+        </div>
+        <div class="subject-cell">
+          <span class="subject">Your package could not be delivered</span>
+          <div class="signals">
+            <span class="signal">Shortened link</span>
+            <span class="signal">Urgency language</span>
+          </div>
+        </div>
+        <div class="score-cell">
+          <span class="meter is-alert" style="--score: 69"><i></i></span>
+          <span class="score-num is-alert">69</span>
+        </div>
+        <div class="when">Yesterday</div>
+      </div>
+
+      <div class="queue-row" tabindex="0">
+        <div>
+          <span class="sender-name">HR Benefits</span>
+          <span class="sender-addr">hr@corp-benefits-portal.com</span>
+        </div>
+        <div class="subject-cell">
+          <span class="subject">Updated payroll details required</span>
+          <div class="signals">
+            <span class="signal">Asks for personal info</span>
+            <span class="signal">Reply address differs</span>
+          </div>
+        </div>
+        <div class="score-cell">
+          <span class="meter is-alert" style="--score: 64"><i></i></span>
+          <span class="score-num is-alert">64</span>
+        </div>
+        <div class="when">2 days ago</div>
+      </div>
+    </div>
+
+    <!-- 3 · Trend -->
+    <div class="block">
+      <div class="block-head">
+        <h2 class="block-title">Trend</h2>
+        <span class="block-note">Detections per day</span>
+      </div>
+
+      <div class="legend">
+        <span class="legend-item is-suspicious"><span class="legend-swatch"></span><span>Suspicious</span></span>
+        <span class="legend-item is-alert"><span class="legend-swatch"></span><span>Likely phishing</span></span>
+        <span class="legend-item is-confirmed"><span class="legend-swatch"></span><span>Confirmed phishing</span></span>
+      </div>
+
+      <div class="chart-frame">
+        <svg class="chart" viewBox="0 0 960 232" role="img" aria-label="Detections per day over the last 30 days">
+          <line class="grid-line" x1="44" y1="32" x2="936" y2="32"/>
+          <line class="grid-line" x1="44" y1="64.8" x2="936" y2="64.8"/>
+          <line class="grid-line" x1="44" y1="97.6" x2="936" y2="97.6"/>
+          <line class="grid-line" x1="44" y1="130.4" x2="936" y2="130.4"/>
+          <line class="grid-line" x1="44" y1="163.2" x2="936" y2="163.2"/>
+          <line class="grid-line is-base" x1="44" y1="196" x2="936" y2="196"/>
+
+          <text class="axis-label" x="34" y="35" text-anchor="end">5</text>
+          <text class="axis-label" x="34" y="133.4" text-anchor="end">2</text>
+          <text class="axis-label" x="34" y="199" text-anchor="end">0</text>
+
+          <polyline class="series series-suspicious" points="44,196 74.8,163.2 105.5,196 136.3,130.4 167,163.2 197.8,163.2 228.6,97.6 259.3,130.4 290.1,196 320.8,163.2 351.6,130.4 382.3,64.8 413.1,97.6 443.9,163.2 474.6,130.4 505.4,196 536.1,163.2 566.9,97.6 597.7,130.4 628.4,32 659.2,64.8 689.9,130.4 720.7,163.2 751.4,97.6 782.2,130.4 813,64.8 843.7,97.6 874.5,163.2 905.2,130.4 936,163.2"/>
+          <polyline class="series series-likely" points="44,196 74.8,196 105.5,163.2 136.3,196 167,163.2 197.8,196 228.6,163.2 259.3,130.4 290.1,163.2 320.8,196 351.6,196 382.3,163.2 413.1,130.4 443.9,163.2 474.6,196 505.4,163.2 536.1,196 566.9,130.4 597.7,97.6 628.4,130.4 659.2,163.2 689.9,196 720.7,163.2 751.4,130.4 782.2,163.2 813,97.6 843.7,130.4 874.5,163.2 905.2,163.2 936,130.4"/>
+          <polyline class="series series-confirmed" points="44,196 74.8,196 105.5,196 136.3,196 167,196 197.8,163.2 228.6,196 259.3,196 290.1,196 320.8,196 351.6,163.2 382.3,196 413.1,196 443.9,196 474.6,196 505.4,196 536.1,163.2 566.9,196 597.7,196 628.4,163.2 659.2,196 689.9,196 720.7,196 751.4,196 782.2,163.2 813,196 843.7,196 874.5,196 905.2,196 936,163.2"/>
+
+          <circle class="marker" cx="197.8" cy="163.2" r="2.6"/>
+          <circle class="marker" cx="351.6" cy="163.2" r="2.6"/>
+          <circle class="marker" cx="536.1" cy="163.2" r="2.6"/>
+          <circle class="marker" cx="628.4" cy="163.2" r="2.6"/>
+          <circle class="marker" cx="782.2" cy="163.2" r="2.6"/>
+          <circle class="marker" cx="936" cy="163.2" r="2.6"/>
+
+          <text class="axis-label" x="44" y="218" text-anchor="start">Jun 30</text>
+          <text class="axis-label" x="197.8" y="218" text-anchor="middle">Jul 5</text>
+          <text class="axis-label" x="351.6" y="218" text-anchor="middle">Jul 10</text>
+          <text class="axis-label" x="505.4" y="218" text-anchor="middle">Jul 15</text>
+          <text class="axis-label" x="659.2" y="218" text-anchor="middle">Jul 20</text>
+          <text class="axis-label" x="813" y="218" text-anchor="middle">Jul 25</text>
+          <text class="axis-label" x="936" y="218" text-anchor="end">Today</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 4 · Attacking domains -->
+    <div class="block">
+      <div class="block-head">
+        <h2 class="block-title">Attacking domains</h2>
+        <span class="block-note">Scaled against the busiest domain</span>
+      </div>
+
+      <div class="domain-row">
+        <div class="domain-name">dhl-express-tracking.com</div>
+        <div class="stack-cell">
+          <div class="stack">
+            <span class="seg-suspicious" style="width: 50%"></span>
+            <span class="seg-likely" style="width: 33.33%"></span>
+            <span class="seg-confirmed" style="width: 16.67%"></span>
+          </div>
+          <div class="domain-breakdown">
+            <span>Suspicious <b>6</b></span>
+            <span>Likely <b>4</b></span>
+            <span>Confirmed <b>2</b></span>
+          </div>
+        </div>
+        <div class="domain-total"><b>12</b><span>msg</span></div>
+      </div>
+
+      <div class="domain-row">
+        <div class="domain-name">paypa1-alerts.com</div>
+        <div class="stack-cell">
+          <div class="stack" style="width: 58.33%">
+            <span class="seg-suspicious" style="width: 42.86%"></span>
+            <span class="seg-likely" style="width: 42.86%"></span>
+            <span class="seg-confirmed" style="width: 14.28%"></span>
+          </div>
+          <div class="domain-breakdown">
+            <span>Suspicious <b>3</b></span>
+            <span>Likely <b>3</b></span>
+            <span>Confirmed <b>1</b></span>
+          </div>
+        </div>
+        <div class="domain-total"><b>7</b><span>msg</span></div>
+      </div>
+
+      <div class="domain-row">
+        <div class="domain-name">microsoft-verify.net</div>
+        <div class="stack-cell">
+          <div class="stack" style="width: 58.33%">
+            <span class="seg-suspicious" style="width: 57.14%"></span>
+            <span class="seg-likely" style="width: 28.57%"></span>
+            <span class="seg-confirmed" style="width: 14.29%"></span>
+          </div>
+          <div class="domain-breakdown">
+            <span>Suspicious <b>4</b></span>
+            <span>Likely <b>2</b></span>
+            <span>Confirmed <b>1</b></span>
+          </div>
+        </div>
+        <div class="domain-total"><b>7</b><span>msg</span></div>
+      </div>
+
+      <div class="domain-row">
+        <div class="domain-name">corp-benefits-portal.com</div>
+        <div class="stack-cell">
+          <div class="stack" style="width: 41.67%">
+            <span class="seg-suspicious" style="width: 80%"></span>
+            <span class="seg-likely" style="width: 20%"></span>
+          </div>
+          <div class="domain-breakdown">
+            <span>Suspicious <b>4</b></span>
+            <span>Likely <b>1</b></span>
+            <span>Confirmed <b>0</b></span>
+          </div>
+        </div>
+        <div class="domain-total"><b>5</b><span>msg</span></div>
+      </div>
+
+      <div class="domain-row">
+        <div class="domain-name">secure-docs-share.io</div>
+        <div class="stack-cell">
+          <div class="stack" style="width: 41.67%">
+            <span class="seg-suspicious" style="width: 60%"></span>
+            <span class="seg-likely" style="width: 20%"></span>
+            <span class="seg-confirmed" style="width: 20%"></span>
+          </div>
+          <div class="domain-breakdown">
+            <span>Suspicious <b>3</b></span>
+            <span>Likely <b>1</b></span>
+            <span>Confirmed <b>1</b></span>
+          </div>
+        </div>
+        <div class="domain-total"><b>5</b><span>msg</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ INBOX ═══════════════ -->
+  <section data-screen="inbox">
+    <p class="screen-label">Inbox</p>
+
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Inbox</h1>
+        <p class="page-sub">342 scanned messages · filtered to Likely phishing</p>
+      </div>
+      <div class="header-actions">
+        <span class="segmented">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+          Last 30 days
+        </span>
+        <button type="button" class="btn btn-quiet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <div class="inbox-controls">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="search-field" type="text" placeholder="Search sender, subject…">
+      </div>
+      <div class="chips">
+        <button type="button" class="chip">All <b>342</b></button>
+        <button type="button" class="chip is-active">Likely phishing <b>11</b></button>
+        <button type="button" class="chip">Suspicious <b>24</b></button>
+        <button type="button" class="chip">Confirmed phishing <b>5</b></button>
+        <button type="button" class="chip">Safe <b>289</b></button>
+      </div>
+    </div>
+
+    <div class="panes">
+
+      <!-- ── List ── -->
+      <div class="pane-list">
+        <p class="date-head">Today</p>
+
+        <div class="list-row is-selected" tabindex="0">
+          <span class="sender-name">PayPal Service</span>
+          <span class="when">14:02</span>
+          <span class="list-addr">security@paypa1-alerts.com</span>
+          <span class="subject">Your account access has been limited</span>
+          <div class="list-meta">
+            <span class="meter is-alert" style="--score: 87"><i></i></span>
+            <span class="score-num is-alert">87</span>
+            <span class="bucket is-alert">Likely phishing</span>
+          </div>
+        </div>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">Microsoft Account</span>
+          <span class="when">11:31</span>
+          <span class="list-addr">no-reply@microsoft-verify.net</span>
+          <span class="subject">Unusual sign-in attempt blocked</span>
+          <div class="list-meta">
+            <span class="meter is-alert" style="--score: 78"><i></i></span>
+            <span class="score-num is-alert">78</span>
+            <span class="bucket is-alert">Likely phishing</span>
+          </div>
+        </div>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">Notion</span>
+          <span class="when">09:15</span>
+          <span class="list-addr">team@notion.so</span>
+          <span class="subject">Your weekly digest is ready</span>
+          <div class="list-meta">
+            <span class="meter" style="--score: 4"><i></i></span>
+            <span class="score-num">4</span>
+            <span class="bucket">Safe</span>
+          </div>
+        </div>
+
+        <p class="date-head">Yesterday</p>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">DHL Billing</span>
+          <span class="when">18:44</span>
+          <span class="list-addr">billing@dhl-express-tracking.com</span>
+          <span class="subject">Invoice INV-88213 is overdue — action required</span>
+          <div class="list-meta">
+            <span class="meter is-alert" style="--score: 72"><i></i></span>
+            <span class="score-num is-alert">72</span>
+            <span class="bucket is-alert">Likely phishing</span>
+          </div>
+        </div>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">LinkedIn</span>
+          <span class="when">12:08</span>
+          <span class="list-addr">messages@linkedin.com</span>
+          <span class="subject">You appeared in 9 searches this week</span>
+          <div class="list-meta">
+            <span class="meter" style="--score: 7"><i></i></span>
+            <span class="score-num">7</span>
+            <span class="bucket">Safe</span>
+          </div>
+        </div>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">Dropbox Share</span>
+          <span class="when">08:52</span>
+          <span class="list-addr">no-reply@secure-docs-share.io</span>
+          <span class="subject">A document was shared with you</span>
+          <div class="list-meta">
+            <span class="meter is-suspicious" style="--score: 41"><i></i></span>
+            <span class="score-num is-suspicious">41</span>
+            <span class="bucket is-suspicious">Suspicious</span>
+          </div>
+        </div>
+
+        <p class="date-head">This week</p>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">HR Benefits</span>
+          <span class="when">Jul 26</span>
+          <span class="list-addr">hr@corp-benefits-portal.com</span>
+          <span class="subject">Updated payroll details required</span>
+          <div class="list-meta">
+            <span class="meter is-alert" style="--score: 64"><i></i></span>
+            <span class="score-num is-alert">64</span>
+            <span class="bucket is-confirmed">Confirmed phishing</span>
+          </div>
+        </div>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">GitHub</span>
+          <span class="when">Jul 25</span>
+          <span class="list-addr">noreply@github.com</span>
+          <span class="subject">Security alert on repository secure-inbox</span>
+          <div class="list-meta">
+            <span class="meter" style="--score: 2"><i></i></span>
+            <span class="score-num">2</span>
+            <span class="bucket">Safe</span>
+          </div>
+        </div>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">Amazon Orders</span>
+          <span class="when">Jul 24</span>
+          <span class="list-addr">auto-confirm@amazon-billing-check.com</span>
+          <span class="subject">Confirm your recent order</span>
+          <div class="list-meta">
+            <span class="meter is-suspicious" style="--score: 38"><i></i></span>
+            <span class="score-num is-suspicious">38</span>
+            <span class="bucket is-suspicious">Suspicious</span>
+          </div>
+        </div>
+
+        <p class="date-head">Older</p>
+
+        <div class="list-row" tabindex="0">
+          <span class="sender-name">Google</span>
+          <span class="when">Jul 21</span>
+          <span class="list-addr">no-reply@accounts.google.com</span>
+          <span class="subject">Security review completed</span>
+          <div class="list-meta">
+            <span class="meter" style="--score: 11"><i></i></span>
+            <span class="score-num">11</span>
+            <span class="bucket">Reviewed safe</span>
+          </div>
+        </div>
+
+        <div class="pagination">
+          <span class="page-status">Page 1 of 35 · 4 Unscanned</span>
+          <button type="button" class="page-btn" disabled>‹</button>
+          <button type="button" class="page-btn is-current">1</button>
+          <button type="button" class="page-btn">2</button>
+          <button type="button" class="page-btn">3</button>
+          <button type="button" class="page-btn">›</button>
+        </div>
+      </div>
+
+      <!-- ── Reading pane ── -->
+      <div class="pane-read">
+        <div class="read-head">
+          <h2 class="read-subject">Your account access has been limited</h2>
+          <div class="read-from">
+            <span class="sender-name">PayPal Service</span>
+            <span class="sender-addr">security@paypa1-alerts.com</span>
+            <span class="when">Today at 14:02</span>
+          </div>
+        </div>
+
+        <div class="verdict">
+          <div class="verdict-score">87<span>/100</span></div>
+          <div>
+            <div class="verdict-label">Likely phishing</div>
+            <p class="verdict-sub">Three signals matched. Do not enter credentials or open links.</p>
+          </div>
+          <div class="verdict-signals">
+            <div class="verdict-signal"><span><b>Lookalike domain</b> — paypa1-alerts.com imitates paypal.com using a digit in place of a letter.</span></div>
+            <div class="verdict-signal"><span><b>Asks for personal info</b> — the message requests card and billing details.</span></div>
+            <div class="verdict-signal"><span><b>Urgency language</b> — a 24-hour deadline is used to pressure a quick decision.</span></div>
+          </div>
+        </div>
+
+        <div class="read-body">
+          <p>Dear customer,</p>
+          <p>We have detected unusual activity on your account. As a precaution, access to your PayPal account has been temporarily limited and some features are unavailable.</p>
+          <p>To restore full access, please confirm your billing information within 24 hours. If we do not hear from you, your account may be permanently suspended.</p>
+          <p><span class="quoted-link">https://paypa1-alerts.com/verify?session=8c41f0ba</span></p>
+          <p>We take the security of your account seriously and apologise for any inconvenience.</p>
+          <div class="sig">PayPal Service Team<br>This is an automated message. Please do not reply.</div>
+        </div>
+
+        <div class="read-actions">
+          <button type="button" class="btn btn-danger">Mark as phishing</button>
+          <button type="button" class="btn">Mark as safe</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-quiet">Block sender</button>
+          <button type="button" class="btn btn-quiet">Open in Gmail</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>

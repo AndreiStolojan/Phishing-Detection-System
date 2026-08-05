@@ -1,0 +1,12 @@
+{
+  "id": "ai-urgency-high",
+  "email": {
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "high"
+    }
+  }
+}
