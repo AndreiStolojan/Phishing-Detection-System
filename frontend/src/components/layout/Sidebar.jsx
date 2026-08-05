@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   Inbox,
-  ListChecks,
+  UserRoundCheck,
   Settings,
   LogOut,
   PanelLeftClose,
@@ -44,7 +44,10 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/inbox', label: 'Inbox', icon: Inbox },
-  { to: '/sender-lists', label: 'Rules', icon: ListChecks },
+  // "Senders" rather than "Rules": the page is a board of people and
+  // domains you have made a call on, and a one-word noun sits in the same
+  // register as Dashboard / Inbox / Settings.
+  { to: '/sender-lists', label: 'Senders', icon: UserRoundCheck },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

@@ -39,6 +39,13 @@ import mongoose from 'mongoose';
 import createError from '../common/errors/create-error.js';
 import SenderListEntry from '../models/sender-list.model.js';
 import Email from '../models/email.model.js';
+// Aceiași pași de aggregation folosiți de lista de emailuri și de numărătorile
+// din dashboard — importați (nu copiați), ca defalcarea pe categorii de aici să
+// nu poată "devia" de la restul aplicației.
+import {
+    buildLatestScanLookupStages,
+    buildEmailStateStages,
+} from './email.service.js';
 
 // Normalizează o adresă de expeditor: dacă valoarea e de forma
 // `Nume Afișat <adresa@exemplu.com>`, extrage doar adresa dintre `< >`, apoi
@@ -96,29 +103,76 @@ const toPublicEntry = (entry) => ({
 // într-o expresie regulată (regex) construită dinamic.
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Toate categoriile posibile de risc, pornite de la 0 — la fel ca în
+// getRiskBucketCountsForUser: răspunsul are mereu toate cheile, deci frontend-ul
+// nu trebuie să verifice dacă o categorie există înainte să o afișeze.
+const emptyBucketCounts = () => ({
+    safe: 0,
+    needs_review: 0,
+    quarantine: 0,
+    reviewed_safe: 0,
+    confirmed_phishing: 0,
+    unscanned: 0,
+});
+
 /*
- * Câte emailuri sincronizate sunt acoperite de o regulă, în acest moment.
- * Regulile de tip "sender" verifică adresa din antetul From brut; regulile de
- * tip "domain" verifică domeniul expeditorului suffix-aware (aceeași logică ca
- * la potrivirea folosită în scanare).
+ * Filtrul de potrivire al unei reguli, folosit ca prim pas ($match) al
+ * aggregation-ului. Regulile de tip "sender" verifică adresa din antetul From
+ * brut; regulile de tip "domain" verifică domeniul expeditorului suffix-aware
+ * (aceeași logică ca la potrivirea folosită în scanare) — exact aceleași două
+ * expresii regulate ca înainte, ca numărul afișat să nu se schimbe.
  */
-const countMatchingEmails = ({ userId, entry }) => {
+const buildEntryMatch = ({ userId, entry }) => {
     if (entry.kind === 'sender') {
-        return Email.countDocuments({
+        return {
             userId,
             from: { $regex: escapeRegex(entry.value), $options: 'i' },
-        });
+        };
     }
 
-    return Email.countDocuments({
+    return {
         userId,
         senderDomain: { $regex: `(^|\\.)${escapeRegex(entry.value)}$`, $options: 'i' },
-    });
+    };
+};
+
+/*
+ * Câte emailuri sincronizate sunt acoperite de o regulă, în acest moment — și
+ * cum se împart ele pe categorii de risc.
+ *
+ * `riskBucket` NU e stocat pe documentul de email: se derivă din ultimul scan +
+ * decizia manuală a userului. De aceea nu se poate face un simplu
+ * countDocuments pe categorii, ci un aggregation cu aceiași pași ca la lista de
+ * emailuri (lookup pe cel mai recent scan -> câmpurile de stare -> grupare
+ * după riskBucket). Totalul se calculează din sumele grupurilor, ca să rămână
+ * mereu egal cu suma defalcării (un total dintr-o a doua interogare ar putea
+ * să difere dacă se sincronizează emailuri între cele două).
+ */
+const countMatchingEmails = async ({ userId, entry }) => {
+    const results = await Email.aggregate([
+        { $match: buildEntryMatch({ userId, entry }) },
+        ...buildLatestScanLookupStages(),
+        ...buildEmailStateStages(),
+        { $group: { _id: '$riskBucket', count: { $sum: 1 } } },
+    ]);
+
+    const byBucket = emptyBucketCounts();
+    let total = 0;
+
+    for (const row of results) {
+        if (Object.hasOwn(byBucket, row._id)) {
+            byBucket[row._id] = row.count;
+        }
+        total += row.count;
+    }
+
+    return { total, byBucket };
 };
 
 // Returnează toate regulile (allow + block) ale userului, cele mai recente
 // primele. Dacă `withMatchCounts` e true, pentru fiecare regulă calculează și
-// câte emailuri existente se potrivesc cu ea (folosit în UI, ca informație).
+// câte emailuri existente se potrivesc cu ea (`matchedEmails`, ca înainte) plus
+// defalcarea lor pe categorii de risc (`matchedByBucket`), folosită în UI.
 export const getSenderListEntries = async ({ userId, withMatchCounts = false }) => {
     const entries = await SenderListEntry.find({ userId }).sort({ createdAt: -1 });
 
@@ -126,11 +180,23 @@ export const getSenderListEntries = async ({ userId, withMatchCounts = false }) 
         return entries.map(toPublicEntry);
     }
 
+    // Aggregation-ul nu trece prin schema Mongoose, deci nu face conversia
+    // automată string -> ObjectId; o facem explicit aici, o singură dată.
+    const userObjectId = new mongoose.Types.ObjectId(String(userId));
+
     return Promise.all(
-        entries.map(async (entry) => ({
-            ...toPublicEntry(entry),
-            matchedEmails: await countMatchingEmails({ userId, entry }),
-        }))
+        entries.map(async (entry) => {
+            const { total, byBucket } = await countMatchingEmails({
+                userId: userObjectId,
+                entry,
+            });
+
+            return {
+                ...toPublicEntry(entry),
+                matchedEmails: total,
+                matchedByBucket: byBucket,
+            };
+        })
     );
 };
 

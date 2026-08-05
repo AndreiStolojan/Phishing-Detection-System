@@ -205,7 +205,13 @@ function QueueRow({ email }) {
 
   return (
     <Link
-      to={`/inbox/${emailId(email)}`}
+      // Open THIS message, in the filter it came from. The queue is built from
+      // the quarantine bucket, so carrying `riskBucket` over means the list
+      // beside the message is the rest of the review queue rather than the
+      // whole inbox — the user keeps working through the same set they clicked
+      // from. `selected` is what the inbox reads; a bare /inbox/:id path drops
+      // it (see the redirect in App.jsx).
+      to={`/inbox?riskBucket=quarantine&selected=${encodeURIComponent(emailId(email))}`}
       className={cn(
         QUEUE_GRID,
         'rounded-md border-b border-border px-2.5 py-3 outline-none transition-colors',

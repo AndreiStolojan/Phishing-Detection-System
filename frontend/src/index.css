@@ -41,6 +41,21 @@
   --text-caption--line-height: 1.4;
   --text-caption--letter-spacing: 0.01em;
 
+  /* Weight ramp — retuned 2026-07-31.
+     InterVariable is a variable face, so the classic 400/500/600/700 steps are
+     not the only ones available, and on a dark background the heavier ones
+     bloom: 700 reads as shouting and 500 barely separates from body text.
+     Overriding Tailwind's own weight tokens moves EVERY `font-medium` /
+     `font-semibold` / `font-bold` in the app at once, which is the point — the
+     boldness of the product is one decision, not a per-component one.
+       medium   520 — the first step that is visibly not body text
+       semibold 600 — headings and emphasised values
+       bold     680 — reserved for numbers; 700 was too dense here */
+  --font-weight-normal: 400;
+  --font-weight-medium: 520;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 680;
+
   /* Radius ramp */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -48,16 +63,24 @@
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
 
-  /* Base surfaces — near-black, matching the login page.
+  /* Base surfaces — charcoal, not black.
      Only three steps: the page, a surface on it, and one raised step. Anything
-     more and the hierarchy stops being readable at these luminances. */
-  --color-background: #09090c;
+     more and the hierarchy stops being readable at these luminances.
+
+     2026-07-31 — the canvas moved off near-black (#09090c) to a neutral-cool
+     charcoal. Pure black is a screenshot colour: it makes every hairline look
+     like a scratch, gives shadows nothing to fall on, and pushes the contrast
+     of body text to a level that reads harsh over a long session. #121319 sits
+     high enough that borders and surfaces separate on their own, and low enough
+     that the risk palette still carries all the colour on the page. Every text
+     and risk token below was re-measured against it — see the notes there. */
+  --color-background: #121319;
   --color-foreground: #f0f1f5;
-  --color-card: #101016;
+  --color-card: #191a22;
   --color-card-foreground: #f0f1f5;
-  --color-popover: #14141c;
+  --color-popover: #1e1f28;
   --color-popover-foreground: #f0f1f5;
-  --color-elevated: #14141c;
+  --color-elevated: #1e1f28;
 
   /* Brand — periwinkle. Interactive ONLY: primary action, focus, selection,
      links. It is deliberately outside the severity ramp below so the two never
@@ -69,17 +92,19 @@
   --color-primary-active: #5a78ef;
   --color-primary-soft: color-mix(in oklab, var(--color-primary) 16%, var(--color-background));
   --color-link: #8ba1f8;
-  --color-secondary: #171821;
+  --color-secondary: #1e1f28;
   --color-secondary-foreground: #c9cbd6;
-  --color-muted: #14151c;
+  --color-muted: #1a1b23;
   --color-muted-foreground: #9b9ead;
   /* 2026-07-30 — raised from #6e7180, which measured 4.11:1 on the background
      and so failed WCAG AA (4.5:1) for the small tertiary text it is used on.
-     #7c7f8e measures 5.00:1, keeping a clear step below muted-foreground
-     (7.47:1) while staying legible. Verified with contrastRatio() in
-     src/lib/scoreScale.js. */
-  --color-muted-foreground-subtle: #7c7f8e;
-  --color-accent: #16171f;
+     2026-07-31 — raised again, from #7c7f8e, because the lighter charcoal
+     canvas took it down to 4.66:1 on the page and 4.12:1 on an elevated
+     surface. #8a8d9b measures 5.62:1 on the page and 4.96:1 on the raised
+     step, so it now passes AA everywhere it is actually used, while keeping a
+     clear step below muted-foreground (6.96:1). */
+  --color-muted-foreground-subtle: #8a8d9b;
+  --color-accent: #1c1d25;
   --color-accent-foreground: #e6e7ee;
   /* `destructive` stays light so it passes as text/icon on dark surfaces
      (text-destructive). `destructive-strong` is the darker fill used UNDER
@@ -89,8 +114,10 @@
   --color-destructive-strong: #c62828;
   --color-destructive-foreground: #fff5f5;
 
-  --color-border: #1f202a;
-  --color-input: #262733;
+  /* Both lifted with the canvas (2026-07-31) so a hairline still reads as a
+     line at the new background luminance instead of dissolving into it. */
+  --color-border: #272935;
+  --color-input: #33353f;
   --color-ring: #8b9cf7;
 
   /* Risk buckets — core semantic palette. Names are STABLE.
@@ -121,15 +148,24 @@
        so the two worst states were hard to tell apart at a glance. Quarantine
        moved warm toward red-orange and phishing moved cool toward crimson,
        which opens real separation between them while keeping the escalation
-       reading in one direction. */
+       reading in one direction.
+
+     2026-07-31 (canvas change) — the lighter background costs every one of
+     these ~0.6:1 of contrast. Only phishing actually broke: #cc4a63 fell to
+     4.17:1 on the page (it was already a marginal 4.48:1 on near-black), so it
+     was lightened to #d9607a — 5.21:1 on the page, 4.87:1 on a card. Its soft
+     badge mix dropped from 17% to 12%, and the quarantine mix from 16% to 14%, to keep
+     each colour ≥4.5:1 against its own badge surface. The other three cleared
+     AA on the new canvas unchanged and were left alone, so the ramp still
+     escalates teal → gold → red-orange → crimson exactly as before. */
   --color-risk-safe: #4aa08f;
   --color-risk-safe-soft: color-mix(in oklab, var(--color-risk-safe) 14%, var(--color-background));
   --color-risk-review: #d3a13f;
   --color-risk-review-soft: color-mix(in oklab, var(--color-risk-review) 15%, var(--color-background));
   --color-risk-quarantine: #e0664e;
-  --color-risk-quarantine-soft: color-mix(in oklab, var(--color-risk-quarantine) 16%, var(--color-background));
-  --color-risk-phishing: #cc4a63;
-  --color-risk-phishing-soft: color-mix(in oklab, var(--color-risk-phishing) 17%, var(--color-background));
+  --color-risk-quarantine-soft: color-mix(in oklab, var(--color-risk-quarantine) 14%, var(--color-background));
+  --color-risk-phishing: #d9607a;
+  --color-risk-phishing-soft: color-mix(in oklab, var(--color-risk-phishing) 12%, var(--color-background));
   --color-risk-unscanned: #6e7180;
   --color-risk-unscanned-soft: color-mix(in oklab, var(--color-risk-unscanned) 14%, var(--color-background));
 
@@ -138,7 +174,7 @@
   --color-chart-2: #4aa08f;
   --color-chart-3: #d3a13f;
   --color-chart-4: #e0664e;
-  --color-chart-5: #cc4a63;
+  --color-chart-5: #d9607a;
 
   /* Elevation — barely there. On a near-black canvas a drop shadow has nothing
      to fall on; separation comes from the border and the surface step instead. */
@@ -178,8 +214,17 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-size: 0.875rem;
+    /* A hair of negative tracking at body size. Inter is drawn slightly wide
+       for UI at 14px, and closing it up is most of what makes the app read as
+       typeset rather than as a default browser page. Headings tighten further
+       via the per-step --text-*--letter-spacing values above. */
+    letter-spacing: -0.006em;
+    line-height: 1.5;
+    /* cv11 = single-storey a-alternates off / disambiguated l; ss01 keeps the
+       numerals from clashing with the risk scores shown next to them. */
     font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
@@ -243,9 +288,31 @@
 /* Small uppercase section label */
 @utility label-overline {
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  /* 560, not 600: uppercase letterforms already carry weight, and at this size
+     600 + wide tracking reads as a shouted label rather than a quiet one. */
+  font-weight: 560;
+  letter-spacing: 0.075em;
   text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+/* Section heading used by the rebuilt pages — the one place the "block title"
+   look is written down, so Settings, Rules and the dashboard agree. */
+@utility heading-section {
+  font-size: 1.0625rem;
+  font-weight: 620;
+  letter-spacing: -0.019em;
+  line-height: 1.3;
+  color: var(--color-foreground);
+}
+
+/* Running explanatory copy under a heading or beside a control. Slightly
+   smaller than body, generously leaded, and capped so it never runs to an
+   unreadable measure. */
+@utility copy-support {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  letter-spacing: -0.003em;
   color: var(--color-muted-foreground);
 }
 

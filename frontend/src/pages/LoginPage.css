@@ -2,14 +2,18 @@
 html:has(.si-auth),
 body:has(.si-auth),
 #root:has(.si-auth) {
-  background-color: #09090b;
+  /* Tracks --color-background in index.css (2026-07-31). Signing in should not
+     feel like the lights came up: if the app canvas is charcoal, the door to it
+     is the same charcoal. The scene layers below are alpha-based, so they ride
+     the change without retuning. */
+  background-color: #121319;
 }
 
 .si-auth {
   --si-accent: #c9c5bf;
   --si-accent-rgb: 201 197 191;
   --si-accent-two: #8d8984;
-  --si-bg: #09090b;
+  --si-bg: #121319;
   --si-panel: rgb(22 22 24 / 0.62);
   --si-panel-border: rgb(255 255 255 / 0.095);
   --si-grid: rgb(255 255 255 / 0.038);
@@ -55,7 +59,7 @@ body:has(.si-auth),
 .si-auth[data-theme='graphite'] .si-theme-scene {
   background:
     radial-gradient(circle at 72% 45%, rgb(201 197 191 / 0.035), transparent 27rem),
-    #09090b;
+    #121319;
 }
 
 .si-grid-layer {
