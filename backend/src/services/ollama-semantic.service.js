@@ -36,14 +36,19 @@ import {
 } from '../config/env.js';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
-const DEFAULT_OLLAMA_MODEL = 'gemma3:4b';
+const DEFAULT_OLLAMA_MODEL = 'qwen2.5:7b-instruct';
 const DEFAULT_OLLAMA_TIMEOUT_MS = 45000;
 // Versiunea promptului. v3: promptul primește domeniul expeditorului + un context
 // de verificare a brandului, cu variantă dedicată pentru brandurile verificate.
 // v4: conținutul emailului e izolat între delimitatori <UNTRUSTED_EMAIL> cu
 // instrucțiune de neîncredere, iar forma răspunsului e impusă printr-o schemă
 // JSON trimisă lui Ollama în locul lui `format: 'json'` generic.
-const DEFAULT_PROMPT_VERSION = 'semantic-v4';
+// v5: descalificatorii pentru brandImpersonationSuspected și sensitiveDataRequest
+// sunt formulați ca întrebare + exemple concrete, nu ca adjectiv ("plauzibil").
+// Măsurat pe qwen2.5:7b, v4 dădea fals-negativ pe toate cele 4 phishinguri reale
+// (modelul considera `paypal-verify-account.com` plauzibil al PayPal) și
+// fals-pozitiv pe mailul care LIVREAZĂ un cod OTP. v5: 0% fals-pozitive.
+const DEFAULT_PROMPT_VERSION = 'semantic-v5';
 
 // Convertește o valoare (care poate veni din env ca string, ex. "true"/"1") într-un
 // boolean adevărat. Dacă valoarea nu e recunoscută, întoarce `defaultValue`.
@@ -220,23 +225,35 @@ socialEngineeringLevel
   work, a recruiter, a newsletter.
 
 sensitiveDataRequest
+  Ask: is the reader being asked to HAND OVER a secret?
   true  ONLY if the email asks the reader to SUPPLY a password, full card
         number, CVV, PIN, OTP code, recovery/seed phrase, or ID document.
-  false if the email DELIVERS a code, links to a normal login page, or asks
-        the reader to change their own password on the provider's own site.
+  false if the email DELIVERS a code to the reader. "Your code is 481920" is
+        delivery, not a request — even when the same email warns "never share
+        this code with anyone", which is advice AGAINST supplying it.
+  false for a link to a normal login page, or asking the reader to change
+        their own password on the provider's own site.
 
 loginOrActionRequest
   true if the email asks the reader to sign in, click through or act. This is
   normal in legitimate mail and is a weak signal.
 
 brandImpersonationSuspected
-  true  ONLY if the email presents itself as a specific named company AND
-        senderDomain does not belong to that company.
-  false if senderDomain plausibly belongs to the claimed company, including
-        its regional and bulk-mail domains.
-  false for personal mail, colleagues, and any email that names no company.
-  A free mailbox domain (gmail.com, yahoo.com) sending personal mail is NOT
-  impersonation.
+  Ask: is senderDomain the company's OWN registered domain, or merely a domain
+  that CONTAINS the company's name? Containing the name is the attack.
+  true  paypal-verify-account.com claiming PayPal — "paypal" is a prefix on an
+        unrelated registered domain, not paypal.com.
+  true  microsoft-account-security.net, bcr-online-verificare.com,
+        onedrive-secure-share.com, ledger-wallet-update.com. Extra words joined
+        to a brand name with hyphens, and a registered domain that is not the
+        brand's, is impersonation however official it reads.
+  false paypal.com, accounts.google.com, email.apple.com, ing.ro — the brand's
+        own domain, including regional domains and subdomains.
+  false a known bulk-mail provider the brand really uses (sendgrid.net,
+        mailchimp.com, amazonses.com).
+  false personal mail, colleagues, and any email naming no company. A free
+        mailbox domain (gmail.com, yahoo.com) sending personal mail is NOT
+        impersonation.
 
 evidence
   For every field you did NOT leave at its default, copy the exact words from
