@@ -31,14 +31,18 @@ import {
     AI_SEMANTIC_ENABLED,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
-    OLLAMA_PROMPT_VERSION,
     OLLAMA_TIMEOUT_MS,
 } from '../config/env.js';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'qwen2.5:7b-instruct';
 const DEFAULT_OLLAMA_TIMEOUT_MS = 45000;
-// Versiunea promptului. v3: promptul primește domeniul expeditorului + un context
+// Versiunea promptului — o proprietate a CODULUI, nu a deployment-ului, deci
+// nu se mai poate suprascrie din mediu. Anterior OLLAMA_PROMPT_VERSION doar
+// ETICHETA rezultatul fara sa selecteze vreun prompt, iar fisierele de mediu
+// ramasesera pe semantic-v1 si semantic-v3 in timp ce codul rula v5 — fiecare
+// scanare persistata declara astfel o provenienta falsa.
+// v3: promptul primește domeniul expeditorului + un context
 // de verificare a brandului, cu variantă dedicată pentru brandurile verificate.
 // v4: conținutul emailului e izolat între delimitatori <UNTRUSTED_EMAIL> cu
 // instrucțiune de neîncredere, iar forma răspunsului e impusă printr-o schemă
@@ -48,7 +52,7 @@ const DEFAULT_OLLAMA_TIMEOUT_MS = 45000;
 // Măsurat pe qwen2.5:7b, v4 dădea fals-negativ pe toate cele 4 phishinguri reale
 // (modelul considera `paypal-verify-account.com` plauzibil al PayPal) și
 // fals-pozitiv pe mailul care LIVREAZĂ un cod OTP. v5: 0% fals-pozitive.
-const DEFAULT_PROMPT_VERSION = 'semantic-v5';
+const SEMANTIC_PROMPT_VERSION = 'semantic-v5';
 
 // Convertește o valoare (care poate veni din env ca string, ex. "true"/"1") într-un
 // boolean adevărat. Dacă valoarea nu e recunoscută, întoarce `defaultValue`.
@@ -144,7 +148,7 @@ const buildBaseMeta = () => ({
     provider: 'ollama',
     mode: 'local',
     model: OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL,
-    promptVersion: OLLAMA_PROMPT_VERSION || DEFAULT_PROMPT_VERSION,
+    promptVersion: SEMANTIC_PROMPT_VERSION,
 });
 
 // Normalizează adresa de bază a serverului Ollama (ex. adaugă "http://" dacă lipsește,
