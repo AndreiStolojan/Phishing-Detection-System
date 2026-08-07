@@ -120,8 +120,34 @@ jobs:
           node -e 'if (JSON.parse(process.argv[1]).code !== "INTEGRATION_NOT_CONFIGURED") process.exit(1)' "${gmail_response%$'\n'*}"
           counts="$(docker compose exec -T mongodb mongosh --quiet --username secureinbox_root --password "$(awk -F= '/^MONGO_ROOT_PASSWORD=/{print $2}' .env)" --authenticationDatabase admin --eval 'const d=db.getSiblingDB("secureinbox"); print(JSON.stringify({users:d.users.countDocuments({}),emails:d.emails.countDocuments({}),scans:d.scans.countDocuments({})}))')"
           test "$counts" = '{"users":1,"emails":6,"scans":6}'
-          curl --fail --silent http://127.0.0.1:9090/api/v1/targets | jq -e '.data.activeTargets[] | select(.labels.job == "secureinbox-backend" and .health == "up")'
-          curl --fail --silent -u "$(awk -F= '/^GRAFANA_ADMIN_USER=/{print $2}' .env):$(awk -F= '/^GRAFANA_ADMIN_PASSWORD=/{print $2}' .env)" http://127.0.0.1:3000/api/search?query=SecureInbox | jq -e 'any(.[]; .title == "SecureInbox Local")'
+          # Prometheus scrapes every 15s, and these ran immediately after the
+          # stack came up — before the first scrape of the backend had happened.
+          # With no matching target, `jq -e` produces no output and exits 4,
+          # which is the exit code this job kept failing with. Wait for the
+          # first scrape instead of racing it; the assertions are unchanged.
+          await() {
+            local description="$1"; shift
+            local attempt
+            for attempt in $(seq 1 40); do
+              if "$@" > /dev/null 2>&1; then return 0; fi
+              sleep 3
+            done
+            echo "::error::${description} did not become true within 120s"
+            "$@" || true
+            return 1
+          }
+
+          check_backend_target() {
+            curl --fail --silent http://127.0.0.1:9090/api/v1/targets \
+              | jq -e '.data.activeTargets[] | select(.labels.job == "secureinbox-backend" and .health == "up")'
+          }
+          check_grafana_dashboard() {
+            curl --fail --silent -u "$(awk -F= '/^GRAFANA_ADMIN_USER=/{print $2}' .env):$(awk -F= '/^GRAFANA_ADMIN_PASSWORD=/{print $2}' .env)" \
+              "http://127.0.0.1:3000/api/search?query=SecureInbox" | jq -e 'any(.[]; .title == "SecureInbox Local")'
+          }
+
+          await "prometheus backend target up" check_backend_target
+          await "grafana dashboard provisioned" check_grafana_dashboard
           ./scripts/backup
           test "$(stat -c %a backups)" = 700
           archive="$(find backups -name '*.archive.gz' -print -quit)"
