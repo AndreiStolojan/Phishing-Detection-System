@@ -81,6 +81,25 @@ docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:7b-instruct
 ```
 
+### Upgrading an existing install
+
+`provision` fills in missing values but never overwrites an existing `.env`,
+which is right for configuration you may have edited — but it means a host
+installed before this change keeps its old `OLLAMA_MODEL` and silently stays on
+the weaker model. Change it by hand, then re-run `./provision`, which pulls
+whatever `OLLAMA_MODEL` names:
+
+```bash
+sed -i 's|^OLLAMA_MODEL=.*|OLLAMA_MODEL=qwen2.5:7b-instruct|' .env
+./provision
+```
+
+The old model keeps occupying disk until removed:
+
+```bash
+docker compose exec -T ollama ollama rm qwen2.5:1.5b-instruct-q4_K_M
+```
+
 ### Choosing the model
 
 `qwen2.5:7b-instruct` is 4.7 GB on disk and needs roughly 6 GB resident, so it
