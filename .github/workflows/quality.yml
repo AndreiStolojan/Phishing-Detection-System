@@ -3,8 +3,11 @@ name: Quality
 on:
   push:
     branches: [main, prod]
+  # No branch filter. Restricting this to [main, prod] meant a pull request
+  # targeting any other branch got no checks at all, which is exactly what
+  # stacked pull requests do: only the bottom of the stack was ever verified,
+  # and the rest ran for the first time after being retargeted on merge.
   pull_request:
-    branches: [main, prod]
 
 permissions:
   contents: read
@@ -40,6 +43,22 @@ jobs:
       - run: npm ci --prefix backend --ignore-scripts
       - run: bash -n provision scripts/dotenv.sh scripts/backup scripts/restore tests/provisioning.test.sh && bash tests/provisioning.test.sh
       - run: |
+          # Every command below that reaches Docker Hub is a third-party network
+          # call on an unauthenticated runner, and those fail intermittently —
+          # "registry-1.docker.io: context deadline exceeded" has failed this job
+          # on an unmodified tree. Retry so a registry hiccup is not reported as
+          # a code defect; a genuine problem still fails after three attempts.
+          retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if "$@"; then return 0; fi
+              echo "::warning::attempt ${attempt} failed: $* — retrying"
+              sleep $((attempt * 10))
+            done
+            echo "::error::failed after 3 attempts: $*"
+            return 1
+          }
+
           env_file="$RUNNER_TEMP/secureinbox.env"
           PROVISION_ENV_FILE="$env_file" bash -c 'source ./provision; create_env; load_runtime_values'
           test "$(stat -c %a "$env_file")" = 600
@@ -52,14 +71,14 @@ jobs:
             NODE_ENV=production PORT=5500 DB_URI=mongodb://example.test/db JWT_SECRET=x JWT_EXPIRES_IN=1h MAIL_TOKEN_ENCRYPTION_KEY=x GOOGLE_CLIENT_ID=x GOOGLE_CLIENT_SECRET=x GOOGLE_REDIRECT_URI=https://example.test/callback FRONTEND_APP_URL=https://example.test EMAIL_FROM=no-reply@example.test EMAIL_PASSWORD=x node --input-type=module -e "await import('./src/config/env.js')"
           )
           rm backend/.env.production.local
-          docker run --rm --add-host backend:127.0.0.1 --add-host cloudflared:127.0.0.2 -v "$PWD/frontend/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro" nginx:stable-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46 nginx -t
-          docker run --rm --entrypoint /bin/promtool -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac check config /etc/prometheus/prometheus.yml
+          retry docker run --rm --add-host backend:127.0.0.1 --add-host cloudflared:127.0.0.2 -v "$PWD/frontend/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro" nginx:stable-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46 nginx -t
+          retry docker run --rm --entrypoint /bin/promtool -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac check config /etc/prometheus/prometheus.yml
           node -e "const d=require('./monitoring/grafana/dashboards/secureinbox-local.json');const p=Object.fromEntries(d.panels.map(x=>[x.id,x]));if(!d.panels.every(({gridPos})=>Number.isInteger(gridPos?.x)&&Number.isInteger(gridPos?.y)&&Number.isInteger(gridPos?.w)&&Number.isInteger(gridPos?.h))||!p[3].targets[0].expr.includes('clamp_min')||p[3].fieldConfig.defaults.unit!=='percentunit'||!p[6].targets[0].expr.includes('[1h]')||p[4].targets.length!==1||!p[4].targets[0].expr.includes('histogram_quantile(0.95')||p[7].fieldConfig.defaults.unit!=='dateTimeAsLocal')process.exit(1)"
           images="$( { awk '/^[[:space:]]*image:/{print $2}' docker-compose.yml docker-compose.prod.yml; awk '/^FROM /{print $2}' backend/Dockerfile frontend/Dockerfile; } | sort -u )"
           while IFS= read -r image; do
             test -z "$image" && continue
             [[ "$image" == *@sha256:* ]]
-            manifest="$(docker buildx imagetools inspect "$image")"
+            manifest="$(retry docker buildx imagetools inspect "$image")"
             grep -q linux/arm64 <<< "$manifest"
           done <<< "$images"
   integration:
@@ -76,8 +95,23 @@ jobs:
           docker compose up -d --build --wait --wait-timeout 180
           docker compose exec -T backend npm run seed:local
           curl --fail http://127.0.0.1:8080/api/v1/ready
-          services="$(docker compose ps --format '{{.Service}} {{.Health}}')"
-          awk 'NF != 2 || $2 != "healthy" { bad = 1 } END { exit NR == 6 && !bad ? 0 : 1 }' <<< "$services"
+          # Sampled once, this raced: `up --wait` returns when healthchecks first
+          # pass, but a probe can report "starting" again on its next interval —
+          # ollama's `ollama list` does while it settles — and the job then failed
+          # on an unmodified tree. Poll instead, so the assertion still has to be
+          # satisfied but is not decided by which second we happened to look.
+          for attempt in $(seq 1 30); do
+            services="$(docker compose ps --format '{{.Service}} {{.Health}}')"
+            if awk 'NF != 2 || $2 != "healthy" { bad = 1 } END { exit NR == 6 && !bad ? 0 : 1 }' <<< "$services"; then
+              break
+            fi
+            if [ "$attempt" = 30 ]; then
+              echo "::error::services never all reported healthy"
+              echo "$services"
+              exit 1
+            fi
+            sleep 2
+          done
           docker compose exec -T backend node -e "fetch('http://127.0.0.1:5500/metrics').then(r=>r.text()).then(t=>process.exit(t.includes('secureinbox_http_requests_total') ? 0 : 1))"
           login="$(curl --fail --silent --show-error -H 'Content-Type: application/json' --data '{"email":"demo@secureinbox.test","password":"'"$(awk -F= '/^DEMO_USER_PASSWORD=/{print $2}' .env)"'"}' http://127.0.0.1:8080/api/v1/auth/login)"
           token="$(node -e 'console.log(JSON.parse(process.argv[1]).data.token)' "$login")"
