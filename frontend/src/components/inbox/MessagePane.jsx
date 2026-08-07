@@ -40,6 +40,8 @@ import { getSenderLists } from '@/api/senderListsApi';
 import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
 import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
 import { getRiskMeta, getRuleLabel } from '@/lib/risk';
+import { getSenderAuthentication } from '@/lib/senderAuth';
+import { SenderAuthentication } from '@/components/security/SenderAuthentication';
 import { findListEntries } from '@/lib/senderLists';
 import { getRiskTextColor, isScored, UNSCORED_COLOR } from '@/lib/scoreScale';
 import { getAiStatus, AI_SCORE_MAX, RULE_SCORE_MAX, SCORE_MAX } from '@/lib/scoring';
@@ -224,6 +226,7 @@ export function MessagePane({ id, onReviewed }) {
     : [];
 
   const userVerdict = email.userVerdict ?? null;
+  const senderAuth = getSenderAuthentication(email.authResults);
 
   const { senderEntry, domainEntry } = findListEntries(
     senderLists.data?.entries,
@@ -404,6 +407,14 @@ export function MessagePane({ id, onReviewed }) {
           color={scoreColor}
         />
       </div>
+
+      {/* Sender authentication — SPF, DKIM and DMARC. The backend has computed
+          these since the email-authentication work; until now nothing rendered
+          them, so "did this really come from them?" had no answer in the UI. */}
+      <SectionHead note={senderAuth.available ? undefined : 'Unavailable'}>
+        Sender verification
+      </SectionHead>
+      <SenderAuthentication authResults={email.authResults} />
 
       {/* Triggered rules — the audit trail behind the rule score. */}
       <SectionHead note={rules.length > 0 ? `${rules.length}` : 'None'}>

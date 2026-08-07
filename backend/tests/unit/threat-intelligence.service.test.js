@@ -88,6 +88,8 @@ test('aggregates current sources, redirect evidence and domain age without expos
         maliciousSources: ['web_risk', 'urlhaus'],
         phishingSources: ['web_risk'],
         domainAgeDays: 3,
+        // Empty because both RDAP lookups succeeded here.
+        rdapReasons: [],
         linkTextHrefMismatchCount: 1,
         differentRegistrableRedirectTargetCount: 1,
         excessiveRedirectChainCount: 1,
@@ -179,6 +181,46 @@ test('fails open when sources fail independently or the total budget expires', a
     assert.deepEqual(timedResult.sourceCounts, {
         web_risk: 0, urlhaus: 0, rdap: 0, redirect: 0,
     });
+});
+
+test('an unknown registration age reports why, and is not cached for a month', async () => {
+    // Roughly a quarter of live TLDs — .ro, .de, .io among them — have no IANA
+    // RDAP endpoint, so for a Romanian inbox this is the common case rather than
+    // an edge one. Without the reason reaching the result, an operator cannot
+    // tell a working lookup from one that never runs.
+    const cache = createMemoryCache();
+    const service = createThreatIntelligenceService({
+        enabled: true,
+        cache,
+        webRisk: { async lookup() { return { status: 'ok', matches: [] }; } },
+        urlhaus: { async lookup() { return { status: 'ok', match: false }; } },
+        rdap: {
+            async lookupDomain() {
+                return { status: 'unavailable', registeredAt: null, reason: 'registry_unavailable' };
+            },
+        },
+    });
+
+    const result = await service.analyze({ links: ['https://emag.ro/oferta'] });
+
+    assert.equal(result.status, 'evaluated');
+    assert.equal(result.domainAgeDays, null);
+    assert.deepEqual(result.rdapReasons, ['registry_unavailable']);
+    assert.equal(result.sourceStatuses.rdap, 'unavailable');
+
+    // A registry that answers `ok` without a registration event teaches us
+    // nothing durable, so it must not occupy the 30-day domain TTL.
+    const dated = createThreatIntelligenceService({
+        enabled: true,
+        cache: createMemoryCache(),
+        webRisk: { async lookup() { return { status: 'ok', matches: [] }; } },
+        urlhaus: { async lookup() { return { status: 'ok', match: false }; } },
+        rdap: { async lookupDomain() { return { status: 'ok', registeredAt: null }; } },
+    });
+    const datedResult = await dated.analyze({ links: ['https://example.com/'] });
+
+    assert.equal(datedResult.domainAgeDays, null);
+    assert.deepEqual(datedResult.rdapReasons, []);
 });
 
 test('bounds stalled cache reads and writes by the per-scan deadline', async () => {

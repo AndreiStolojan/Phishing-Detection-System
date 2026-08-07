@@ -140,7 +140,15 @@ test('a cryptographically verified ARC fixture suppresses only transport failure
 
 test('the production worker boundary handles an unsigned message', async () => {
     const result = await verifyDkimAndArc(fixture('dkim-unsigned.eml'), {
-        timeoutMs: 2_000,
+        // This is the one case that spawns a real worker thread and runs real
+        // mailauth verification, so it pays Node's worker startup cost. Under a
+        // full-suite run on a loaded machine that overran a 2s budget — observed
+        // at 2049ms — and the test failed intermittently while passing in
+        // isolation. The budget is not what this test is checking: the
+        // assertions below are about an unsigned message producing `none`
+        // rather than an error. Timeout behaviour has its own tests at :164
+        // and :201, which use short budgets deliberately.
+        timeoutMs: 30_000,
         limiter: createVerificationLimiter({ concurrency: 1 }),
     });
 

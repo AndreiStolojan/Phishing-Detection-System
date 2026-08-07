@@ -78,8 +78,54 @@ docker compose -f docker-compose.prod.yml config --quiet
 docker compose -f docker-compose.prod.yml build --pull
 docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:1.5b-instruct-q4_K_M
+docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:7b-instruct
 ```
+
+### Upgrading an existing install
+
+`provision` fills in missing values but never overwrites an existing `.env`,
+which is right for configuration you may have edited — but it means a host
+installed before this change keeps its old `OLLAMA_MODEL` and silently stays on
+the weaker model. Change it by hand, then re-run `./provision`, which pulls
+whatever `OLLAMA_MODEL` names:
+
+```bash
+sed -i 's|^OLLAMA_MODEL=.*|OLLAMA_MODEL=qwen2.5:7b-instruct|' .env
+./provision
+```
+
+The old model keeps occupying disk until removed:
+
+```bash
+docker compose exec -T ollama ollama rm qwen2.5:1.5b-instruct-q4_K_M
+```
+
+### Choosing the model
+
+`qwen2.5:7b-instruct` is 4.7 GB on disk and needs roughly 6 GB resident, so it
+suits an 8 GB or 16 GB Pi 5 and not a 4 GB one. The size matters more than it
+looks. Measured with `npm run eval:semantic` over the 40-message labelled corpus
+in `backend/tests/fixtures/semantic-eval.fixtures.js`, on identical code and the
+same prompt:
+
+| | `qwen2.5:1.5b-instruct-q4_K_M` | `qwen2.5:7b-instruct` |
+| --- | --- | --- |
+| false positives on legitimate mail | 0% | 0% |
+| signal accuracy | 15% | 85% |
+| useful signal on malicious mail | 10% | 90% |
+
+At 1.5B the semantic layer is effectively inert: it is quiet on benign mail only
+because it has stopped discriminating at all, and it contributes nothing on real
+phishing. It is harmless but not worth its latency. Prefer 7B wherever the RAM
+allows, and re-run the evaluation after any prompt change:
+
+```bash
+cd backend && OLLAMA_MODEL=qwen2.5:7b-instruct npm run eval:semantic
+```
+
+`OLLAMA_TIMEOUT_MS` defaults to 300000 (5 minutes) because a 7B model on Pi 5
+CPU is far slower than on a laptop. Scanning runs in the background, so latency
+costs throughput rather than interactivity.
 
 Check private health endpoints and then the public hostname:
 
