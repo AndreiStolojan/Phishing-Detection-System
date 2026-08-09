@@ -90,6 +90,40 @@ const formatAttachmentSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const RESCAN_TIMEOUT_STATUSES = new Set([502, 503, 504]);
+const RESCAN_POLL_INTERVAL_MS = 5_000;
+const RESCAN_POLL_ATTEMPTS = 72;
+
+const scanTimestamp = (value) => {
+  const parsed = Date.parse(value?.updatedAt || value?.scannedAt || value?.createdAt || '');
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const waitForTimedOutRescan = async ({ emailId: targetEmailId, previousScan, requestedAt }) => {
+  const previousTimestamp = scanTimestamp(previousScan);
+
+  for (let attempt = 0; attempt < RESCAN_POLL_ATTEMPTS; attempt += 1) {
+    await wait(RESCAN_POLL_INTERVAL_MS);
+
+    try {
+      const candidate = await getLatestScan(targetEmailId);
+      const candidateTimestamp = scanTimestamp(candidate);
+      const completedAfterRequest = candidateTimestamp !== null && candidateTimestamp >= requestedAt;
+      const changedFromPrevious =
+        previousTimestamp !== null && candidateTimestamp !== null && candidateTimestamp > previousTimestamp;
+
+      if (completedAfterRequest || changedFromPrevious) return candidate;
+    } catch {
+      // A transient read failure should not launch another scan. Keep polling
+      // the idempotently upserted current result until the bounded deadline.
+    }
+  }
+
+  return null;
+};
+
 /* ─── Empty right pane — a deliberate state, not an accident ─────────────── */
 
 export function MessagePaneEmpty({ hint = 'Select a message to see why it was flagged.' }) {
@@ -170,6 +204,7 @@ export function MessagePane({ id, onReviewed }) {
   const handleRescan = async () => {
     setScanning(true);
     setScanError(null);
+    const requestedAt = Date.now();
     try {
       const freshScan = await scanEmail(emailId(email));
       const freshEmail = await getEmail(id);
@@ -179,6 +214,24 @@ export function MessagePane({ id, onReviewed }) {
       onReviewed?.(freshEmail);
       toast.success('Scan complete');
     } catch (err) {
+      if (RESCAN_TIMEOUT_STATUSES.has(err.statusCode)) {
+        const completedScan = await waitForTimedOutRescan({
+          emailId: emailId(email),
+          previousScan: scan,
+          requestedAt,
+        });
+
+        if (completedScan) {
+          const freshEmail = await getEmail(id);
+          setScan(completedScan);
+          setEmail((prev) => ({ ...prev, ...freshEmail }));
+          bustCacheByPrefix('inbox-', 'dash-', 'risky-');
+          onReviewed?.(freshEmail);
+          toast.success('Scan complete');
+          return;
+        }
+      }
+
       // Leave the previous verdict exactly as it was and put the failure inline
       // next to the button — never a page-level alert that hides the message.
       setScanError(err.message || 'Scan failed. Your previous result is unchanged.');

@@ -52,4 +52,20 @@ describe('apiClient', () => {
       statusCode: 400,
     });
   });
+
+  it('does not expose an HTML gateway error document to the UI', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 504,
+        text: () => Promise.resolve('<!DOCTYPE html><title>Gateway time-out</title>'),
+      })
+    );
+
+    await expect(apiClient.post('/scans/emails/example')).rejects.toMatchObject({
+      message: 'The server is still processing this request. Please wait a moment and try again.',
+      statusCode: 504,
+    });
+  });
 });
