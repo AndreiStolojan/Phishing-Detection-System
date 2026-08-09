@@ -22,7 +22,7 @@ import { clearStoredToken, getStoredToken } from '../utils/tokenStorage.js';
 // Adresa de bază a API-ului backend. Vine dintr-o variabilă de mediu (Vite),
 // cu o valoare implicită '/api/v1' dacă nu e setată.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-const GATEWAY_ERROR_STATUSES = new Set([502, 503, 504]);
+const GATEWAY_ERROR_STATUSES = new Set([502, 503, 504, 524]);
 const GATEWAY_ERROR_MESSAGE =
   'The server is still processing this request. Please wait a moment and try again.';
 

@@ -90,7 +90,7 @@ const formatAttachmentSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const RESCAN_TIMEOUT_STATUSES = new Set([502, 503, 504]);
+const RESCAN_TIMEOUT_STATUSES = new Set([502, 503, 504, 524]);
 const RESCAN_POLL_INTERVAL_MS = 5_000;
 const RESCAN_POLL_ATTEMPTS = 72;
 
