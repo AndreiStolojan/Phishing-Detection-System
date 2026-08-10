@@ -82,6 +82,28 @@ export function MailAccountProvider({ children }) {
     }
   }, [account, reload]);
 
+  // Auto-poll: acum că sincronizarea incrementală e ieftină (doar diff-ul de
+  // istoric Gmail, nu tot inbox-ul), verificăm periodic dacă au apărut
+  // emailuri noi, ca userul să nu mai fie nevoit să dea Refresh manual.
+  // Se oprește când tab-ul e ascuns (economisește la baterie/rețea) și când
+  // nu există un cont conectat.
+  useEffect(() => {
+    if (!isConnected) return undefined;
+
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      sync().catch(() => {});
+    };
+
+    const intervalId = setInterval(tick, 45_000);
+    document.addEventListener('visibilitychange', tick);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [isConnected, sync]);
+
   // value e memorat cu useMemo: se recalculează doar când se schimbă efectiv
   // unul din câmpurile listate, ca să evităm re-render-uri inutile la
   // componentele care citesc acest context.
