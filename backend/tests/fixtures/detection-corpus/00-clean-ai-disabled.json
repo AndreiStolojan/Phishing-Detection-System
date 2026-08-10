@@ -1,0 +1,11 @@
+{
+  "id": "clean-ai-disabled",
+  "email": {
+    "subject": "Weekly project update",
+    "from": "team@example.test",
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": false
+  }
+}

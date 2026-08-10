@@ -1,13 +1,23 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { InboxPage } from '@/pages/InboxPage';
-import { EmailDetailPage } from '@/pages/EmailDetailPage';
 import { SenderListsPage } from '@/pages/SenderListsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+
+/*
+  Old /inbox/:emailId links carried the message in the PATH. The inbox now keeps
+  the open message in `?selected=`, so this redirect has to translate between the
+  two — a bare <Navigate to="/inbox"> would drop the id and land the user on
+  whatever happens to be first in the list, which is what it used to do.
+*/
+function InboxMessageRedirect() {
+  const { emailId } = useParams();
+  return <Navigate to={emailId ? `/inbox?selected=${encodeURIComponent(emailId)}` : '/inbox'} replace />;
+}
 
 export default function App() {
   return (
@@ -22,8 +32,14 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
+        {/* /inbox/:emailId used to render a separate full-page report in the
+            old design. The inbox is now a two-pane workspace where the reading
+            pane holds everything, so the route redirects instead of showing a
+            second, differently-styled view of the same message. Old links and
+            bookmarks still open the message they named — the id moves from the
+            path into `?selected=`. */}
         <Route path="/inbox" element={<InboxPage />} />
-        <Route path="/inbox/:emailId" element={<EmailDetailPage />} />
+        <Route path="/inbox/:emailId" element={<InboxMessageRedirect />} />
         <Route path="/sender-lists" element={<SenderListsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

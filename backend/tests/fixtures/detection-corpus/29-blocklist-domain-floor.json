@@ -1,0 +1,18 @@
+{
+  "id": "blocklist-domain-floor",
+  "email": {
+    "senderDomain": "blocked.example"
+  },
+  "listContext": {
+    "senderAllowlisted": false,
+    "senderBlocklisted": true,
+    "listMatch": {
+      "listType": "block",
+      "kind": "domain",
+      "value": "blocked.example"
+    }
+  },
+  "ai": {
+    "enabled": false
+  }
+}

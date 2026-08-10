@@ -1,0 +1,12 @@
+{
+  "id": "very-long-url",
+  "email": {
+    "senderDomain": "example.test",
+    "suspiciousLinkPatterns": [
+      "very_long_url"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

@@ -112,6 +112,9 @@ const trackProviderAction = async ({ email, providerAction }) => {
                   code: providerAction.errorCode || null,
                   message: providerAction.message || null,
               };
+    if (providerAction.type === 'gmail_move_to_spam' && providerAction.status === 'success') {
+        email.inboxState = 'removed';
+    }
 
     await email.save();
 

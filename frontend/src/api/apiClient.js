@@ -22,6 +22,9 @@ import { clearStoredToken, getStoredToken } from '../utils/tokenStorage.js';
 // Adresa de bază a API-ului backend. Vine dintr-o variabilă de mediu (Vite),
 // cu o valoare implicită '/api/v1' dacă nu e setată.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const GATEWAY_ERROR_STATUSES = new Set([502, 503, 504, 524]);
+const GATEWAY_ERROR_MESSAGE =
+  'The server is still processing this request. Please wait a moment and try again.';
 
 // Tip de eroare custom folosit în toată aplicația pentru erorile venite de la
 // API. Păstrează informații utile (statusCode, code) ca să poată reacționa
@@ -93,7 +96,12 @@ export const apiRequest = async (path, options = {}) => {
     }
 
     throw new ApiError({
-      message: payload.message || 'Request failed.',
+      // Reverse proxies return branded HTML for gateway failures. Never surface
+      // that entire document in the UI; preserve the HTTP status so the caller
+      // can recover (for example, by polling a long-running scan).
+      message: GATEWAY_ERROR_STATUSES.has(response.status)
+        ? GATEWAY_ERROR_MESSAGE
+        : payload.message || 'Request failed.',
       statusCode: payload.statusCode || response.status,
       code: payload.code,
       errors: payload.errors,

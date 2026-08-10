@@ -1,9 +1,52 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// EmailBody.jsx — renders the message itself, safely.
+//
+// Two safety layers, in order:
+//   1. sanitizeEmailHtml() strips scripts/iframes/forms and (for risky buckets)
+//      remote tracking images.
+//   2. neutralizeLinks() below removes `href` from every anchor that survives.
+//      This is a phishing tool: clicking a hostile link by accident must be
+//      impossible, so nothing in the rendered body is ever navigable. The link
+//      TEXT stays visible — and the real destination is preserved in the
+//      tooltip and in `data-blocked-href` — because reading where a link
+//      *claimed* to go is the whole point of the exercise.
+//
+// The rendered body never scrolls sideways: long words break, images and tables
+// are capped at 100% by the `.email-body` rules, and anything still too wide is
+// clipped rather than given a horizontal scrollbar.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useMemo, useState } from 'react';
 import { ImageOff } from 'lucide-react';
 
 import { sanitizeEmailHtml } from '@/utils/sanitizeEmailHtml';
 
 const RISKY = new Set(['needs_review', 'quarantine', 'confirmed_phishing']);
+
+/**
+ * Remove every usable `href` from the sanitized markup, keeping the visible
+ * text. Returns HTML in which no anchor can navigate anywhere.
+ */
+export function neutralizeLinks(html) {
+  if (typeof html !== 'string' || html.length === 0) return '';
+
+  const documentNode = new DOMParser().parseFromString(html, 'text/html');
+
+  for (const node of Array.from(documentNode.querySelectorAll('a[href], area[href]'))) {
+    const href = node.getAttribute('href') || '';
+    node.removeAttribute('href');
+    // target/rel/ping only mean anything on a navigable anchor — drop them too
+    // so nothing is left that could be re-armed by a stray script.
+    node.removeAttribute('target');
+    node.removeAttribute('rel');
+    node.removeAttribute('ping');
+    node.setAttribute('data-blocked-href', href);
+    node.setAttribute('aria-disabled', 'true');
+    node.setAttribute('title', `Link disabled for your safety — it points to ${href}`);
+  }
+
+  return documentNode.body.innerHTML;
+}
 
 /**
  * Render the email body safely. Prefers sanitized HTML, falls back to plain text.
@@ -14,36 +57,49 @@ export function EmailBody({ htmlBody, textBody, riskBucket }) {
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const blockImages = RISKY.has(riskBucket) && !imagesLoaded;
 
-  const { html, blockedImages } = useMemo(
-    () => sanitizeEmailHtml(htmlBody, { blockImages }),
-    [htmlBody, blockImages]
-  );
+  const { html, blockedImages } = useMemo(() => {
+    const result = sanitizeEmailHtml(htmlBody, { blockImages });
+    return { ...result, html: neutralizeLinks(result.html) };
+  }, [htmlBody, blockImages]);
 
   if (html) {
     return (
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         {blockImages && blockedImages > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <ImageOff className="h-3.5 w-3.5 shrink-0" />
-              {blockedImages} remote image{blockedImages > 1 ? 's' : ''} blocked for your safety
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <ImageOff className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              {blockedImages} remote image{blockedImages > 1 ? 's' : ''} blocked — they can tell
+              the sender you opened this.
             </span>
             <button
+              type="button"
               onClick={() => setImagesLoaded(true)}
-              className="font-medium text-link transition-colors hover:text-link/80"
+              className="font-medium text-link underline-offset-2 transition-colors hover:underline"
             >
-              Load images
+              Show images
             </button>
-          </div>
+          </p>
         )}
-        <div className="email-body" dangerouslySetInnerHTML={{ __html: html }} />
+        {/*
+          Links are already href-less; the click guard is belt-and-braces. The
+          dotted underline + default cursor say "this was a link, and it is
+          switched off" without hiding the text.
+        */}
+        <div
+          onClickCapture={(event) => {
+            if (event.target?.closest?.('a, area')) event.preventDefault();
+          }}
+          className="email-body min-w-0 overflow-hidden [&_a]:cursor-default [&_a]:decoration-dotted [&_pre]:overflow-x-hidden [&_pre]:whitespace-pre-wrap [&_pre]:break-words"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
       </div>
     );
   }
 
   if (textBody) {
     return (
-      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground/90">
+      <pre className="min-w-0 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground/90">
         {textBody}
       </pre>
     );

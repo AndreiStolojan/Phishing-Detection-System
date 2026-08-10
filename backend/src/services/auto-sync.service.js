@@ -19,6 +19,10 @@ import Scan from '../models/scan.model.js';
 import Email from '../models/email.model.js';
 import { syncGmailEmailsForUser } from './mail-account.service.js';
 import { sendPhishingAlertEmail } from '../../extras/notifications/send-email.js';
+import {
+    GMAIL_POLL_INTERVAL_WITH_PUSH,
+    isGmailPushConfigured,
+} from '../config/env.js';
 
 // Pentru o listă de id-uri de emailuri (de obicei emailuri NOU inserate la
 // acest sync), găsește care dintre ele au scor "likely_phishing" și aduce
@@ -82,6 +86,42 @@ const sendAlertIfEnabled = async ({ user, phishingEmails }) => {
     }
 };
 
+export const syncActiveGmailAccount = async ({ mailAccount }) => {
+    const syncResult = await syncGmailEmailsForUser({
+        userId: mailAccount.userId,
+        mailAccountId: mailAccount._id,
+    });
+    const newEmails = syncResult.insertedCount || 0;
+    let phishingAlerts = 0;
+
+    if (newEmails > 0 && syncResult.insertedEmailIds?.length > 0) {
+        const user = await User.findById(mailAccount.userId).select('email name settings').lean();
+        if (user?.settings?.alertsEnabled) {
+            const phishingEmails = await findPhishingEmailsFromIds({
+                userId: mailAccount.userId,
+                emailIds: syncResult.insertedEmailIds,
+            });
+            phishingAlerts = phishingEmails.length;
+            await sendAlertIfEnabled({ user, phishingEmails });
+        }
+    }
+
+    return { syncResult, newEmails, phishingAlerts };
+};
+
+export const shouldPollAccount = (mailAccount, now = Date.now(), {
+    pushConfigured = isGmailPushConfigured(),
+    intervalMinutes: configuredInterval = GMAIL_POLL_INTERVAL_WITH_PUSH,
+} = {}) => {
+    if (!pushConfigured || mailAccount.watchStatus !== 'active') return true;
+    if (!mailAccount.watchExpiration || new Date(mailAccount.watchExpiration).getTime() <= now) return true;
+    if (!mailAccount.lastSyncedAt) return true;
+
+    const parsed = Number.parseInt(configuredInterval, 10);
+    const intervalMinutes = Number.isInteger(parsed) && parsed > 0 ? parsed : 60;
+    return now - new Date(mailAccount.lastSyncedAt).getTime() >= intervalMinutes * 60_000;
+};
+
 // Funcția principală, apelată de cron (scheduler.service.js) la fiecare
 // SYNC_INTERVAL_MINUTES minute. Sincronizează pe rând TOATE conturile Gmail
 // active, scanează emailurile noi și trimite alerte de phishing dacă e cazul.
@@ -89,10 +129,11 @@ const sendAlertIfEnabled = async ({ user, phishingEmails }) => {
 // sincronizarea pentru restul userilor.
 export const runAutoSyncForAllUsers = async () => {
     // Toate conturile Gmail conectate și active (userul nu le-a deconectat).
-    const activeMailAccounts = await MailAccount.find({
+    const allActiveMailAccounts = await MailAccount.find({
         provider: 'gmail',
         status: 'active',
     }).lean();
+    const activeMailAccounts = allActiveMailAccounts.filter((account) => shouldPollAccount(account));
 
     if (activeMailAccounts.length === 0) {
         console.log('[auto-sync] No active Gmail accounts found, skipping run');
@@ -108,32 +149,9 @@ export const runAutoSyncForAllUsers = async () => {
 
     for (const mailAccount of activeMailAccounts) {
         try {
-            // Sincronizare + scanare automată pentru acest cont (vezi §5.2).
-            const syncResult = await syncGmailEmailsForUser({
-                userId: mailAccount.userId,
-                mailAccountId: mailAccount._id,
-            });
-
-            const newEmails = syncResult.insertedCount || 0;
+            const { syncResult, newEmails, phishingAlerts } = await syncActiveGmailAccount({ mailAccount });
             totalNewEmails += newEmails;
-
-            // Dacă au apărut emailuri noi, verificăm dacă userul vrea alerte
-            // și dacă printre cele noi există vreun "likely_phishing".
-            if (newEmails > 0 && syncResult.insertedEmailIds?.length > 0) {
-                const user = await User.findById(mailAccount.userId).select('email name settings').lean();
-
-                if (user?.settings?.alertsEnabled) {
-                    const phishingEmails = await findPhishingEmailsFromIds({
-                        userId: mailAccount.userId,
-                        emailIds: syncResult.insertedEmailIds,
-                    });
-
-                    if (phishingEmails.length > 0) {
-                        totalPhishingAlerts += phishingEmails.length;
-                        await sendAlertIfEnabled({ user, phishingEmails });
-                    }
-                }
-            }
+            totalPhishingAlerts += phishingAlerts;
 
             console.log('[auto-sync] Account synced', {
                 userId: String(mailAccount.userId),

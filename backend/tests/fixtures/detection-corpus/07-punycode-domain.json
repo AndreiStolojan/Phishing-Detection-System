@@ -1,0 +1,12 @@
+{
+  "id": "punycode-domain",
+  "email": {
+    "senderDomain": "example.test",
+    "suspiciousLinkPatterns": [
+      "punycode_domain"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}
