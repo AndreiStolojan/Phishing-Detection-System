@@ -40,6 +40,8 @@ import { getSenderLists } from '@/api/senderListsApi';
 import { markEmailSafe, markEmailPhishing } from '@/api/actionsApi';
 import { emailId, getSenderName, getSenderAddress } from '@/lib/email';
 import { getRiskMeta, getRuleLabel } from '@/lib/risk';
+import { getSenderAuthentication } from '@/lib/senderAuth';
+import { SenderAuthentication } from '@/components/security/SenderAuthentication';
 import { findListEntries } from '@/lib/senderLists';
 import { getRiskTextColor, isScored, UNSCORED_COLOR } from '@/lib/scoreScale';
 import { getAiStatus, AI_SCORE_MAX, RULE_SCORE_MAX, SCORE_MAX } from '@/lib/scoring';
@@ -86,6 +88,40 @@ const formatAttachmentSize = (bytes) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const RESCAN_TIMEOUT_STATUSES = new Set([502, 503, 504, 524]);
+const RESCAN_POLL_INTERVAL_MS = 5_000;
+const RESCAN_POLL_ATTEMPTS = 72;
+
+const scanTimestamp = (value) => {
+  const parsed = Date.parse(value?.updatedAt || value?.scannedAt || value?.createdAt || '');
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const waitForTimedOutRescan = async ({ emailId: targetEmailId, previousScan, requestedAt }) => {
+  const previousTimestamp = scanTimestamp(previousScan);
+
+  for (let attempt = 0; attempt < RESCAN_POLL_ATTEMPTS; attempt += 1) {
+    await wait(RESCAN_POLL_INTERVAL_MS);
+
+    try {
+      const candidate = await getLatestScan(targetEmailId);
+      const candidateTimestamp = scanTimestamp(candidate);
+      const completedAfterRequest = candidateTimestamp !== null && candidateTimestamp >= requestedAt;
+      const changedFromPrevious =
+        previousTimestamp !== null && candidateTimestamp !== null && candidateTimestamp > previousTimestamp;
+
+      if (completedAfterRequest || changedFromPrevious) return candidate;
+    } catch {
+      // A transient read failure should not launch another scan. Keep polling
+      // the idempotently upserted current result until the bounded deadline.
+    }
+  }
+
+  return null;
 };
 
 /* ─── Empty right pane — a deliberate state, not an accident ─────────────── */
@@ -168,6 +204,7 @@ export function MessagePane({ id, onReviewed }) {
   const handleRescan = async () => {
     setScanning(true);
     setScanError(null);
+    const requestedAt = Date.now();
     try {
       const freshScan = await scanEmail(emailId(email));
       const freshEmail = await getEmail(id);
@@ -177,6 +214,24 @@ export function MessagePane({ id, onReviewed }) {
       onReviewed?.(freshEmail);
       toast.success('Scan complete');
     } catch (err) {
+      if (RESCAN_TIMEOUT_STATUSES.has(err.statusCode)) {
+        const completedScan = await waitForTimedOutRescan({
+          emailId: emailId(email),
+          previousScan: scan,
+          requestedAt,
+        });
+
+        if (completedScan) {
+          const freshEmail = await getEmail(id);
+          setScan(completedScan);
+          setEmail((prev) => ({ ...prev, ...freshEmail }));
+          bustCacheByPrefix('inbox-', 'dash-', 'risky-');
+          onReviewed?.(freshEmail);
+          toast.success('Scan complete');
+          return;
+        }
+      }
+
       // Leave the previous verdict exactly as it was and put the failure inline
       // next to the button — never a page-level alert that hides the message.
       setScanError(err.message || 'Scan failed. Your previous result is unchanged.');
@@ -224,6 +279,7 @@ export function MessagePane({ id, onReviewed }) {
     : [];
 
   const userVerdict = email.userVerdict ?? null;
+  const senderAuth = getSenderAuthentication(email.authResults);
 
   const { senderEntry, domainEntry } = findListEntries(
     senderLists.data?.entries,
@@ -404,6 +460,14 @@ export function MessagePane({ id, onReviewed }) {
           color={scoreColor}
         />
       </div>
+
+      {/* Sender authentication — SPF, DKIM and DMARC. The backend has computed
+          these since the email-authentication work; until now nothing rendered
+          them, so "did this really come from them?" had no answer in the UI. */}
+      <SectionHead note={senderAuth.available ? undefined : 'Unavailable'}>
+        Sender verification
+      </SectionHead>
+      <SenderAuthentication authResults={email.authResults} />
 
       {/* Triggered rules — the audit trail behind the rule score. */}
       <SectionHead note={rules.length > 0 ? `${rules.length}` : 'None'}>

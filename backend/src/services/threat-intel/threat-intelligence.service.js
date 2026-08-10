@@ -443,7 +443,15 @@ export const createThreatIntelligenceService = ({
                         status: result.status === 'ok' ? 'found' : 'not_found',
                         registeredAt: result.registeredAt,
                     },
-                    ttlMs: result.status === 'ok' ? DOMAIN_TTL_MS : CLEAN_TTL_MS,
+                    // The long 30-day TTL is for a registration date we actually
+                    // learned; it is a fact that does not change. An `ok` lookup
+                    // with no date — a registry that omitted the registration
+                    // event — carries no such fact, and caching that absence for
+                    // a month would pin a one-off registry quirk in place. Those
+                    // get the short TTL so the next scan retries.
+                    ttlMs: result.status === 'ok' && result.registeredAt
+                        ? DOMAIN_TTL_MS
+                        : CLEAN_TTL_MS,
                 }, deadline);
             } else if (result.reason !== 'scan_timeout') {
                 await safeCacheSet(cache, {
@@ -463,10 +471,18 @@ export const createThreatIntelligenceService = ({
             lookupRdap
         );
         let domainAgeDays = null;
+        // rdap.service.js distinguishes bootstrap_unavailable, registry_unavailable,
+        // timeout, request_failed and invalid_response, but every one of those was
+        // discarded here — so an operator had no way to see that RDAP was failing
+        // for, say, every .ro link, since roughly a quarter of live TLDs including
+        // .ro, .de and .io have no IANA RDAP endpoint at all. Kept as a bounded
+        // set of reason codes; no domain or URL is recorded.
+        const rdapReasons = new Set();
         for (const result of rdapResults) {
             const status = ['ok', 'not_found'].includes(result.status) ? 'ok' : 'unavailable';
             updateSourceStatus(sourceStatuses, 'rdap', status);
             if (status === 'ok') sourceCounts.rdap += 1;
+            if (status !== 'ok' && result.reason) rdapReasons.add(String(result.reason));
             if (!result.registeredAt) continue;
 
             const registeredAt = new Date(result.registeredAt);
@@ -590,6 +606,8 @@ export const createThreatIntelligenceService = ({
             maliciousSources: SOURCE_NAMES.filter((source) => maliciousSources.has(source)),
             phishingSources: SOURCE_NAMES.filter((source) => phishingSources.has(source)),
             domainAgeDays,
+            // Why the age is unknown, when it is. Empty when RDAP succeeded.
+            rdapReasons: [...rdapReasons].sort().slice(0, 5),
             linkTextHrefMismatchCount: selection.linkTextHrefMismatchCount,
             differentRegistrableRedirectTargetCount,
             excessiveRedirectChainCount,
