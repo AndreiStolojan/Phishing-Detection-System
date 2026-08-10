@@ -52,4 +52,23 @@ describe('apiClient', () => {
       statusCode: 400,
     });
   });
+
+  it.each([504, 524])(
+    'does not expose an HTML gateway error document to the UI for status %s',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status,
+          text: () => Promise.resolve('<!DOCTYPE html><title>Gateway time-out</title>'),
+        })
+      );
+
+      await expect(apiClient.post('/scans/emails/example')).rejects.toMatchObject({
+        message: 'The server is still processing this request. Please wait a moment and try again.',
+        statusCode: status,
+      });
+    }
+  );
 });

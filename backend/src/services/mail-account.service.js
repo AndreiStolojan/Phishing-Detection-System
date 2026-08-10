@@ -1074,7 +1074,7 @@ export const connectGoogleMailAccount = async ({ code, state, googleError }) => 
     return toPublicMailAccount(mailAccount);
 };
 
-const requestGmailSyncResource = async ({
+export const requestGmailSyncResource = async ({
     type,
     mailAccount,
     pageToken,
@@ -1221,7 +1221,7 @@ const setGmailInboxStates = async ({ mailAccount, presentIds, removedIds }) => {
     }
 };
 
-const updateGmailSyncAccount = async ({ mailAccount, lockOwner, patch }) => {
+export const updateGmailSyncAccount = async ({ mailAccount, lockOwner, patch }) => {
     const persistedPatch = Object.hasOwn(patch, 'lastSyncedAt')
         ? { ...patch, status: 'active' }
         : patch;
