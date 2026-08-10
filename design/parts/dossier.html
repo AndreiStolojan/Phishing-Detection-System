@@ -1,0 +1,1471 @@
+<style>
+@font-face {
+  font-family: 'InterVariable';
+  src: url('../../frontend/public/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.dir-dossier {
+  --dossier-bg: #09090b;
+  --dossier-fg: #fafafa;
+  --dossier-bone: #c9c5bf;
+  --dossier-rule: #1f1f21;
+  --dossier-border: #303236;
+  --dossier-amber: #d99a4e;
+  --dossier-red: #d2685f;
+  min-width: 0;
+  color: var(--dossier-fg);
+  background: var(--dossier-bg);
+  font-family: 'InterVariable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+.dir-dossier,
+.dir-dossier * {
+  box-sizing: border-box;
+}
+
+.dir-dossier [data-screen] {
+  min-height: 100vh;
+  padding: clamp(46px, 7vw, 92px) max(24px, calc((100% - 1240px) / 2)) clamp(90px, 11vw, 150px);
+  background: #09090b;
+}
+
+.dir-dossier [data-screen="inbox"] {
+  border-top: 1px solid var(--dossier-border);
+}
+
+.dir-dossier .screen-label,
+.dir-dossier .kicker {
+  margin: 0;
+  color: rgb(250 250 250 / 0.61);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.dir-dossier .screen-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+.dir-dossier .screen-label::after {
+  width: 72px;
+  height: 1px;
+  background: var(--dossier-border);
+  content: '';
+}
+
+.dir-dossier .page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--dossier-rule);
+}
+
+.dir-dossier .page-header h1 {
+  margin: 5px 0 0;
+  color: var(--dossier-fg);
+  font-size: clamp(1.55rem, 2.4vw, 2.15rem);
+  font-weight: 620;
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.dir-dossier .page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dir-dossier .range-label,
+.dir-dossier .sync-label {
+  color: rgb(250 250 250 / 0.54);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.dir-dossier .range-label {
+  margin-right: 16px;
+}
+
+.dir-dossier .control {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--dossier-border);
+  border-radius: 12px;
+  color: rgb(250 250 250 / 0.76);
+  background: transparent;
+  font: 590 0.7rem/1 'InterVariable', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  cursor: default;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+}
+
+.dir-dossier .control-primary {
+  border-color: #e9e8e6;
+  color: #09090b;
+  background: #e9e8e6;
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.25);
+}
+
+.dir-dossier .control:hover {
+  border-color: rgb(250 250 250 / 0.54);
+  color: var(--dossier-fg);
+}
+
+.dir-dossier .control-primary:hover {
+  border-color: #fafafa;
+  color: #09090b;
+  background: #fafafa;
+}
+
+.dir-dossier .dashboard-block {
+  padding: clamp(50px, 7vw, 90px) 0;
+  border-bottom: 1px solid var(--dossier-rule);
+}
+
+.dir-dossier .dashboard-block:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.dir-dossier .posture {
+  padding-top: clamp(64px, 8vw, 104px);
+}
+
+.dir-dossier .posture h2 {
+  max-width: 920px;
+  margin: 0;
+  color: var(--dossier-fg);
+  font-size: clamp(2.65rem, 6vw, 5.2rem);
+  font-weight: 620;
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+  text-wrap: balance;
+}
+
+.dir-dossier .stat-strip {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(3, 1fr);
+  margin: clamp(38px, 5vw, 62px) 0 0;
+  border-top: 1px solid var(--dossier-border);
+  border-bottom: 1px solid var(--dossier-border);
+}
+
+.dir-dossier .stat {
+  min-width: 0;
+  padding: 22px clamp(14px, 2.8vw, 34px) 19px;
+  border-left: 1px solid var(--dossier-rule);
+}
+
+.dir-dossier .stat:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.dir-dossier .stat-value {
+  display: block;
+  color: var(--dossier-fg);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: clamp(2rem, 4vw, 3.7rem);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.07em;
+}
+
+.dir-dossier .stat-label {
+  display: block;
+  margin-top: 13px;
+  color: rgb(250 250 250 / 0.54);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.61rem;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dir-dossier .stat-suspicious .stat-value {
+  color: var(--dossier-amber);
+}
+
+.dir-dossier .stat-likely .stat-value {
+  color: var(--dossier-red);
+  opacity: 0.72;
+}
+
+.dir-dossier .stat-confirmed .stat-value {
+  color: var(--dossier-red);
+}
+
+.dir-dossier .posture-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 30px;
+  margin-top: 21px;
+}
+
+.dir-dossier .posture-copy p {
+  margin: 0;
+  color: rgb(250 250 250 / 0.61);
+  font-size: 0.88rem;
+  font-weight: 430;
+  line-height: 1.55;
+}
+
+.dir-dossier .posture-copy .posture-meta {
+  max-width: 540px;
+  color: rgb(250 250 250 / 0.38);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.66rem;
+  line-height: 1.65;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
+.dir-dossier .block-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 28px;
+  margin-bottom: 30px;
+}
+
+.dir-dossier .block-heading h2 {
+  margin: 8px 0 0;
+  color: var(--dossier-fg);
+  font-size: clamp(1.55rem, 2.7vw, 2.35rem);
+  font-weight: 620;
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.dir-dossier .block-note {
+  max-width: 360px;
+  margin: 0;
+  color: rgb(250 250 250 / 0.38);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.66rem;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
+.dir-dossier .queue {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--dossier-border);
+  list-style: none;
+}
+
+.dir-dossier .queue-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.85fr) minmax(300px, 1.55fr) minmax(110px, 0.44fr);
+  min-height: 72px;
+  align-items: center;
+  gap: 28px;
+  padding: 11px 0 11px 16px;
+  border-bottom: 1px solid var(--dossier-rule);
+}
+
+.dir-dossier .queue-row::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--dossier-red);
+  opacity: 0.72;
+  content: '';
+}
+
+.dir-dossier .queue-person {
+  min-width: 0;
+}
+
+.dir-dossier .queue-name,
+.dir-dossier .queue-subject {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-dossier .queue-name {
+  color: rgb(250 250 250 / 0.9);
+  font-size: 0.84rem;
+  font-weight: 590;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.dir-dossier .queue-address,
+.dir-dossier .queue-signals,
+.dir-dossier .queue-score,
+.dir-dossier .queue-when {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.dir-dossier .queue-address {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.66rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-dossier .queue-subject {
+  color: rgb(250 250 250 / 0.76);
+  font-size: 0.82rem;
+  font-weight: 460;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+}
+
+.dir-dossier .queue-signals {
+  display: block;
+  overflow: hidden;
+  margin-top: 5px;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.62rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-dossier .queue-risk {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.dir-dossier .queue-score {
+  color: var(--dossier-red);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1;
+  opacity: 0.78;
+  text-align: right;
+}
+
+.dir-dossier .queue-when {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.64rem;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dir-dossier .chart-wrap {
+  margin-top: 4px;
+}
+
+.dir-dossier .trend-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.dir-dossier .chart-guide {
+  stroke: rgb(250 250 250 / 0.09);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.dir-dossier .chart-baseline {
+  stroke: rgb(250 250 250 / 0.19);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.dir-dossier .chart-label {
+  fill: rgb(250 250 250 / 0.38);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.dir-dossier .chart-series {
+  fill: none;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.dir-dossier .chart-suspicious {
+  stroke: var(--dossier-amber);
+}
+
+.dir-dossier .chart-likely {
+  stroke: var(--dossier-red);
+  opacity: 0.64;
+}
+
+.dir-dossier .chart-confirmed {
+  stroke: var(--dossier-red);
+  opacity: 1;
+}
+
+.dir-dossier .chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 28px;
+  margin: 16px 0 0 48px;
+  color: rgb(250 250 250 / 0.54);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
+.dir-dossier .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dir-dossier .legend-line {
+  display: inline-block;
+  width: 22px;
+  height: 1px;
+  background: currentColor;
+}
+
+.dir-dossier .legend-suspicious {
+  color: var(--dossier-amber);
+}
+
+.dir-dossier .legend-likely {
+  color: var(--dossier-red);
+  opacity: 0.64;
+}
+
+.dir-dossier .legend-confirmed {
+  color: var(--dossier-red);
+}
+
+.dir-dossier .domain-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--dossier-border);
+  list-style: none;
+}
+
+.dir-dossier .domain-row {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) minmax(145px, auto) 52px;
+  gap: 22px;
+  align-items: center;
+  padding: 21px 0 20px;
+  border-bottom: 1px solid var(--dossier-rule);
+}
+
+.dir-dossier .domain-rank,
+.dir-dossier .domain-name,
+.dir-dossier .domain-breakdown,
+.dir-dossier .domain-total {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.dir-dossier .domain-rank {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.66rem;
+}
+
+.dir-dossier .domain-name {
+  overflow: hidden;
+  color: rgb(250 250 250 / 0.82);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-dossier .domain-breakdown {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.61rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dir-dossier .domain-total {
+  color: rgb(250 250 250 / 0.76);
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-align: right;
+}
+
+.dir-dossier .domain-bar-track {
+  grid-column: 2 / 5;
+  height: 2px;
+  background: rgb(250 250 250 / 0.07);
+}
+
+.dir-dossier .domain-bar {
+  display: flex;
+  height: 2px;
+}
+
+.dir-dossier .domain-total-12 {
+  width: 100%;
+}
+
+.dir-dossier .domain-total-7 {
+  width: 58.333%;
+}
+
+.dir-dossier .domain-total-5 {
+  width: 41.667%;
+}
+
+.dir-dossier .domain-segment-suspicious {
+  background: var(--dossier-amber);
+}
+
+.dir-dossier .domain-segment-likely {
+  background: var(--dossier-red);
+  opacity: 0.62;
+}
+
+.dir-dossier .domain-segment-confirmed {
+  background: var(--dossier-red);
+}
+
+.dir-dossier .domain-parts-6-4-2 .domain-segment-suspicious {
+  flex: 6;
+}
+
+.dir-dossier .domain-parts-6-4-2 .domain-segment-likely {
+  flex: 4;
+}
+
+.dir-dossier .domain-parts-6-4-2 .domain-segment-confirmed {
+  flex: 2;
+}
+
+.dir-dossier .domain-parts-3-3-1 .domain-segment-suspicious {
+  flex: 3;
+}
+
+.dir-dossier .domain-parts-3-3-1 .domain-segment-likely {
+  flex: 3;
+}
+
+.dir-dossier .domain-parts-3-3-1 .domain-segment-confirmed {
+  flex: 1;
+}
+
+.dir-dossier .domain-parts-4-2-1 .domain-segment-suspicious {
+  flex: 4;
+}
+
+.dir-dossier .domain-parts-4-2-1 .domain-segment-likely {
+  flex: 2;
+}
+
+.dir-dossier .domain-parts-4-2-1 .domain-segment-confirmed {
+  flex: 1;
+}
+
+.dir-dossier .domain-parts-4-1-0 .domain-segment-suspicious {
+  flex: 4;
+}
+
+.dir-dossier .domain-parts-4-1-0 .domain-segment-likely {
+  flex: 1;
+}
+
+.dir-dossier .domain-parts-3-1-1 .domain-segment-suspicious {
+  flex: 3;
+}
+
+.dir-dossier .domain-parts-3-1-1 .domain-segment-likely,
+.dir-dossier .domain-parts-3-1-1 .domain-segment-confirmed {
+  flex: 1;
+}
+
+.dir-dossier .inbox-header {
+  margin-bottom: 38px;
+}
+
+.dir-dossier .inbox-tools {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  align-items: end;
+  gap: 34px;
+  margin-top: 38px;
+}
+
+.dir-dossier .search-wrap {
+  position: relative;
+}
+
+.dir-dossier .search-wrap svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  color: rgb(250 250 250 / 0.38);
+  transform: translateY(-50%);
+}
+
+.dir-dossier .search {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px 0 40px;
+  border: 1px solid var(--dossier-border);
+  border-radius: 12px;
+  outline: 0;
+  color: var(--dossier-fg);
+  background: transparent;
+  font: 430 0.78rem/1 'InterVariable', ui-sans-serif, system-ui, sans-serif;
+  transition: border-color 180ms ease;
+}
+
+.dir-dossier .search::placeholder {
+  color: rgb(250 250 250 / 0.38);
+}
+
+.dir-dossier .search:focus {
+  border-color: rgb(250 250 250 / 0.61);
+}
+
+.dir-dossier .inbox-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 12px;
+}
+
+.dir-dossier .filters {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(17px, 2.5vw, 34px);
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--dossier-border);
+  list-style: none;
+}
+
+.dir-dossier .filter {
+  position: relative;
+  padding: 0 0 13px;
+  color: rgb(250 250 250 / 0.38);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.64rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.dir-dossier .filter-active {
+  color: rgb(250 250 250 / 0.86);
+}
+
+.dir-dossier .filter-active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--dossier-red);
+  content: '';
+}
+
+.dir-dossier .mail-groups {
+  margin-top: 28px;
+}
+
+.dir-dossier .mail-group {
+  margin: 0;
+}
+
+.dir-dossier .date-heading {
+  margin: 0;
+  padding: 10px 0 9px;
+  border-top: 1px solid var(--dossier-border);
+  border-bottom: 1px solid var(--dossier-rule);
+  color: rgb(250 250 250 / 0.54);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.6rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dir-dossier .mail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dir-dossier .mail-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(160px, 0.82fr) minmax(260px, 1.45fr) minmax(112px, 0.48fr) 48px 60px;
+  min-height: 53px;
+  align-items: center;
+  gap: 22px;
+  padding: 6px 0 6px 14px;
+  border-bottom: 1px solid var(--dossier-rule);
+  transition: background 180ms ease;
+}
+
+.dir-dossier .mail-row:hover {
+  background: rgb(250 250 250 / 0.022);
+}
+
+.dir-dossier .mail-row:not(.mail-safe)::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  content: '';
+}
+
+.dir-dossier .mail-likely::before {
+  background: var(--dossier-red);
+  opacity: 0.72;
+}
+
+.dir-dossier .mail-suspicious::before {
+  background: var(--dossier-amber);
+}
+
+.dir-dossier .mail-confirmed::before {
+  background: var(--dossier-red);
+}
+
+.dir-dossier .mail-sender,
+.dir-dossier .mail-subject {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-dossier .mail-sender {
+  color: rgb(250 250 250 / 0.88);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.dir-dossier .mail-address,
+.dir-dossier .mail-bucket,
+.dir-dossier .mail-score,
+.dir-dossier .mail-time {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.dir-dossier .mail-address {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.58rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-dossier .mail-subject {
+  color: rgb(250 250 250 / 0.61);
+  font-size: 0.75rem;
+  font-weight: 430;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.dir-dossier .mail-bucket {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.58rem;
+  font-weight: 650;
+  line-height: 1.15;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.dir-dossier .mail-score {
+  color: rgb(250 250 250 / 0.61);
+  font-size: 0.68rem;
+  font-weight: 650;
+  text-align: right;
+}
+
+.dir-dossier .mail-likely .mail-score {
+  color: var(--dossier-red);
+  opacity: 0.76;
+}
+
+.dir-dossier .mail-suspicious .mail-score {
+  color: var(--dossier-amber);
+}
+
+.dir-dossier .mail-confirmed .mail-score {
+  color: var(--dossier-red);
+}
+
+.dir-dossier .mail-time {
+  color: rgb(250 250 250 / 0.38);
+  font-size: 0.62rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dir-dossier .pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 34px;
+  padding-top: 18px;
+  border-top: 1px solid var(--dossier-border);
+}
+
+.dir-dossier .pagination-label {
+  color: rgb(250 250 250 / 0.38);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+}
+
+.dir-dossier .pagination-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dir-dossier .page-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--dossier-border);
+  border-radius: 12px;
+  color: rgb(250 250 250 / 0.61);
+  background: transparent;
+  font: 500 0.8rem/1 ui-monospace, 'SF Mono', Menlo, monospace;
+  transition: border-color 180ms ease, color 180ms ease;
+}
+
+.dir-dossier .page-button:hover {
+  border-color: rgb(250 250 250 / 0.54);
+  color: var(--dossier-fg);
+}
+
+.dir-dossier .page-button:disabled {
+  color: rgb(250 250 250 / 0.2);
+}
+
+@media (max-width: 780px) {
+  .dir-dossier [data-screen] {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .dir-dossier .page-header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .dir-dossier .page-actions {
+    flex-wrap: wrap;
+  }
+
+  .dir-dossier .stat-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dir-dossier .stat {
+    border-bottom: 1px solid var(--dossier-rule);
+  }
+
+  .dir-dossier .stat:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+    border-bottom: 0;
+  }
+
+  .dir-dossier .stat:nth-child(4) {
+    border-bottom: 0;
+  }
+
+  .dir-dossier .posture-copy,
+  .dir-dossier .block-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .dir-dossier .posture-copy .posture-meta,
+  .dir-dossier .block-note {
+    text-align: left;
+  }
+
+  .dir-dossier .queue-row {
+    grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.3fr) 100px;
+    gap: 18px;
+  }
+
+  .dir-dossier .domain-row {
+    grid-template-columns: 34px minmax(0, 1fr) 42px;
+    gap: 14px;
+  }
+
+  .dir-dossier .domain-breakdown {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    text-align: left;
+  }
+
+  .dir-dossier .domain-bar-track {
+    grid-column: 2 / 4;
+    grid-row: 3;
+  }
+
+  .dir-dossier .inbox-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .dir-dossier .inbox-meta {
+    justify-content: space-between;
+    padding-bottom: 0;
+  }
+
+  .dir-dossier .filters {
+    overflow-x: auto;
+    padding-top: 2px;
+  }
+
+  .dir-dossier .mail-row {
+    grid-template-columns: minmax(130px, 0.8fr) minmax(210px, 1.25fr) 108px 38px 52px;
+    gap: 13px;
+  }
+
+  .dir-dossier .mail-groups {
+    overflow-x: auto;
+  }
+
+  .dir-dossier .mail-group {
+    min-width: 700px;
+  }
+}
+
+@media (max-width: 420px) {
+  .dir-dossier [data-screen] {
+    padding-top: 36px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .dir-dossier .screen-label {
+    margin-bottom: 24px;
+  }
+
+  .dir-dossier .page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+  }
+
+  .dir-dossier .range-label {
+    grid-column: 1 / -1;
+    margin: 0 0 3px;
+  }
+
+  .dir-dossier .control {
+    width: 100%;
+  }
+
+  .dir-dossier .posture h2 {
+    font-size: clamp(2.5rem, 13vw, 3.3rem);
+  }
+
+  .dir-dossier .stat {
+    padding: 18px 12px 16px;
+  }
+
+  .dir-dossier .stat-value {
+    font-size: 2.1rem;
+  }
+
+  .dir-dossier .stat-label {
+    font-size: 0.54rem;
+  }
+
+  .dir-dossier .queue-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 14px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+
+  .dir-dossier .queue-message {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .dir-dossier .queue-risk {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .dir-dossier .chart-legend {
+    margin-left: 0;
+  }
+
+  .dir-dossier .domain-row {
+    padding-top: 18px;
+    padding-bottom: 17px;
+  }
+
+  .dir-dossier .domain-name {
+    font-size: 0.72rem;
+  }
+
+  .dir-dossier .inbox-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .dir-dossier .mail-groups {
+    margin-right: -16px;
+    margin-left: -16px;
+    padding-left: 16px;
+  }
+
+  .dir-dossier .pagination {
+    margin-top: 28px;
+  }
+}
+</style>
+
+<div class="dir-dossier">
+  <section data-screen="dashboard">
+    <p class="screen-label">Dashboard</p>
+
+    <header class="page-header">
+      <div>
+        <p class="kicker">SecureInbox / Intelligence desk</p>
+        <h1>Security briefing</h1>
+      </div>
+      <div class="page-actions">
+        <span class="range-label">Last 30 days</span>
+        <button class="control" type="button">Refresh</button>
+        <button class="control control-primary" type="button">Send report</button>
+      </div>
+    </header>
+
+    <article class="dashboard-block posture">
+      <h2>11 messages need your review.</h2>
+      <div class="stat-strip" aria-label="Last 30 days summary">
+        <div class="stat">
+          <span class="stat-value">342</span>
+          <span class="stat-label">Messages</span>
+        </div>
+        <div class="stat stat-likely">
+          <span class="stat-value">11</span>
+          <span class="stat-label">Likely phishing</span>
+        </div>
+        <div class="stat stat-suspicious">
+          <span class="stat-value">24</span>
+          <span class="stat-label">Suspicious</span>
+        </div>
+        <div class="stat stat-confirmed">
+          <span class="stat-value">5</span>
+          <span class="stat-label">Confirmed phishing</span>
+        </div>
+      </div>
+      <div class="posture-copy">
+        <p>These look like phishing attempts. Review them before opening.</p>
+        <p class="posture-meta">289 safe · 9 reviewed safe · 338 scanned · 4 unscanned · 88% safe rate · last synced Today at 14:02</p>
+      </div>
+    </article>
+
+    <article class="dashboard-block">
+      <div class="block-heading">
+        <div>
+          <p class="kicker">01 / Priority file</p>
+          <h2>Review queue</h2>
+        </div>
+        <p class="block-note">Ordered by engine score / 100<br>Five highest-risk messages shown</p>
+      </div>
+      <ol class="queue">
+        <li class="queue-row">
+          <div class="queue-person">
+            <p class="queue-name">PayPal Service</p>
+            <span class="queue-address">security@paypa1-alerts.com</span>
+          </div>
+          <div class="queue-message">
+            <p class="queue-subject">Your account access has been limited</p>
+            <span class="queue-signals">Lookalike domain, Asks for personal info, Urgency language</span>
+          </div>
+          <div class="queue-risk">
+            <span class="queue-score">87 / 100</span>
+            <time class="queue-when">2h ago</time>
+          </div>
+        </li>
+        <li class="queue-row">
+          <div class="queue-person">
+            <p class="queue-name">Microsoft Account</p>
+            <span class="queue-address">no-reply@microsoft-verify.net</span>
+          </div>
+          <div class="queue-message">
+            <p class="queue-subject">Unusual sign-in attempt blocked</p>
+            <span class="queue-signals">Brand impersonation, Pressures to act</span>
+          </div>
+          <div class="queue-risk">
+            <span class="queue-score">78 / 100</span>
+            <time class="queue-when">5h ago</time>
+          </div>
+        </li>
+        <li class="queue-row">
+          <div class="queue-person">
+            <p class="queue-name">DHL Billing</p>
+            <span class="queue-address">billing@dhl-express-tracking.com</span>
+          </div>
+          <div class="queue-message">
+            <p class="queue-subject">Invoice INV-88213 is overdue — action required</p>
+            <span class="queue-signals">Dangerous attachment, Reply address differs</span>
+          </div>
+          <div class="queue-risk">
+            <span class="queue-score">72 / 100</span>
+            <time class="queue-when">Yesterday</time>
+          </div>
+        </li>
+        <li class="queue-row">
+          <div class="queue-person">
+            <p class="queue-name">DHL Express</p>
+            <span class="queue-address">support@dhl-express-tracking.com</span>
+          </div>
+          <div class="queue-message">
+            <p class="queue-subject">Your package could not be delivered</p>
+            <span class="queue-signals">Shortened link, Urgency language</span>
+          </div>
+          <div class="queue-risk">
+            <span class="queue-score">69 / 100</span>
+            <time class="queue-when">Yesterday</time>
+          </div>
+        </li>
+        <li class="queue-row">
+          <div class="queue-person">
+            <p class="queue-name">HR Benefits</p>
+            <span class="queue-address">hr@corp-benefits-portal.com</span>
+          </div>
+          <div class="queue-message">
+            <p class="queue-subject">Updated payroll details required</p>
+            <span class="queue-signals">Asks for personal info, Reply address differs</span>
+          </div>
+          <div class="queue-risk">
+            <span class="queue-score">64 / 100</span>
+            <time class="queue-when">2 days ago</time>
+          </div>
+        </li>
+      </ol>
+    </article>
+
+    <article class="dashboard-block">
+      <div class="block-heading">
+        <div>
+          <p class="kicker">02 / Thirty-day record</p>
+          <h2>Threat trend</h2>
+        </div>
+        <p class="block-note">Daily detections by final bucket<br>Jun 30 — today</p>
+      </div>
+      <div class="chart-wrap">
+        <svg class="trend-chart" viewBox="0 0 1024 230" role="img" aria-label="Thirty day trend for suspicious, likely phishing, and confirmed phishing messages">
+          <line class="chart-guide" x1="48" y1="28" x2="976" y2="28"></line>
+          <line class="chart-guide" x1="48" y1="95.2" x2="976" y2="95.2"></line>
+          <line class="chart-guide" x1="48" y1="162.4" x2="976" y2="162.4"></line>
+          <line class="chart-baseline" x1="48" y1="196" x2="976" y2="196"></line>
+          <text class="chart-label" x="28" y="31">5</text>
+          <text class="chart-label" x="28" y="98.2">3</text>
+          <text class="chart-label" x="28" y="199">0</text>
+          <text class="chart-label" x="48" y="220">Jun 30</text>
+          <text class="chart-label" x="208" y="220">Jul 5</text>
+          <text class="chart-label" x="368" y="220">Jul 10</text>
+          <text class="chart-label" x="528" y="220">Jul 15</text>
+          <text class="chart-label" x="688" y="220">Jul 20</text>
+          <text class="chart-label" x="848" y="220">Jul 25</text>
+          <polyline class="chart-series chart-suspicious" points="48,196.0 80,162.4 112,196.0 144,128.8 176,162.4 208,162.4 240,95.2 272,128.8 304,196.0 336,162.4 368,128.8 400,61.6 432,95.2 464,162.4 496,128.8 528,196.0 560,162.4 592,95.2 624,128.8 656,28.0 688,61.6 720,128.8 752,162.4 784,95.2 816,128.8 848,61.6 880,95.2 912,162.4 944,128.8 976,162.4"></polyline>
+          <polyline class="chart-series chart-likely" points="48,196.0 80,196.0 112,162.4 144,196.0 176,162.4 208,196.0 240,162.4 272,128.8 304,162.4 336,196.0 368,196.0 400,162.4 432,128.8 464,162.4 496,196.0 528,162.4 560,196.0 592,128.8 624,95.2 656,128.8 688,162.4 720,196.0 752,162.4 784,128.8 816,162.4 848,95.2 880,128.8 912,162.4 944,162.4 976,128.8"></polyline>
+          <polyline class="chart-series chart-confirmed" points="48,196.0 80,196.0 112,196.0 144,196.0 176,196.0 208,162.4 240,196.0 272,196.0 304,196.0 336,196.0 368,162.4 400,196.0 432,196.0 464,196.0 496,196.0 528,196.0 560,162.4 592,196.0 624,196.0 656,162.4 688,196.0 720,196.0 752,196.0 784,196.0 816,162.4 848,196.0 880,196.0 912,196.0 944,196.0 976,162.4"></polyline>
+        </svg>
+        <p class="chart-legend" aria-label="Chart legend">
+          <span class="legend-item legend-suspicious"><span class="legend-line"></span>suspicious</span>
+          <span class="legend-item legend-likely"><span class="legend-line"></span>likely phishing</span>
+          <span class="legend-item legend-confirmed"><span class="legend-line"></span>confirmed phishing</span>
+        </p>
+      </div>
+    </article>
+
+    <article class="dashboard-block">
+      <div class="block-heading">
+        <div>
+          <p class="kicker">03 / Origin index</p>
+          <h2>Attacking domains</h2>
+        </div>
+        <p class="block-note">S suspicious · L likely · C confirmed<br>Bars scaled to 12 detections</p>
+      </div>
+      <ol class="domain-list">
+        <li class="domain-row">
+          <span class="domain-rank">01</span>
+          <span class="domain-name">dhl-express-tracking.com</span>
+          <span class="domain-breakdown">S 06 · L 04 · C 02</span>
+          <span class="domain-total">12</span>
+          <div class="domain-bar-track">
+            <div class="domain-bar domain-total-12 domain-parts-6-4-2">
+              <span class="domain-segment-suspicious"></span>
+              <span class="domain-segment-likely"></span>
+              <span class="domain-segment-confirmed"></span>
+            </div>
+          </div>
+        </li>
+        <li class="domain-row">
+          <span class="domain-rank">02</span>
+          <span class="domain-name">paypa1-alerts.com</span>
+          <span class="domain-breakdown">S 03 · L 03 · C 01</span>
+          <span class="domain-total">7</span>
+          <div class="domain-bar-track">
+            <div class="domain-bar domain-total-7 domain-parts-3-3-1">
+              <span class="domain-segment-suspicious"></span>
+              <span class="domain-segment-likely"></span>
+              <span class="domain-segment-confirmed"></span>
+            </div>
+          </div>
+        </li>
+        <li class="domain-row">
+          <span class="domain-rank">03</span>
+          <span class="domain-name">microsoft-verify.net</span>
+          <span class="domain-breakdown">S 04 · L 02 · C 01</span>
+          <span class="domain-total">7</span>
+          <div class="domain-bar-track">
+            <div class="domain-bar domain-total-7 domain-parts-4-2-1">
+              <span class="domain-segment-suspicious"></span>
+              <span class="domain-segment-likely"></span>
+              <span class="domain-segment-confirmed"></span>
+            </div>
+          </div>
+        </li>
+        <li class="domain-row">
+          <span class="domain-rank">04</span>
+          <span class="domain-name">corp-benefits-portal.com</span>
+          <span class="domain-breakdown">S 04 · L 01 · C 00</span>
+          <span class="domain-total">5</span>
+          <div class="domain-bar-track">
+            <div class="domain-bar domain-total-5 domain-parts-4-1-0">
+              <span class="domain-segment-suspicious"></span>
+              <span class="domain-segment-likely"></span>
+            </div>
+          </div>
+        </li>
+        <li class="domain-row">
+          <span class="domain-rank">05</span>
+          <span class="domain-name">secure-docs-share.io</span>
+          <span class="domain-breakdown">S 03 · L 01 · C 01</span>
+          <span class="domain-total">5</span>
+          <div class="domain-bar-track">
+            <div class="domain-bar domain-total-5 domain-parts-3-1-1">
+              <span class="domain-segment-suspicious"></span>
+              <span class="domain-segment-likely"></span>
+              <span class="domain-segment-confirmed"></span>
+            </div>
+          </div>
+        </li>
+      </ol>
+    </article>
+  </section>
+
+  <section data-screen="inbox">
+    <p class="screen-label">Inbox</p>
+
+    <header class="page-header inbox-header">
+      <div>
+        <p class="kicker">SecureInbox / Message ledger</p>
+        <h1>Scanned mail</h1>
+      </div>
+      <div class="inbox-meta">
+        <span class="range-label">342 messages</span>
+        <span class="sync-label">Last synced Today at 14:02</span>
+      </div>
+    </header>
+
+    <div class="inbox-tools">
+      <label class="search-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="1.5">
+          <circle cx="11" cy="11" r="6.5"></circle>
+          <path d="m16 16 4 4"></path>
+        </svg>
+        <input class="search" type="search" placeholder="Search sender, subject…" aria-label="Search sender or subject">
+      </label>
+    </div>
+
+    <ul class="filters" aria-label="Inbox filters">
+      <li class="filter">All 342</li>
+      <li class="filter filter-active">Likely phishing 11</li>
+      <li class="filter">Suspicious 24</li>
+      <li class="filter">Confirmed phishing 5</li>
+      <li class="filter">Safe 289</li>
+    </ul>
+
+    <div class="mail-groups">
+      <section class="mail-group" aria-labelledby="dossier-today">
+        <h2 class="date-heading" id="dossier-today">Today</h2>
+        <ul class="mail-list">
+          <li class="mail-row mail-likely">
+            <div>
+              <p class="mail-sender">PayPal Service</p>
+              <span class="mail-address">security@paypa1-alerts.com</span>
+            </div>
+            <p class="mail-subject">Your account access has been limited</p>
+            <span class="mail-bucket">Likely phishing</span>
+            <span class="mail-score">87</span>
+            <time class="mail-time">14:02</time>
+          </li>
+          <li class="mail-row mail-likely">
+            <div>
+              <p class="mail-sender">Microsoft Account</p>
+              <span class="mail-address">no-reply@microsoft-verify.net</span>
+            </div>
+            <p class="mail-subject">Unusual sign-in attempt blocked</p>
+            <span class="mail-bucket">Likely phishing</span>
+            <span class="mail-score">78</span>
+            <time class="mail-time">11:31</time>
+          </li>
+          <li class="mail-row mail-safe">
+            <div>
+              <p class="mail-sender">Notion</p>
+              <span class="mail-address">team@notion.so</span>
+            </div>
+            <p class="mail-subject">Your weekly digest is ready</p>
+            <span class="mail-bucket">Safe</span>
+            <span class="mail-score">4</span>
+            <time class="mail-time">09:15</time>
+          </li>
+        </ul>
+      </section>
+
+      <section class="mail-group" aria-labelledby="dossier-yesterday">
+        <h2 class="date-heading" id="dossier-yesterday">Yesterday</h2>
+        <ul class="mail-list">
+          <li class="mail-row mail-likely">
+            <div>
+              <p class="mail-sender">DHL Billing</p>
+              <span class="mail-address">billing@dhl-express-tracking.com</span>
+            </div>
+            <p class="mail-subject">Invoice INV-88213 is overdue — action required</p>
+            <span class="mail-bucket">Likely phishing</span>
+            <span class="mail-score">72</span>
+            <time class="mail-time">18:44</time>
+          </li>
+          <li class="mail-row mail-safe">
+            <div>
+              <p class="mail-sender">LinkedIn</p>
+              <span class="mail-address">messages@linkedin.com</span>
+            </div>
+            <p class="mail-subject">You appeared in 9 searches this week</p>
+            <span class="mail-bucket">Safe</span>
+            <span class="mail-score">7</span>
+            <time class="mail-time">12:08</time>
+          </li>
+          <li class="mail-row mail-suspicious">
+            <div>
+              <p class="mail-sender">Dropbox Share</p>
+              <span class="mail-address">no-reply@secure-docs-share.io</span>
+            </div>
+            <p class="mail-subject">A document was shared with you</p>
+            <span class="mail-bucket">Suspicious</span>
+            <span class="mail-score">41</span>
+            <time class="mail-time">08:52</time>
+          </li>
+        </ul>
+      </section>
+
+      <section class="mail-group" aria-labelledby="dossier-this-week">
+        <h2 class="date-heading" id="dossier-this-week">This week</h2>
+        <ul class="mail-list">
+          <li class="mail-row mail-confirmed">
+            <div>
+              <p class="mail-sender">HR Benefits</p>
+              <span class="mail-address">hr@corp-benefits-portal.com</span>
+            </div>
+            <p class="mail-subject">Updated payroll details required</p>
+            <span class="mail-bucket">Confirmed phishing</span>
+            <span class="mail-score">64</span>
+            <time class="mail-time">Jul 26</time>
+          </li>
+          <li class="mail-row mail-safe">
+            <div>
+              <p class="mail-sender">GitHub</p>
+              <span class="mail-address">noreply@github.com</span>
+            </div>
+            <p class="mail-subject">Security alert on repository secure-inbox</p>
+            <span class="mail-bucket">Safe</span>
+            <span class="mail-score">2</span>
+            <time class="mail-time">Jul 25</time>
+          </li>
+          <li class="mail-row mail-suspicious">
+            <div>
+              <p class="mail-sender">Amazon Orders</p>
+              <span class="mail-address">auto-confirm@amazon-billing-check.com</span>
+            </div>
+            <p class="mail-subject">Confirm your recent order</p>
+            <span class="mail-bucket">Suspicious</span>
+            <span class="mail-score">38</span>
+            <time class="mail-time">Jul 24</time>
+          </li>
+        </ul>
+      </section>
+
+      <section class="mail-group" aria-labelledby="dossier-older">
+        <h2 class="date-heading" id="dossier-older">Older</h2>
+        <ul class="mail-list">
+          <li class="mail-row mail-safe">
+            <div>
+              <p class="mail-sender">Google</p>
+              <span class="mail-address">no-reply@accounts.google.com</span>
+            </div>
+            <p class="mail-subject">Security review completed</p>
+            <span class="mail-bucket">Reviewed safe</span>
+            <span class="mail-score">11</span>
+            <time class="mail-time">Jul 21</time>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <nav class="pagination" aria-label="Inbox pagination">
+      <span class="pagination-label">Page 1 of 35</span>
+      <div class="pagination-actions">
+        <button class="page-button" type="button" aria-label="Previous page" disabled>←</button>
+        <button class="page-button" type="button" aria-label="Next page">→</button>
+      </div>
+    </nav>
+  </section>
+</div>

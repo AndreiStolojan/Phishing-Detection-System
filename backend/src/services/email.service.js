@@ -25,6 +25,7 @@ import { parseDateRangeQuery } from '../common/utils/date-range.js';
 import Email from '../models/email.model.js';
 import Scan from '../models/scan.model.js';
 import { buildEmailStateForUser } from './email-state.service.js';
+import { isAttachmentAnalysisEnabled } from '../config/env.js';
 
 // Valorile permise pentru filtrul "verdict" (verdictul scanului/userului).
 const ALLOWED_VERDICTS = new Set(['safe', 'suspicious', 'likely_phishing', 'phishing']);
@@ -117,11 +118,63 @@ const toEmailListItem = ({ email }) => {
     };
 };
 
+const MAX_PUBLIC_ATTACHMENT_ANALYSIS_ITEMS = 10;
+const MAX_PUBLIC_ATTACHMENT_FINDINGS = 15;
+
+const publicAttachmentMetadata = (attachments) =>
+    (Array.isArray(attachments) ? attachments : []).map((attachment) => ({
+        filename: typeof attachment?.filename === 'string' ? attachment.filename : '',
+        declaredMimeType: typeof attachment?.declaredMimeType === 'string'
+            ? attachment.declaredMimeType
+            : 'application/octet-stream',
+        size: Number.isSafeInteger(attachment?.size) && attachment.size >= 0
+            ? attachment.size
+            : null,
+    }));
+
+const publicAttachmentAnalysis = (analysis) => {
+    if (!analysis || typeof analysis !== 'object') return null;
+
+    const status = ['evaluated', 'partial', 'skipped', 'unavailable'].includes(analysis.status)
+        ? analysis.status
+        : 'unavailable';
+    const items = Array.isArray(analysis.items) ? analysis.items : [];
+
+    return {
+        status,
+        reason: typeof analysis.reason === 'string' ? analysis.reason : null,
+        evaluatedAt: analysis.evaluatedAt || null,
+        items: items.slice(0, MAX_PUBLIC_ATTACHMENT_ANALYSIS_ITEMS).map((item) => ({
+            attachmentIndex: Number.isInteger(item?.attachmentIndex) && item.attachmentIndex >= 0
+                ? item.attachmentIndex
+                : null,
+            status: ['evaluated', 'skipped', 'unavailable', 'invalid'].includes(item?.status)
+                ? item.status
+                : 'unavailable',
+            reason: typeof item?.reason === 'string' ? item.reason : null,
+            detectedMimeType: typeof item?.detectedMimeType === 'string'
+                ? item.detectedMimeType
+                : null,
+            detectedExtension: typeof item?.detectedExtension === 'string'
+                ? item.detectedExtension
+                : null,
+            findings: (Array.isArray(item?.findings) ? item.findings : [])
+                .filter((finding) => typeof finding === 'string')
+                .slice(0, MAX_PUBLIC_ATTACHMENT_FINDINGS),
+        })),
+    };
+};
+
 // Construiește răspunsul pentru detaliile unui email (GET /emails/:id):
 // emailul de bază + scanul curent + "starea" lui (effectiveVerdict, riskBucket,
 // reviewStatus — calculate de email-state.service.js) + dacă este prima dată
 // când userul primește un email de la acest expeditor (isFirstTimeSender).
-const toEmailDetails = async ({ userId, email, latestScan }) => {
+const toEmailDetails = async ({
+    userId,
+    email,
+    latestScan,
+    attachmentAnalysisEnabled,
+}) => {
     const [emailState, priorSenderCount] = await Promise.all([
         buildEmailStateForUser({ userId, email, latestScan }),
         // Numărăm câte alte emailuri (diferite de acesta) am mai primit de la
@@ -152,6 +205,13 @@ const toEmailDetails = async ({ userId, email, latestScan }) => {
         hasShortenedUrl: email.hasShortenedUrl,
         suspiciousLinkPatterns: email.suspiciousLinkPatterns,
         attachmentExtensions: email.attachmentExtensions,
+        attachments: attachmentAnalysisEnabled
+            ? publicAttachmentMetadata(email.attachments)
+            : [],
+        attachmentAnalysis: attachmentAnalysisEnabled
+            ? publicAttachmentAnalysis(email.attachmentAnalysis)
+            : null,
+        authResults: email.authResults || null,
         receivedAt: email.receivedAt,
         syncSource: email.syncSource,
         lastProviderAction: email.lastProviderAction || null,
@@ -192,6 +252,7 @@ const toEmailRaw = (email) => ({
     hasShortenedUrl: email.hasShortenedUrl,
     suspiciousLinkPatterns: email.suspiciousLinkPatterns,
     attachmentExtensions: email.attachmentExtensions,
+    authResults: email.authResults || null,
     receivedAt: email.receivedAt,
     syncSource: email.syncSource,
     lastProviderAction: email.lastProviderAction || null,
@@ -298,6 +359,7 @@ const parseEmailListQuery = (query = {}) => {
 const buildEmailListBaseMatch = ({ userId, q, mailAccountId, range }) => {
     const match = {
         userId: new mongoose.Types.ObjectId(String(userId)),
+        inboxState: { $ne: 'removed' },
     };
 
     if (mailAccountId) {
@@ -331,7 +393,11 @@ const buildEmailListBaseMatch = ({ userId, q, mailAccountId, range }) => {
 // Folosește un $lookup cu sub-pipeline (echivalentul unui JOIN din SQL): pentru
 // fiecare email, caută în colecția "scans" documentele cu același emailId și
 // userId, le sortează descrescător după dată și ține doar primul (cel mai nou).
-const buildLatestScanLookupStages = () => [
+// Exportat pentru că și alte servicii au nevoie de EXACT aceeași derivare a
+// stării (ex: sender-list.service.js, care numără emailurile acoperite de o
+// regulă pe categorii de risc). Duplicarea logicii ar face ca aceleași emailuri
+// să apară în categorii diferite în ecrane diferite.
+export const buildLatestScanLookupStages = () => [
     {
         $lookup: {
             from: 'scans',
@@ -493,7 +559,9 @@ const riskBucketExpr = {
 // Pasul de aggregation care adaugă toate cele 5 câmpuri "de stare" calculate
 // mai sus (effectiveVerdict, verdictSource, reviewStatus, isQuarantined,
 // riskBucket) pe fiecare document de email din pipeline.
-const buildEmailStateStages = () => [
+// Exportat din același motiv ca buildLatestScanLookupStages de mai sus: cele
+// două se folosesc mereu împreună, în această ordine.
+export const buildEmailStateStages = () => [
     {
         $addFields: {
             effectiveVerdict: effectiveVerdictExpr,
@@ -650,7 +718,11 @@ export const getEmailsForUser = async ({ userId, query }) => {
 
 // GET /emails/:id — detaliile complete ale unui email (cu scanul curent și
 // starea calculată: effectiveVerdict, riskBucket, reviewStatus, isFirstTimeSender).
-export const getEmailByIdForUser = async ({ userId, emailId }) => {
+export const getEmailByIdForUser = async ({
+    userId,
+    emailId,
+    attachmentAnalysisEnabled = isAttachmentAnalysisEnabled(),
+}) => {
     const email = await findOwnedEmailById({ userId, emailId });
     const latestScan = await findLatestScanForOwnedEmail({
         userId,
@@ -661,6 +733,7 @@ export const getEmailByIdForUser = async ({ userId, emailId }) => {
         userId,
         email,
         latestScan,
+        attachmentAnalysisEnabled,
     });
 };
 
@@ -688,7 +761,13 @@ export const getTrendForUser = async ({ userId, days = 30, from, to } = {}) => {
         : { $gte: since };
 
     const results = await Email.aggregate([
-        { $match: { userId: userObjectId, receivedAt: receivedAtMatch } },
+        {
+            $match: {
+                userId: userObjectId,
+                inboxState: { $ne: 'removed' },
+                receivedAt: receivedAtMatch,
+            },
+        },
         ...buildLatestScanLookupStages(),
         ...buildEmailStateStages(),
         {
@@ -751,7 +830,13 @@ export const getTopRiskySendersForUser = async ({ userId, days = 30, limit = 5, 
         : { $gte: since };
 
     const results = await Email.aggregate([
-        { $match: { userId: userObjectId, receivedAt: receivedAtMatch } },
+        {
+            $match: {
+                userId: userObjectId,
+                inboxState: { $ne: 'removed' },
+                receivedAt: receivedAtMatch,
+            },
+        },
         ...buildLatestScanLookupStages(),
         ...buildEmailStateStages(),
         {
@@ -813,7 +898,7 @@ export const getTopRiskySendersForUser = async ({ userId, days = 30, limit = 5, 
 export const getRiskBucketCountsForUser = async ({ userId, days, from, to } = {}) => {
     const userObjectId = new mongoose.Types.ObjectId(String(userId));
 
-    const match = { userId: userObjectId };
+    const match = { userId: userObjectId, inboxState: { $ne: 'removed' } };
     const range = parseDateRangeQuery({ from, to });
     const windowDays = Number.parseInt(days, 10);
 

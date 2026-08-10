@@ -1,0 +1,10 @@
+{
+  "id": "link-count-medium-lower",
+  "email": {
+    "senderDomain": "example.test",
+    "linkCount": 6
+  },
+  "ai": {
+    "enabled": false
+  }
+}

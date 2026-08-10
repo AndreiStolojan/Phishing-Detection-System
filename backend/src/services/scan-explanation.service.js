@@ -29,6 +29,39 @@ const RULE_PHRASES = {
     high_risk_attachment_extension: 'the email contains a high-risk attachment',
     archive_attachment_extension:
         'the email contains a compressed archive attachment',
+    attachment_known_malware_hash: 'an attachment matches known malware',
+    attachment_type_mismatch_dangerous: 'an attachment disguises executable content',
+    attachment_encrypted_archive_with_password_in_body:
+        'an encrypted archive password appears in the message',
+    attachment_double_extension: 'an attachment uses a misleading double extension',
+    attachment_rtl_override_filename: 'an attachment uses a misleading filename direction',
+    attachment_macro_enabled_office: 'an Office attachment contains macros',
+    attachment_pdf_openaction_javascript: 'a PDF runs JavaScript when opened',
+    attachment_encrypted_archive: 'an attachment is an encrypted archive',
+    attachment_nested_archive: 'an archive contains another archive',
+    attachment_type_mismatch_suspicious: 'an attachment type does not match its name',
+    attachment_zip_bomb_ratio: 'an archive has an unsafe compression ratio',
+    attachment_dangerous_archive_entry: 'an archive contains an executable or script',
+    attachment_archive_path_traversal: 'an archive contains an unsafe path',
+    attachment_pdf_external_uri: 'a PDF points outside the sender domain',
+    attachment_legacy_office_unverified:
+        'an unverified sender attached a legacy Office document',
+    'threat_intelligence:url_known_malicious':
+        'Google Web Risk or URLhaus identified a known malicious link',
+    'threat_intelligence:url_known_phishing_campaign':
+        'Google Web Risk identified a known phishing link',
+    'threat_intelligence:domain_registered_days_ago_lt_7':
+        'a linked domain was registered less than seven days ago',
+    'threat_intelligence:domain_registered_days_ago_lt_30':
+        'a linked domain was registered less than thirty days ago',
+    'threat_intelligence:link_text_href_mismatch':
+        'a displayed link address differs from its real destination',
+    'threat_intelligence:redirect_chain_to_different_tld':
+        'a shortened link redirects away from the sender domain',
+    'threat_intelligence:excessive_redirect_chain':
+        'a shortened link uses an unusually long redirect chain',
+    'threat_intelligence:redirect_to_private_address':
+        'a redirect attempted to reach a private network address',
 };
 
 // Transformă un id de regulă (ex: "ip_address_link", "too_many_links_high") într-o

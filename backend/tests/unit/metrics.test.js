@@ -5,6 +5,12 @@ import { readFile } from 'node:fs/promises';
 import {
   metricsHandler,
   metricsRegistry,
+  recordGmailHistoryGap,
+  recordGmailMessagesIngested,
+  recordGmailPushLatency,
+  recordGmailPushNotification,
+  recordGmailSync,
+  recordGmailWatchRenewal,
   recordScheduledTask,
 } from '../../src/monitoring/metrics.js';
 import { observeHttpRequests } from '../../src/monitoring/metrics.middleware.js';
@@ -67,7 +73,7 @@ test('metrics endpoint returns Prometheus text without application data', async 
 
   assert.match(response.headers['Content-Type'], /text\/plain/);
   assert.match(response.body, /secureinbox_http_requests_total/);
-  assert.doesNotMatch(response.body, /@|gmail|token/i);
+  assert.doesNotMatch(response.body, /@|token/i);
 });
 
 test('scheduled task metrics use bounded task and result labels', async () => {
@@ -83,6 +89,40 @@ test('scheduled task metrics use bounded task and result labels', async () => {
   assert.throws(() => recordScheduledTask({ task: 'auto_sync', result: 'maybe' }));
 });
 
+test('Gmail sync metrics expose only bounded labels and no mailbox data', async () => {
+  recordGmailSync({ mode: 'backfill', result: 'success' });
+  recordGmailSync({ mode: 'incremental', result: 'failure' });
+  recordGmailSync({ mode: 'resync', result: 'success' });
+  recordGmailMessagesIngested(3);
+  recordGmailHistoryGap();
+
+  const output = await metricsRegistry.metrics();
+  assert.match(output, /secureinbox_gmail_sync_total\{mode="backfill",result="success"\} 1/);
+  assert.match(output, /secureinbox_gmail_sync_total\{mode="incremental",result="failure"\} 1/);
+  assert.match(output, /secureinbox_gmail_sync_total\{mode="resync",result="success"\} 1/);
+  assert.match(output, /secureinbox_gmail_messages_ingested_total 3/);
+  assert.match(output, /secureinbox_gmail_history_gap_total 1/);
+  assert.throws(() => recordGmailSync({ mode: 'manual', result: 'success' }));
+  assert.throws(() => recordGmailSync({ mode: 'backfill', result: 'pending' }));
+  assert.throws(() => recordGmailMessagesIngested(-1));
+});
+
+test('Gmail push metrics accept only bounded outcomes and numeric latency', async () => {
+  recordGmailPushNotification('processed');
+  recordGmailPushNotification('duplicate');
+  recordGmailWatchRenewal('success');
+  recordGmailPushLatency(0.5);
+
+  const output = await metricsRegistry.metrics();
+  assert.match(output, /secureinbox_gmail_push_notifications_total\{result="processed"\} 1/);
+  assert.match(output, /secureinbox_gmail_push_notifications_total\{result="duplicate"\} 1/);
+  assert.match(output, /secureinbox_gmail_watch_renewals_total\{result="success"\} 1/);
+  assert.match(output, /secureinbox_gmail_push_latency_seconds_count 1/);
+  assert.throws(() => recordGmailPushNotification('mailbox@example.test'));
+  assert.throws(() => recordGmailWatchRenewal('retrying'));
+  assert.throws(() => recordGmailPushLatency(-1));
+});
+
 test('every custom metric is shown in the operational dashboard', async () => {
   const dashboard = await readFile(new URL('../../../monitoring/grafana/dashboards/secureinbox-local.json', import.meta.url), 'utf8');
   for (const metric of [
@@ -90,6 +130,13 @@ test('every custom metric is shown in the operational dashboard', async () => {
     'secureinbox_http_request_duration_seconds',
     'secureinbox_scheduled_tasks_total',
     'secureinbox_scheduled_task_last_success_timestamp_seconds',
+    'secureinbox_detection_provider_total',
+    'secureinbox_gmail_sync_total',
+    'secureinbox_gmail_messages_ingested_total',
+    'secureinbox_gmail_history_gap_total',
+    'secureinbox_gmail_push_notifications_total',
+    'secureinbox_gmail_watch_renewals_total',
+    'secureinbox_gmail_push_latency_seconds',
   ]) {
     assert.match(dashboard, new RegExp(metric));
   }

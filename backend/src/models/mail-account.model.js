@@ -73,6 +73,48 @@ const mailAccountSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        lastHistoryId: {
+            type: String,
+            default: null,
+        },
+        lastFullSyncAt: {
+            type: Date,
+            default: null,
+        },
+        syncState: {
+            type: String,
+            enum: ['never_synced', 'backfilling', 'incremental', 'resync_required'],
+            default: 'never_synced',
+        },
+        backfillPageToken: {
+            type: String,
+            default: null,
+        },
+        backfillCompletedAt: {
+            type: Date,
+            default: null,
+        },
+        syncLock: {
+            type: new mongoose.Schema(
+                {
+                    lockedAt: { type: Date, required: true },
+                    lockedBy: { type: String, required: true },
+                },
+                { _id: false }
+            ),
+            default: null,
+        },
+        // Watch metadata never advances the authoritative T3 sync cursor.
+        watchExpiration: { type: Date, default: null },
+        watchRegisteredAt: { type: Date, default: null },
+        watchHistoryId: { type: String, default: null },
+        watchStatus: {
+            type: String,
+            enum: ['active', 'expired', 'failed', 'disabled'],
+            default: 'disabled',
+        },
+        watchFailureCount: { type: Number, min: 0, default: 0 },
+        lastPushNotificationAt: { type: Date, default: null },
         syncMaxResults: {
             type: Number,
             default: 10,
@@ -95,6 +137,7 @@ const mailAccountSchema = new mongoose.Schema(
 // suplimentară pe care MongoDB o ține pentru căutări rapide și, aici, pentru
 // a împiedica intrări duplicate.
 mailAccountSchema.index({ userId: 1, provider: 1 }, { unique: true });
+mailAccountSchema.index({ accountEmail: 1, provider: 1, status: 1 });
 
 const MailAccount = mongoose.model('MailAccount', mailAccountSchema);
 

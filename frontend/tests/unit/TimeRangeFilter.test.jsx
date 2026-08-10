@@ -17,7 +17,7 @@ describe('TimeRangeFilter', () => {
     await user.click(screen.getByRole('button', { name: /last 30 days/i }));
     expect(screen.getByRole('dialog')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Custom' }));
+    await user.click(screen.getByRole('button', { name: 'Custom range' }));
 
     expect(screen.getAllByLabelText('Month')).toHaveLength(2);
     expect(screen.getAllByLabelText('Year')).toHaveLength(2);

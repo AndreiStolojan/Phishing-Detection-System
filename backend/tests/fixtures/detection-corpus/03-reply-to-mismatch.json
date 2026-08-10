@@ -1,0 +1,10 @@
+{
+  "id": "reply-to-mismatch",
+  "email": {
+    "senderDomain": "example.test",
+    "replyToDomain": "reply.example.test"
+  },
+  "ai": {
+    "enabled": false
+  }
+}

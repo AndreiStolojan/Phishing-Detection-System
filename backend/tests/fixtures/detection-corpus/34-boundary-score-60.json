@@ -1,0 +1,15 @@
+{
+  "id": "boundary-score-60",
+  "email": {
+    "senderDomain": "example.test",
+    "suspiciousLinkPatterns": [
+      "ip_address_link"
+    ],
+    "attachmentExtensions": [
+      "exe"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "ai-cap",
+  "email": {
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "high",
+      "sensitiveDataRequest": true,
+      "loginOrActionRequest": true,
+      "socialEngineeringLevel": "high",
+      "brandImpersonationSuspected": true
+    }
+  }
+}

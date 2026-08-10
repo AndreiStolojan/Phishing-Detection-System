@@ -1,0 +1,16 @@
+{
+  "id": "boundary-score-59",
+  "email": {
+    "senderDomain": "example.test",
+    "attachmentExtensions": [
+      "exe"
+    ]
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "urgencyLevel": "medium",
+      "sensitiveDataRequest": true
+    }
+  }
+}

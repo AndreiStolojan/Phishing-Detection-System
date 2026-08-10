@@ -11,8 +11,13 @@ import {
 
 // ── verifySenderBrand ──────────────────────────────────────────────────────────
 
+const AUTHENTICATED = {
+    status: 'ok',
+    dmarc: { result: 'pass', alignment: 'relaxed' },
+};
+
 test('verifies an exact official brand domain', () => {
-    const result = verifySenderBrand({ senderDomain: 'paypal.com' });
+    const result = verifySenderBrand({ senderDomain: 'paypal.com', authResults: AUTHENTICATED });
     assert.equal(result.senderVerifiedBrand, true);
     assert.equal(result.brandName, 'PayPal');
     assert.equal(result.matchedDomain, 'paypal.com');
@@ -20,13 +25,13 @@ test('verifies an exact official brand domain', () => {
 });
 
 test('verifies a subdomain of an official brand domain (mail.paypal.com → paypal.com)', () => {
-    const result = verifySenderBrand({ senderDomain: 'mail.paypal.com' });
+    const result = verifySenderBrand({ senderDomain: 'mail.paypal.com', authResults: AUTHENTICATED });
     assert.equal(result.senderVerifiedBrand, true);
     assert.equal(result.brandName, 'PayPal');
 });
 
 test('verifies regardless of case and a leading www.', () => {
-    const result = verifySenderBrand({ senderDomain: 'WWW.PayPal.com' });
+    const result = verifySenderBrand({ senderDomain: 'WWW.PayPal.com', authResults: AUTHENTICATED });
     assert.equal(result.senderVerifiedBrand, true);
     assert.equal(result.senderDomain, 'paypal.com');
 });
@@ -61,6 +66,29 @@ test('does not verify an unknown brand domain (safe fallback)', () => {
 test('handles a missing/empty sender domain', () => {
     assert.equal(verifySenderBrand({}).senderVerifiedBrand, false);
     assert.equal(verifySenderBrand({ senderDomain: '' }).senderVerifiedBrand, false);
+});
+
+test('known brand without aligned DMARC is claimed but never verified', () => {
+    const failed = verifySenderBrand({
+        senderDomain: 'paypal.com',
+        authResults: {
+            status: 'ok',
+            dmarc: { result: 'fail', alignment: 'none' },
+        },
+    });
+    const unavailable = verifySenderBrand({
+        senderDomain: 'paypal.com',
+        authResults: {
+            status: 'unavailable',
+            dmarc: { result: 'pass', alignment: 'relaxed' },
+        },
+    });
+
+    assert.equal(failed.senderVerifiedBrand, false);
+    assert.equal(failed.brandState, 'claimed_unauthenticated');
+    assert.equal(failed.authenticationStatus, 'fail');
+    assert.equal(unavailable.senderVerifiedBrand, false);
+    assert.equal(unavailable.authenticationStatus, 'unavailable');
 });
 
 // ── applyVerifiedBrandModifier ───────────────────────────────────────────────────

@@ -1,0 +1,12 @@
+{
+  "id": "clean-ai-evaluated",
+  "email": {
+    "subject": "Your receipt",
+    "from": "receipts@example.test",
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {}
+  }
+}

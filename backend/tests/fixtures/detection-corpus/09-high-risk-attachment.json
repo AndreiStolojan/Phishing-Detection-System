@@ -1,0 +1,12 @@
+{
+  "id": "high-risk-attachment",
+  "email": {
+    "senderDomain": "example.test",
+    "attachmentExtensions": [
+      "exe"
+    ]
+  },
+  "ai": {
+    "enabled": false
+  }
+}

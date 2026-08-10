@@ -1,0 +1,12 @@
+{
+  "id": "ai-social-engineering-high",
+  "email": {
+    "senderDomain": "example.test"
+  },
+  "ai": {
+    "enabled": true,
+    "signals": {
+      "socialEngineeringLevel": "high"
+    }
+  }
+}
