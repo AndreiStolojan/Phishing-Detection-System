@@ -208,6 +208,17 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
+### Automated review
+
+Two coding agents review pull requests on request. Neither runs automatically,
+and neither appears in the GitHub reviewer list; both start from a pull request
+comment. Their shared rules live in `AGENTS.md`, which `CLAUDE.md` imports.
+
+| Agent  | Review only                | Change the pull request branch                         |
+| ------ | -------------------------- | ------------------------------------------------------ |
+| Codex  | `@codex review`            | `@codex fix the reported issue and push the changes`   |
+| Claude | `@claude review this PR`   | `@claude fix the reported issue and push to this branch` |
+
 ## Limitations
 
 - Gmail OAuth requires a Google Cloud client and configured test users.
