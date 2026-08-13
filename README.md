@@ -54,6 +54,8 @@ threat intel, attachments) is its own module with its own weights, isolated
 so that one provider's failure or external dependency never blocks a scan.
 See [architecture.md](docs/architecture.md) and
 [detection-engine.md](docs/detection-engine.md) for the deeper design.
+Repository branch gates, dependency maintenance, and the production emergency
+procedure are documented in [repository-controls.md](docs/repository-controls.md).
 
 ## Quick start
 
