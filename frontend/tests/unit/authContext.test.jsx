@@ -115,3 +115,13 @@ it('reacts immediately to authentication failure outside the provider', async ()
   expect(hook.result.current.user).toBeNull();
   expect(hook.result.current.isAuthenticated).toBe(false);
 });
+
+it('finishes checking the session when the initial identity refresh expires', async () => {
+  setStoredToken('expired');
+  getMe.mockRejectedValueOnce(new Error('Session expired'));
+  const hook = renderHook(() => useContext(AuthContext), { wrapper: AuthProvider });
+  await waitFor(() => expect(hook.result.current.loading).toBe(false));
+  expect(hook.result.current.user).toBeNull();
+  expect(hook.result.current.isAuthenticated).toBe(false);
+  expect(window.localStorage.getItem('secureinbox_token')).toBeNull();
+});
